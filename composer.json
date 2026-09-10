@@ -1,0 +1,20 @@
+{
+    "name": "alex-kassel/workspace-development-toolkit",
+    "type": "library",
+    "version": "0.0.1",
+    "autoload": {
+        "psr-4": {
+            "AlexKassel\\WorkspaceDevelopmentToolkit\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AlexKassel\\WorkspaceDevelopmentToolkit\\WorkspaceDevelopmentToolkitServiceProvider"
+            ],
+            "aliases": {
+                "Workspace": "AlexKassel\\WorkspaceDevelopmentToolkit\\Facades\\Workspace"
+            }
+        }
+    }
+}
