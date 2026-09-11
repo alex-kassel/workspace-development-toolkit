@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Str;
 
 class PackageInstallCommand extends Command
 {
@@ -37,31 +36,22 @@ class PackageInstallCommand extends Command
 
         $canonicalName = Workspace::resolveCanonicalPackageName($normalizedInput);
 
-        if (! str_contains($canonicalName, '/')) {
-            $this->error("Invalid package name [{$rawName}]. Package must be in 'vendor/package' format or belong to a workspace with a fixed vendor.");
-            $this->line('  <comment>How to fix:</comment> Specify the full package name, e.g.:');
-            $this->line('  <info>php artisan package:install my-vendor/my-package</info>');
-            $this->line('  Or check registered workspaces: <info>php artisan workspace:list</info>');
+        $validation = Workspace::validatePackageName($canonicalName);
+        if (! $validation['isValid']) {
+            $this->error($validation['error'] ?? "Invalid package name [{$rawName}].");
+            if ($validation['suggestion'] !== null) {
+                $this->line('  <comment>How to fix:</comment> Did you mean:');
+                $this->line("  <info>php artisan package:install {$validation['suggestion']}".($isDev ? ' --dev' : '').'</info>');
+            } else {
+                $this->line('  <comment>How to fix:</comment> Specify the full package name:');
+                $this->line('  <info>php artisan package:install my-vendor/my-package</info>');
+                $this->line('  Or check registered workspaces: <info>php artisan workspace:list</info>');
+            }
 
             return self::FAILURE;
         }
 
-        [$rawVendor, $rawPackage] = explode('/', $canonicalName, 2);
-        $vendor = strtolower(trim($rawVendor));
-        $package = strtolower(trim($rawPackage));
-
-        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
-        if (! preg_match($segmentPattern, $vendor) || ! preg_match($segmentPattern, $package)) {
-            $suggestedVendor = Str::slug($vendor);
-            $suggestedPackage = Str::slug($package);
-            $this->error("Invalid package name [{$rawName}]. Composer names may only contain lowercase letters, numbers, dashes, underscores, and dots.");
-            $this->line('  <comment>How to fix:</comment> Did you mean:');
-            $this->line("  <info>php artisan package:install {$suggestedVendor}/{$suggestedPackage}".($isDev ? ' --dev' : '').'</info>');
-
-            return self::FAILURE;
-        }
-
-        $name = "{$vendor}/{$package}";
+        $name = $validation['fullName'];
 
         if ($name !== $rawName) {
             $this->line("  <comment>Notice:</comment> Resolved package [{$rawName}] to Composer package [{$name}].");
@@ -86,7 +76,7 @@ class PackageInstallCommand extends Command
         }
 
         $packageConstraint = $packagePath ? "{$name}:@dev" : $name;
-        $args = ['composer', 'require', $packageConstraint];
+        $args = ['require', $packageConstraint];
 
         if ($isDev) {
             $args[] = '--dev';
@@ -94,13 +84,11 @@ class PackageInstallCommand extends Command
 
         $this->info("Installing [{$name}] via Composer...");
 
-        $result = Process::path(base_path())
-            ->timeout((int) config('workspace.process_timeout', 300))
-            ->run($args);
-
-        if (! $result->successful()) {
+        try {
+            Workspace::runComposer($args);
+        } catch (ComposerProcessException $e) {
             $this->error("Failed to install package [{$name}] via Composer.");
-            $this->line("  <comment>Composer output:</comment>\n".trim($result->errorOutput()));
+            $this->line("  <comment>Composer output:</comment>\n".trim($e->output));
             $this->line('  <comment>How to fix:</comment> If this is a local package, verify that it was created first:');
             $this->line("  <info>php artisan package:make {$name}</info>");
             $this->line('  Also check your registered workspaces: <info>php artisan workspace:list</info>');

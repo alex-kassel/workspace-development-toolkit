@@ -1,7 +1,23 @@
 {
     "name": "alex-kassel/workspace-development-toolkit",
+    "description": "Flexible multi-workspace local package development toolkit for Laravel.",
+    "license": "MIT",
     "type": "library",
     "version": "0.0.1",
+    "keywords": [
+        "laravel",
+        "workspace",
+        "packages",
+        "composer",
+        "monorepo",
+        "toolkit"
+    ],
+    "authors": [
+        {
+            "name": "Alex Kassel",
+            "role": "Developer"
+        }
+    ],
     "require": {
         "php": "^8.2",
         "illuminate/support": "^11.0|^12.0|^13.0",

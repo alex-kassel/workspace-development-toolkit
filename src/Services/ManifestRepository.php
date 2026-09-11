@@ -91,7 +91,7 @@ class ManifestRepository
     {
         $path = $this->workspaceJsonPath();
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n";
-        File::put($path, $json);
+        File::put($path, $json, true);
         $this->cache = $data;
     }
 

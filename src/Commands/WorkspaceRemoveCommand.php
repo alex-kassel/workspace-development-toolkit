@@ -57,7 +57,7 @@ class WorkspaceRemoveCommand extends Command
         $this->line('  <comment>Hint:</comment> Workspace removal only unregisters the repository.');
         $this->line("  1. The physical directory [{$path}/] was preserved.");
         $this->line("     <fg=yellow;options=bold>CAUTION:</> Before deleting it manually, verify that git working trees inside [{$path}/] are clean and all commits have been pushed!");
-        $this->line("  2. If you no longer need git ignore rules for it, remove [/{$path}] from your .gitignore file.");
+        $this->line("  2. The ignore rule [/{$path}] has been cleanly removed from your .gitignore file.");
 
         return self::SUCCESS;
     }

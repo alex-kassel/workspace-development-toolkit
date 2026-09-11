@@ -233,18 +233,24 @@ class WorkspaceCloneCommand extends Command
         if ($install && $canonicalComposerName) {
             $this->info("Registering and symlinking [{$canonicalComposerName}] into root application...");
 
-            $requireArgs = ['composer', 'require', "{$canonicalComposerName}:@dev"];
+            $requireArgs = ['require', "{$canonicalComposerName}:@dev"];
             if ($dev) {
                 $requireArgs[] = '--dev';
             }
 
-            $installResult = Process::path(base_path())->timeout($timeout)->run($requireArgs);
+            try {
+                $installResult = Workspace::runComposer($requireArgs, $timeout);
 
-            if (! $installResult->successful()) {
-                $this->error("Failed to install package [{$canonicalComposerName}] via Composer.");
-                $this->line("  <comment>Composer output:</comment>\n".trim($installResult->errorOutput() ?: $installResult->output()));
-                $this->line('  <comment>How to fix:</comment> Run composer require manually:');
-                $this->line("  <info>composer require {$canonicalComposerName}:@dev".($dev ? ' --dev' : '').'</info>');
+                if (! $installResult->successful()) {
+                    $this->error("Failed to install package [{$canonicalComposerName}] via Composer.");
+                    $this->line("  <comment>Composer output:</comment>\n".trim($installResult->errorOutput() ?: $installResult->output()));
+                    $this->line('  <comment>How to fix:</comment> Run composer require manually:');
+                    $this->line("  <info>composer require {$canonicalComposerName}:@dev".($dev ? ' --dev' : '').'</info>');
+
+                    return self::FAILURE;
+                }
+            } catch (\Throwable $e) {
+                $this->error("Failed to execute Composer: {$e->getMessage()}");
 
                 return self::FAILURE;
             }

@@ -8,6 +8,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\AmbiguousPackageException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 use JsonException;
 use Throwable;
 
@@ -450,5 +451,113 @@ class PackageResolver
         return $useSsh
             ? "git@github.com:{$pkgName}.git"
             : "https://github.com/{$pkgName}.git";
+    }
+
+    /**
+     * Validate Composer package name syntax and resolve parts.
+     *
+     * @return array{
+     *     vendor: string,
+     *     package: string,
+     *     fullName: string,
+     *     isValid: bool,
+     *     error: ?string,
+     *     suggestion: ?string
+     * }
+     */
+    public function validatePackageName(string $input, ?string $workspaceVendor = null): array
+    {
+        $normalized = str_replace('\\', '/', trim($input));
+        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
+
+        if (str_contains($normalized, '/')) {
+            [$rawVendor, $rawPackage] = explode('/', $normalized, 2);
+            $rawVendor = trim($rawVendor);
+            $rawPackage = trim($rawPackage);
+
+            $vendor = strtolower($rawVendor);
+            $package = strtolower($rawPackage);
+
+            $validVendor = (bool) preg_match($segmentPattern, $rawVendor);
+            $validPackage = (bool) preg_match($segmentPattern, $rawPackage);
+
+            if (! $validVendor || ! $validPackage) {
+                $suggestedVendor = Str::slug($vendor);
+                $suggestedPackage = Str::slug($package);
+
+                return [
+                    'vendor' => $vendor,
+                    'package' => $package,
+                    'fullName' => "{$vendor}/{$package}",
+                    'isValid' => false,
+                    'error' => "Invalid package name [{$input}]. Composer vendor and package names must contain only lowercase letters, numbers, dashes, underscores, and dots.",
+                    'suggestion' => "{$suggestedVendor}/{$suggestedPackage}",
+                ];
+            }
+
+            return [
+                'vendor' => $vendor,
+                'package' => $package,
+                'fullName' => "{$vendor}/{$package}",
+                'isValid' => true,
+                'error' => null,
+                'suggestion' => null,
+            ];
+        }
+
+        // Single segment input
+        $rawPackage = trim($normalized);
+        $package = strtolower($rawPackage);
+        $validPackage = (bool) preg_match($segmentPattern, $rawPackage);
+
+        if ($workspaceVendor !== null) {
+            $rawWsVendor = trim($workspaceVendor);
+            $vendor = strtolower($rawWsVendor);
+            $validWsVendor = (bool) preg_match($segmentPattern, $rawWsVendor);
+
+            if (! $validPackage || ! $validWsVendor) {
+                $suggested = Str::slug($package);
+
+                return [
+                    'vendor' => $vendor,
+                    'package' => $package,
+                    'fullName' => "{$vendor}/{$package}",
+                    'isValid' => false,
+                    'error' => "Invalid package name [{$input}]. Composer package names must contain only lowercase letters, numbers, dashes, underscores, and dots.",
+                    'suggestion' => $suggested,
+                ];
+            }
+
+            return [
+                'vendor' => $vendor,
+                'package' => $package,
+                'fullName' => "{$vendor}/{$package}",
+                'isValid' => true,
+                'error' => null,
+                'suggestion' => null,
+            ];
+        }
+
+        if (! $validPackage) {
+            $suggested = Str::slug($package);
+
+            return [
+                'vendor' => '',
+                'package' => $package,
+                'fullName' => $package,
+                'isValid' => false,
+                'error' => "Invalid package name [{$input}]. Composer package names must contain only lowercase letters, numbers, dashes, underscores, and dots.",
+                'suggestion' => "my-vendor/{$suggested}",
+            ];
+        }
+
+        return [
+            'vendor' => '',
+            'package' => $package,
+            'fullName' => $package,
+            'isValid' => false,
+            'error' => "Package name [{$input}] requires a vendor prefix in 'vendor/package' format.",
+            'suggestion' => "my-vendor/{$package}",
+        ];
     }
 }

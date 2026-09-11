@@ -33,7 +33,7 @@ class FilesystemHelper
                 $itemPath = $item->getPathname();
 
                 if ($item->isLink() || is_link($itemPath)) {
-                    @chmod($itemPath, 0777);
+                    @chmod($itemPath, 0755);
                     if (PHP_OS_FAMILY === 'Windows' && is_dir($itemPath)) {
                         @rmdir($itemPath);
                     } else {
@@ -43,16 +43,16 @@ class FilesystemHelper
                     continue;
                 }
 
-                @chmod($itemPath, 0777);
-
                 if ($item->isDir()) {
+                    @chmod($itemPath, 0755);
                     @rmdir($itemPath);
                 } else {
+                    @chmod($itemPath, 0644);
                     @unlink($itemPath);
                 }
             }
 
-            @chmod($dir, 0777);
+            @chmod($dir, 0755);
             @rmdir($dir);
 
             return ! File::isDirectory($dir);
@@ -71,7 +71,7 @@ class FilesystemHelper
                 @rmdir($linkPath);
                 $winLink = str_replace('/', '\\', $linkPath);
                 $winTarget = str_replace('/', '\\', $targetFullPath);
-                Process::run(sprintf('cmd /c mklink /J %s %s', escapeshellarg($winLink), escapeshellarg($winTarget)));
+                Process::run(['cmd', '/c', 'mklink', '/J', $winLink, $winTarget]);
             }
         } else {
             if (is_link($linkPath) || file_exists($linkPath)) {

@@ -84,7 +84,7 @@ class ComposerManager
         }
 
         $composer['repositories'] = empty($newRepos) ? (object) [] : $newRepos;
-        File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+        File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n", true);
     }
 
     /**
@@ -109,18 +109,24 @@ class ComposerManager
         }
 
         if (! is_array($composer)) {
-            return;
+            throw new InvalidJsonException(
+                $composerPath,
+                'composer.json must be a valid JSON object'
+            );
         }
+
         $scripts = $composer['scripts'] ?? [];
         $modified = false;
 
-        $targetHook = 'php workspace restore';
+        $targetHooks = [
+            'pre-install-cmd' => 'php workspace restore',
+            'pre-update-cmd' => 'php workspace restore',
+        ];
 
-        foreach (['pre-install-cmd', 'pre-update-cmd'] as $hookName) {
-            $current = $scripts[$hookName] ?? [];
-            if (is_string($current)) {
-                $current = [$current];
-            }
+        foreach ($targetHooks as $hookName => $targetHook) {
+            $current = isset($scripts[$hookName])
+                ? (is_array($scripts[$hookName]) ? $scripts[$hookName] : [$scripts[$hookName]])
+                : [];
 
             if (! in_array($targetHook, $current, true)) {
                 $current[] = $targetHook;
@@ -131,7 +137,7 @@ class ComposerManager
 
         if ($modified) {
             $composer['scripts'] = $scripts;
-            File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+            File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n", true);
         }
     }
 

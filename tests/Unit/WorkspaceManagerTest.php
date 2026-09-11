@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Unit;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\AmbiguousPackageException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
@@ -458,5 +459,67 @@ class WorkspaceManagerTest extends TestCase
         Process::assertRan(function ($process) {
             return $process->timeout === 450;
         });
+    }
+
+    public function test_composer_process_exception_formats_output_and_exit_code(): void
+    {
+        $exception = new ComposerProcessException(
+            'composer require foo/bar',
+            127,
+            'command not found: composer'
+        );
+
+        $this->assertSame('composer require foo/bar', $exception->command);
+        $this->assertSame(127, $exception->exitCode);
+        $this->assertSame('command not found: composer', $exception->output);
+        $this->assertStringContainsString('failed with exit code [127]', $exception->getMessage());
+        $this->assertStringContainsString('command not found: composer', $exception->getMessage());
+    }
+
+    public function test_validate_package_name_syntax_and_normalization(): void
+    {
+        // Valid standard name
+        $res1 = Workspace::validatePackageName('vendor/package');
+        $this->assertTrue($res1['isValid']);
+        $this->assertSame('vendor', $res1['vendor']);
+        $this->assertSame('package', $res1['package']);
+        $this->assertSame('vendor/package', $res1['fullName']);
+        $this->assertNull($res1['error']);
+
+        // Flat workspace auto-prefixing with workspace vendor
+        $res2 = Workspace::validatePackageName('core-auth', 'my-org');
+        $this->assertTrue($res2['isValid']);
+        $this->assertSame('my-org', $res2['vendor']);
+        $this->assertSame('core-auth', $res2['package']);
+        $this->assertSame('my-org/core-auth', $res2['fullName']);
+
+        // Missing slash without workspace vendor
+        $res3 = Workspace::validatePackageName('just-package');
+        $this->assertFalse($res3['isValid']);
+        $this->assertNotNull($res3['error']);
+        $this->assertSame('my-vendor/just-package', $res3['suggestion']);
+
+        // Uppercase or invalid characters suggesting slug
+        $res4 = Workspace::validatePackageName('Vendor/My_Package');
+        $this->assertFalse($res4['isValid']);
+        $this->assertSame('vendor/my-package', $res4['suggestion']);
+    }
+
+    public function test_remove_from_gitignore_cleans_workspace_entries(): void
+    {
+        $gitignorePath = base_path('.gitignore');
+        File::put($gitignorePath, "/vendor\n/node_modules\n/packages/alpha\n/packages/beta/\n.env\n");
+
+        Workspace::removeFromGitignore('packages/alpha');
+
+        $content = File::get($gitignorePath);
+        $this->assertStringNotContainsString('/packages/alpha', $content);
+        $this->assertStringContainsString('/vendor', $content);
+        $this->assertStringContainsString('/packages/beta/', $content);
+
+        Workspace::removeFromGitignore('packages/beta');
+        $contentAfterBeta = File::get($gitignorePath);
+        $this->assertStringNotContainsString('/packages/beta', $contentAfterBeta);
+        $this->assertStringContainsString('.env', $contentAfterBeta);
     }
 }

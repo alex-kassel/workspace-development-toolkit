@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Str;
 
 class PackageUninstallCommand extends Command
 {
@@ -36,30 +35,21 @@ class PackageUninstallCommand extends Command
 
         $canonicalName = Workspace::resolveCanonicalPackageName($normalizedInput);
 
-        if (! str_contains($canonicalName, '/')) {
-            $this->error("Invalid package name [{$rawName}]. Package must be in 'vendor/package' format or belong to a workspace with a fixed vendor.");
-            $this->line('  <comment>How to fix:</comment> Specify the full package name, e.g.:');
-            $this->line('  <info>php artisan package:uninstall my-vendor/my-package</info>');
+        $validation = Workspace::validatePackageName($canonicalName);
+        if (! $validation['isValid']) {
+            $this->error($validation['error'] ?? "Invalid package name [{$rawName}].");
+            if ($validation['suggestion'] !== null) {
+                $this->line('  <comment>How to fix:</comment> Did you mean:');
+                $this->line("  <info>php artisan package:uninstall {$validation['suggestion']}".($this->option('dev') ? ' --dev' : '').'</info>');
+            } else {
+                $this->line('  <comment>How to fix:</comment> Specify the full package name:');
+                $this->line('  <info>php artisan package:uninstall my-vendor/my-package</info>');
+            }
 
             return self::FAILURE;
         }
 
-        [$rawVendor, $rawPackage] = explode('/', $canonicalName, 2);
-        $vendor = strtolower(trim($rawVendor));
-        $package = strtolower(trim($rawPackage));
-
-        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
-        if (! preg_match($segmentPattern, $vendor) || ! preg_match($segmentPattern, $package)) {
-            $suggestedVendor = Str::slug($vendor);
-            $suggestedPackage = Str::slug($package);
-            $this->error("Invalid package name [{$rawName}]. Composer names may only contain lowercase letters, numbers, dashes, underscores, and dots.");
-            $this->line('  <comment>How to fix:</comment> Did you mean:');
-            $this->line("  <info>php artisan package:uninstall {$suggestedVendor}/{$suggestedPackage}".($this->option('dev') ? ' --dev' : '').'</info>');
-
-            return self::FAILURE;
-        }
-
-        $name = "{$vendor}/{$package}";
+        $name = $validation['fullName'];
 
         if ($name !== $rawName) {
             $this->line("  <comment>Notice:</comment> Resolved package [{$rawName}] to Composer package [{$name}].");
@@ -81,20 +71,18 @@ class PackageUninstallCommand extends Command
 
         $isDev = (bool) $this->option('dev') || $isRequireDev;
 
-        $args = ['composer', 'remove', $name];
+        $args = ['remove', $name];
         if ($isDev) {
             $args[] = '--dev';
         }
 
         $this->info("Uninstalling [{$name}] via Composer...");
 
-        $result = Process::path(base_path())
-            ->timeout((int) config('workspace.process_timeout', 300))
-            ->run($args);
-
-        if (! $result->successful()) {
+        try {
+            Workspace::runComposer($args);
+        } catch (ComposerProcessException $e) {
             $this->error("Failed to uninstall package [{$name}] via Composer.");
-            $this->line("  <comment>Composer output:</comment>\n".trim($result->errorOutput()));
+            $this->line("  <comment>Composer output:</comment>\n".trim($e->output));
             $this->line('  <comment>How to fix:</comment> Check for dependencies blocking removal or run manually with verbose output:');
             $this->line("  <info>composer remove {$name}".($isDev ? ' --dev' : '').' -v</info>');
 

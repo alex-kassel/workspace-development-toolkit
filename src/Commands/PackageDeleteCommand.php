@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Str;
 
 class PackageDeleteCommand extends Command
 {
@@ -46,22 +45,18 @@ class PackageDeleteCommand extends Command
             return self::FAILURE;
         }
 
-        [$rawVendor, $rawPackage] = explode('/', $canonicalName, 2);
-        $vendor = strtolower(trim($rawVendor));
-        $package = strtolower(trim($rawPackage));
-
-        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
-        if (! preg_match($segmentPattern, $vendor) || ! preg_match($segmentPattern, $package)) {
-            $suggestedVendor = Str::slug($vendor);
-            $suggestedPackage = Str::slug($package);
-            $this->error("Invalid package name [{$rawName}]. Composer names may only contain lowercase letters, numbers, dashes, underscores, and dots.");
-            $this->line('  <comment>How to fix:</comment> Did you mean:');
-            $this->line("  <info>php artisan package:delete {$suggestedVendor}/{$suggestedPackage}".($force ? ' --force' : '').'</info>');
+        $validation = Workspace::validatePackageName($canonicalName);
+        if (! $validation['isValid']) {
+            $this->error($validation['error'] ?? "Invalid package name [{$rawName}].");
+            if ($validation['suggestion'] !== null) {
+                $this->line('  <comment>How to fix:</comment> Did you mean:');
+                $this->line("  <info>php artisan package:delete {$validation['suggestion']}".($force ? ' --force' : '').'</info>');
+            }
 
             return self::FAILURE;
         }
 
-        $name = "{$vendor}/{$package}";
+        $name = $validation['fullName'];
 
         if ($name !== $rawName) {
             $this->line("  <comment>Notice:</comment> Resolved package [{$rawName}] to Composer package [{$name}].");
@@ -104,16 +99,16 @@ class PackageDeleteCommand extends Command
 
         if ($isRequire || $isDev) {
             $this->info("Removing [{$name}] from Composer first...");
-            $args = ['composer', 'remove', $name];
+            $args = ['remove', $name];
             if ($isDev) {
                 $args[] = '--dev';
             }
 
-            $result = Process::path(base_path())->timeout(180)->run($args);
-
-            if (! $result->successful()) {
+            try {
+                Workspace::runComposer($args);
+            } catch (ComposerProcessException $e) {
                 $this->error("Failed to remove package [{$name}] from Composer.");
-                $this->line("  <comment>Composer output:</comment>\n".trim($result->errorOutput()));
+                $this->line("  <comment>Composer output:</comment>\n".trim($e->output));
                 $this->line('  <comment>How to fix:</comment> Resolve Composer issues or run removal manually:');
                 $this->line("  <info>composer remove {$name}".($isDev ? ' --dev' : '').' -v</info>');
 

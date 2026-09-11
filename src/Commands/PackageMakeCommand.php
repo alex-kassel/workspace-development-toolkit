@@ -89,38 +89,34 @@ class PackageMakeCommand extends Command
         $rawName = (string) $this->argument('name');
         $normalizedInput = str_replace('\\', '/', trim($rawName));
 
-        // Composer name segment pattern: lowercase alphanumeric, dashes, dots, underscores
-        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
+        $validation = Workspace::validatePackageName($normalizedInput, $workspaceVendor);
 
         if ($workspaceVendor !== null) {
             // Flat 1-level workspace: vendor is fixed
             if (str_contains($normalizedInput, '/')) {
-                [$providedVendor, $providedPackage] = explode('/', $normalizedInput, 2);
-                $cleanProvidedVendor = strtolower(trim($providedVendor));
-                $package = strtolower(trim($providedPackage));
-
-                if ($cleanProvidedVendor !== $workspaceVendor) {
+                [$providedVendor] = explode('/', $normalizedInput, 2);
+                if (strtolower(trim($providedVendor)) !== strtolower($workspaceVendor)) {
                     $this->error("Workspace [{$workspace}] has a fixed vendor [{$workspaceVendor}], but [{$providedVendor}] was provided.");
                     $this->line('  <comment>How to fix:</comment> Omit the vendor prefix or match the workspace vendor:');
-                    $this->line("  <info>php artisan package:make {$package} --workspace={$workspace}</info>");
+                    $this->line("  <info>php artisan package:make {$validation['package']} --workspace={$workspace}</info>");
 
                     return self::FAILURE;
                 }
-            } else {
-                $package = strtolower(trim($normalizedInput));
             }
 
-            if (! preg_match($segmentPattern, $package)) {
-                $suggested = Str::slug($package);
-                $this->error("Invalid package name [{$rawName}]. Composer package names must contain only lowercase letters, numbers, dashes, underscores, and dots.");
-                $this->line('  <comment>How to fix:</comment> Use a valid package name. Did you mean:');
-                $this->line("  <info>php artisan package:make {$suggested} --workspace={$workspace}</info>");
+            if (! $validation['isValid']) {
+                $this->error($validation['error'] ?? "Invalid package name [{$rawName}].");
+                if ($validation['suggestion'] !== null) {
+                    $this->line('  <comment>How to fix:</comment> Use a valid package name. Did you mean:');
+                    $this->line("  <info>php artisan package:make {$validation['suggestion']} --workspace={$workspace}</info>");
+                }
 
                 return self::FAILURE;
             }
 
-            $vendor = $workspaceVendor;
-            $name = "{$vendor}/{$package}";
+            $vendor = $validation['vendor'];
+            $package = $validation['package'];
+            $name = $validation['fullName'];
             $shortName = $package;
             $dirName = $alias !== '' ? $alias : $package;
             $packagePath = base_path("{$workspace}/{$dirName}");
@@ -134,21 +130,19 @@ class PackageMakeCommand extends Command
                 return self::FAILURE;
             }
 
-            [$rawVendor, $rawPackage] = explode('/', $normalizedInput, 2);
-            $vendor = strtolower(trim($rawVendor));
-            $package = strtolower(trim($rawPackage));
-
-            if (! preg_match($segmentPattern, $vendor) || ! preg_match($segmentPattern, $package)) {
-                $suggestedVendor = Str::slug($vendor);
-                $suggestedPackage = Str::slug($package);
-                $this->error("Invalid package name [{$rawName}]. Composer vendor and package names must contain only lowercase letters, numbers, dashes, underscores, and dots.");
-                $this->line('  <comment>How to fix:</comment> Use a valid vendor/package name. Did you mean:');
-                $this->line("  <info>php artisan package:make {$suggestedVendor}/{$suggestedPackage} --workspace={$workspace}</info>");
+            if (! $validation['isValid']) {
+                $this->error($validation['error'] ?? "Invalid package name [{$rawName}].");
+                if ($validation['suggestion'] !== null) {
+                    $this->line('  <comment>How to fix:</comment> Use a valid vendor/package name. Did you mean:');
+                    $this->line("  <info>php artisan package:make {$validation['suggestion']} --workspace={$workspace}</info>");
+                }
 
                 return self::FAILURE;
             }
 
-            $name = "{$vendor}/{$package}";
+            $vendor = $validation['vendor'];
+            $package = $validation['package'];
+            $name = $validation['fullName'];
             $shortName = $name;
             $packagePath = base_path("{$workspace}/{$vendor}/{$package}");
         }
