@@ -201,4 +201,41 @@ class PackageCheckCommandTest extends TestCase
             ->expectsOutputToContain('Package [nonexistent/pkg] not found')
             ->assertFailed();
     }
+
+    public function test_package_check_with_isolated_flag_executes_isolated_verification(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => function ($process) {
+                $cwd = $process->path;
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+                if (str_contains($cmd, 'git ls-files')) {
+                    return Process::result(output: "composer.json\0phpunit.xml\0");
+                }
+
+                if (is_string($cwd) && str_contains($cmd, 'composer install')) {
+                    $binDir = $cwd.'/vendor/bin';
+                    File::ensureDirectoryExists($binDir);
+                    if (PHP_OS_FAMILY === 'Windows') {
+                        File::put($binDir.'/phpunit.bat', "@echo off\necho OK\n");
+                    } else {
+                        File::put($binDir.'/phpunit', "#!/bin/sh\necho OK\n");
+                    }
+                }
+
+                return Process::result(output: 'OK');
+            },
+        ]);
+
+        $this->artisan('package:check', [
+            'name' => 'acme/my-pkg',
+            '--isolated' => true,
+        ])
+            ->expectsOutputToContain('ISOLATED')
+            ->assertSuccessful();
+    }
 }

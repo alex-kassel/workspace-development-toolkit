@@ -5,12 +5,27 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\CheckResult;
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use InvalidArgumentException;
 
 class PackageVerifier
 {
+    public function __construct(
+        protected ?IsolatedPackageVerifier $isolatedVerifier = null
+    ) {}
+
+    /**
+     * Run isolated package verification.
+     */
+    public function checkIsolated(string $packagePath, ?string $packageName = null): CheckResult
+    {
+        $this->isolatedVerifier ??= app(IsolatedPackageVerifier::class);
+
+        return $this->isolatedVerifier->verify($packagePath, $packageName);
+    }
+
     /**
      * Resolve binary path from vendor/bin, including Windows extensions.
      */
@@ -262,12 +277,13 @@ class PackageVerifier
         string $packagePath,
         ?string $packageName = null,
         array $only = [],
-        bool $fix = false
+        bool $fix = false,
+        bool $isolated = false
     ): array {
         $absPackagePath = $this->normalizePath($packagePath);
         $packageName ??= $this->resolvePackageName($absPackagePath);
 
-        $allowedChecks = ['composer', 'pint', 'phpstan', 'tests'];
+        $allowedChecks = ['composer', 'pint', 'phpstan', 'tests', 'isolated'];
         if (! empty($only)) {
             $only = array_map('trim', $only);
             $invalid = array_diff($only, $allowedChecks);
@@ -276,7 +292,7 @@ class PackageVerifier
             }
         }
 
-        $shouldRun = fn (string $check): bool => empty($only) || in_array($check, $only, true);
+        $shouldRun = fn (string $check): bool => empty($only) ? ($check !== 'isolated' || $isolated) : in_array($check, $only, true);
 
         $results = [];
 
@@ -296,6 +312,10 @@ class PackageVerifier
             $results[] = $this->checkTests($absPackagePath, $packageName);
         }
 
+        if ($shouldRun('isolated')) {
+            $results[] = $this->checkIsolated($absPackagePath, $packageName);
+        }
+
         return $results;
     }
 
@@ -309,15 +329,16 @@ class PackageVerifier
     public function checkAllPackages(
         array $packagePaths,
         array $only = [],
-        bool $fix = false
+        bool $fix = false,
+        bool $isolated = false
     ): array {
         $results = [];
 
-        // If fix mode is requested, run sequentially because Pint mutates files
-        if ($fix || count($packagePaths) <= 1) {
+        // If fix or isolated mode is requested, run sequentially to avoid conflicts
+        if ($fix || $isolated || count($packagePaths) <= 1) {
             foreach ($packagePaths as $key => $path) {
                 $packageName = is_string($key) && ! is_numeric($key) ? $key : null;
-                $results[$path] = $this->checkAll($path, $packageName, $only, $fix);
+                $results[$path] = $this->checkAll($path, $packageName, $only, $fix, $isolated);
             }
 
             return $results;
@@ -377,7 +398,7 @@ class PackageVerifier
             $duration = round(microtime(true) - $startTime, 3);
 
             foreach ($tasks as $taskId => $task) {
-                /** @var \Illuminate\Contracts\Process\ProcessResult|null $processResult */
+                /** @var ProcessResult|null $processResult */
                 $processResult = $poolCollection->get($taskId);
                 $exitCode = $processResult ? ($processResult->exitCode() ?? 1) : 1;
                 $output = $processResult ? trim($processResult->output()."\n".$processResult->errorOutput()) : 'Process did not return output.';

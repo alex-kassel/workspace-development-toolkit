@@ -148,8 +148,8 @@
 
 ### Step 3.1 — Сервис `IsolatedPackageVerifier`
 
-- [ ] Создать `src/Services/IsolatedPackageVerifier.php`.
-- [ ] Алгоритм:
+- [x] Создать `src/Services/IsolatedPackageVerifier.php`.
+- [x] Алгоритм:
   1. Экспорт tracked-файлов: `git ls-files --cached --others --exclude-standard -z` → temp dir.
   2. Проверка: `composer.json` пакета НЕ содержит path-репозиториев.
   3. Требование: `phpunit.xml` или `phpunit.xml.dist` существует.
@@ -159,20 +159,20 @@
   7. `composer install --prefer-dist --no-interaction --no-progress`.
   8. PHPUnit/Pest с `--fail-on-empty-test-suite`.
   9. Cleanup в `finally` через `FilesystemHelper::deleteDirectoryRecursively()`.
-- [ ] Зарегистрировать как singleton в `ServiceProvider`.
+- [x] Зарегистрировать как singleton в `ServiceProvider`.
 
 **Референс:** `storage/reference/dev-kit/src/Services/IsolatedPackageVerifier.php`
 
 ### Step 3.2 — Интеграция с `PackageCheckCommand`
 
-- [ ] Флаг `--isolated` в `PackageCheckCommand` делегирует в `IsolatedPackageVerifier`.
+- [x] Флаг `--isolated` в `PackageCheckCommand` делегирует в `IsolatedPackageVerifier`.
 
 ### Step 3.3 — Тесты для isolated verification
 
-- [ ] Тест: isolated verification отклоняет пакет с path-репозиторием в composer.json.
-- [ ] Тест: isolated verification отклоняет пакет без phpunit.xml.
-- [ ] Тест: env переменные правильно инъектируются.
-- [ ] Тест: cleanup вызывается даже при ошибке (finally).
+- [x] Тест: isolated verification отклоняет пакет с path-репозиторием в composer.json.
+- [x] Тест: isolated verification отклоняет пакет без phpunit.xml.
+- [x] Тест: env переменные правильно инъектируются.
+- [x] Тест: cleanup вызывается даже при ошибке (finally).
 
 ---
 

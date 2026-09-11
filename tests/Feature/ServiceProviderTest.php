@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
+use AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\ServiceProvider;
 
 class ServiceProviderTest extends TestCase
 {
@@ -13,19 +15,19 @@ class ServiceProviderTest extends TestCase
     {
         parent::setUp();
 
-        $reflector = new \ReflectionClass(\AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider::class);
+        $reflector = new \ReflectionClass(WorkspaceDevelopmentToolkitServiceProvider::class);
         $providerDir = dirname($reflector->getFileName());
         $configSrc = $providerDir.'/../config/workspace.php';
         $stubsSrc = $providerDir.'/../stubs/package';
 
-        \Illuminate\Support\ServiceProvider::$publishes[\AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider::class] = [
+        ServiceProvider::$publishes[WorkspaceDevelopmentToolkitServiceProvider::class] = [
             $configSrc => config_path('workspace.php'),
             $stubsSrc => base_path('stubs/workspace'),
         ];
-        \Illuminate\Support\ServiceProvider::$publishGroups['workspace-config'] = [
+        ServiceProvider::$publishGroups['workspace-config'] = [
             $configSrc => config_path('workspace.php'),
         ];
-        \Illuminate\Support\ServiceProvider::$publishGroups['workspace-stubs'] = [
+        ServiceProvider::$publishGroups['workspace-stubs'] = [
             $stubsSrc => base_path('stubs/workspace'),
         ];
     }

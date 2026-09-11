@@ -18,6 +18,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\IsolatedPackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
@@ -39,6 +40,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(PackageResolver::class);
         $this->app->singleton(WorkspaceManager::class);
         $this->app->singleton(PackageVerifier::class);
+        $this->app->singleton(IsolatedPackageVerifier::class);
     }
 
     /**

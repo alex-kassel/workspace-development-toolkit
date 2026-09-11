@@ -47,15 +47,11 @@ class PackageCheckCommand extends Command
         $fix = (bool) $this->option('fix');
         $isolated = (bool) $this->option('isolated');
 
-        if ($isolated) {
-            $this->warn('Notice: Isolated verification (--isolated) will be available in Phase 3.');
-        }
-
         $rawOnly = (string) $this->option('only');
         $only = $rawOnly !== '' ? array_map('trim', explode(',', $rawOnly)) : [];
 
         if ($all) {
-            return $this->handleAllPackages($only, $fix);
+            return $this->handleAllPackages($only, $fix, $isolated);
         }
 
         if ($rawName === '') {
@@ -67,7 +63,7 @@ class PackageCheckCommand extends Command
             return self::FAILURE;
         }
 
-        return $this->handleSinglePackage($rawName, $only, $fix);
+        return $this->handleSinglePackage($rawName, $only, $fix, $isolated);
     }
 
     /**
@@ -75,7 +71,7 @@ class PackageCheckCommand extends Command
      *
      * @param  array<int, string>  $only
      */
-    protected function handleSinglePackage(string $name, array $only, bool $fix): int
+    protected function handleSinglePackage(string $name, array $only, bool $fix, bool $isolated = false): int
     {
         $packagePath = Workspace::findPackagePath($name);
 
@@ -93,7 +89,7 @@ class PackageCheckCommand extends Command
         $this->newLine();
 
         try {
-            $results = $this->verifier->checkAll($packagePath, $canonicalName, $only, $fix);
+            $results = $this->verifier->checkAll($packagePath, $canonicalName, $only, $fix, $isolated);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -150,7 +146,7 @@ class PackageCheckCommand extends Command
      *
      * @param  array<int, string>  $only
      */
-    protected function handleAllPackages(array $only, bool $fix): int
+    protected function handleAllPackages(array $only, bool $fix, bool $isolated = false): int
     {
         $packagesToVerify = [];
         $data = Workspace::sync();
@@ -180,7 +176,7 @@ class PackageCheckCommand extends Command
         $this->newLine();
 
         try {
-            $allResults = $this->verifier->checkAllPackages($packagesToVerify, $only, $fix);
+            $allResults = $this->verifier->checkAllPackages($packagesToVerify, $only, $fix, $isolated);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -189,6 +185,7 @@ class PackageCheckCommand extends Command
 
         $tableRows = [];
         $totalFailures = 0;
+        $includeIsolated = $isolated || in_array('isolated', $only, true);
 
         foreach ($allResults as $path => $results) {
             $pkgName = $results[0]->package ?? (string) array_search($path, $packagesToVerify, true);
@@ -212,17 +209,29 @@ class PackageCheckCommand extends Command
                 $totalFailures++;
             }
 
-            $tableRows[] = [
+            $row = [
                 $pkgName,
                 $statusMap['composer'] ?? '-',
                 $statusMap['pint'] ?? '-',
                 $statusMap['phpstan'] ?? '-',
                 $statusMap['tests'] ?? '-',
-                $pkgFailed ? '<fg=red>FAIL</>' : '<fg=green>PASS</>',
             ];
+
+            if ($includeIsolated) {
+                $row[] = $statusMap['isolated'] ?? '-';
+            }
+
+            $row[] = $pkgFailed ? '<fg=red>FAIL</>' : '<fg=green>PASS</>';
+            $tableRows[] = $row;
         }
 
-        $this->table(['Package', 'Composer', 'Pint', 'PHPStan', 'Tests', 'Status'], $tableRows);
+        $headers = ['Package', 'Composer', 'Pint', 'PHPStan', 'Tests'];
+        if ($includeIsolated) {
+            $headers[] = 'Isolated';
+        }
+        $headers[] = 'Status';
+
+        $this->table($headers, $tableRows);
         $this->newLine();
 
         if ($totalFailures > 0) {
