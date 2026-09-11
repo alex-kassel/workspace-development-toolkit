@@ -52,6 +52,7 @@ class WorkspaceHelpCommand extends Command
 
         $commands = [
             ['workspace:add <path> [--vendor=] [--default]', 'Register a new workspace directory into composer and gitignore.'],
+            ['workspace:clone [repo] [--self] [--workspace=]', 'Clone a Git/GitHub package into workspace and optionally symlink.'],
             ['workspace:list', 'Display all registered workspaces, their vendors, structure mode, and packages.'],
             ['workspace:default <path>', 'Set the default workspace for creating new packages.'],
             ['workspace:remove <path>', 'Unregister workspace repository from Composer and manifest (files kept).'],

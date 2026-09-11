@@ -9,6 +9,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageMakeCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageUninstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceAddCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceCloneCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
@@ -38,6 +39,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 PackageUninstallCommand::class,
                 PackageDeleteCommand::class,
                 WorkspaceAddCommand::class,
+                WorkspaceCloneCommand::class,
                 WorkspaceDefaultCommand::class,
                 WorkspaceListCommand::class,
                 WorkspaceRemoveCommand::class,

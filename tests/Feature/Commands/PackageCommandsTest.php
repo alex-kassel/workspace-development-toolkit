@@ -421,4 +421,27 @@ class PackageCommandsTest extends TestCase
 
         $this->assertDirectoryDoesNotExist(base_path('packages/acme/dev-delete'));
     }
+
+    public function test_package_delete_cleans_up_empty_vendor_directory(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/lone-pkg', 'acme/lone-pkg');
+        Workspace::sync();
+
+        $this->assertDirectoryExists(base_path('packages/acme'));
+
+        $this->artisan('package:delete', [
+            'name' => 'acme/lone-pkg',
+            '--force' => true,
+        ])
+            ->expectsOutputToContain('permanently deleted')
+            ->assertSuccessful();
+
+        // The package directory is gone
+        $this->assertDirectoryDoesNotExist(base_path('packages/acme/lone-pkg'));
+        // The empty vendor directory must also be automatically cleaned up
+        $this->assertDirectoryDoesNotExist(base_path('packages/acme'));
+        // But the workspace directory remains
+        $this->assertDirectoryExists(base_path('packages'));
+    }
 }
