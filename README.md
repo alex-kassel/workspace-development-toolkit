@@ -204,6 +204,41 @@ php artisan workspace:default labs
 
 ---
 
+### `workspace:clone`
+Clones a package repository from Git/GitHub into a target workspace, registers it in `workspace.json`, and optionally symlinks it via Composer.
+
+```bash
+# Clone via shorthand (resolved using repository_template, e.g. GitHub SSH/HTTPS):
+php artisan workspace:clone spatie/laravel-ray --workspace=packages
+
+# Clone via full SSH or HTTPS URL:
+php artisan workspace:clone git@github.com:vendor/package.git
+
+# Clone and immediately symlink as development dependency:
+php artisan workspace:clone vendor/package --install --dev
+
+# Clone the toolkit itself into a local workspace for active contribution:
+php artisan workspace:clone --self
+```
+
+---
+
+### `php workspace restore` (Standalone CLI Runner)
+Restores and clones missing workspace packages on fresh machines **before** running `composer install` — runs with zero framework dependencies:
+
+```bash
+# Checks workspace.json and git clones any missing packages:
+php workspace restore
+
+# Verify presence of all workspace packages on disk:
+php workspace status
+```
+
+> [!TIP]
+> This command is automatically registered in your root `composer.json` under `pre-install-cmd` and `pre-update-cmd`, ensuring all local workspace repositories exist before Composer resolves path dependencies!
+
+---
+
 ### `workspace:remove`
 Unregisters a workspace from root `composer.json` and `workspace.json`.
 

@@ -24,6 +24,8 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__.'/../config/workspace.php', 'workspace');
+
         $this->app->singleton(WorkspaceManager::class, fn () => new WorkspaceManager);
     }
 
@@ -33,6 +35,10 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__.'/../config/workspace.php' => config_path('workspace.php'),
+            ], 'workspace-config');
+
             $this->commands([
                 PackageMakeCommand::class,
                 PackageInstallCommand::class,

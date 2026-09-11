@@ -18,7 +18,7 @@ class WorkspaceManager
     /**
      * In-memory cache for workspace configuration.
      *
-     * @var array{default: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string>}>}|null
+     * @var array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, url: string}>}>}|null
      */
     protected ?array $cache = null;
 
@@ -49,7 +49,7 @@ class WorkspaceManager
     /**
      * Load full workspace configuration.
      *
-     * @return array{default: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string>}>}
+     * @return array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, url: string}>}>}
      */
     public function load(): array
     {
@@ -87,6 +87,7 @@ class WorkspaceManager
 
         return $this->cache = [
             'default' => $data['default'] ?? null,
+            'repository_template' => $data['repository_template'] ?? $this->defaultRepositoryTemplate(),
             'workspaces' => $normalizedWorkspaces,
         ];
     }
@@ -245,6 +246,44 @@ class WorkspaceManager
     }
 
     /**
+     * Get the repository URL template (e.g. "git@github.com:{package}.git").
+     */
+    public function getRepositoryTemplate(): string
+    {
+        $data = $this->load();
+
+        return $data['repository_template'] ?? $this->defaultRepositoryTemplate();
+    }
+
+    /**
+     * Set the repository URL template.
+     */
+    public function setRepositoryTemplate(string $template): void
+    {
+        $data = $this->load();
+        $data['repository_template'] = trim($template);
+        $this->save($data);
+    }
+
+    /**
+     * Get default repository template from configuration or fallback.
+     */
+    public function defaultRepositoryTemplate(): string
+    {
+        return config('workspace.repository_template', 'git@github.com:{package}.git');
+    }
+
+    /**
+     * Resolve the Git clone URL for a given package name.
+     */
+    public function resolvePackageCloneUrl(string $packageName): string
+    {
+        $template = $this->getRepositoryTemplate();
+
+        return str_replace('{package}', trim($packageName), $template);
+    }
+
+    /**
      * Set the default workspace.
      *
      * @throws WorkspaceNotFoundException
@@ -284,6 +323,8 @@ class WorkspaceManager
 
         $this->addToGitignore($path);
         $this->registerInComposer($path, $vendor !== null);
+        $this->ensureWorkspaceScript();
+        $this->ensureComposerHooks();
 
         $data = $this->load();
         $isFirst = empty($data['workspaces']);
@@ -358,11 +399,13 @@ class WorkspaceManager
         }
 
         $currentDefault = null;
+        $currentTemplate = null;
         $existingVendors = [];
 
         if (File::exists($this->workspaceJsonPath())) {
             $existing = $this->readJsonFile($this->workspaceJsonPath());
             $currentDefault = $existing['default'] ?? null;
+            $currentTemplate = $existing['repository_template'] ?? null;
             $rawWorkspaces = $existing['workspaces'] ?? [];
 
             foreach ($rawWorkspaces as $dir => $val) {
@@ -388,6 +431,7 @@ class WorkspaceManager
 
         $result = [
             'default' => $default,
+            'repository_template' => $currentTemplate ?? $this->defaultRepositoryTemplate(),
             'workspaces' => $workspaces,
         ];
 
@@ -437,13 +481,20 @@ class WorkspaceManager
     /**
      * Save data to workspace.json.
      *
-     * @param  array{default: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string>}>}  $data
+     * @param  array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, url: string}>}>}  $data
      */
     public function save(array $data): void
     {
         ksort($data['workspaces']);
-        $this->cache = $data;
-        File::put($this->workspaceJsonPath(), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+
+        $orderedData = [
+            'default' => $data['default'] ?? null,
+            'repository_template' => $data['repository_template'] ?? $this->defaultRepositoryTemplate(),
+            'workspaces' => $data['workspaces'],
+        ];
+
+        $this->cache = $orderedData;
+        File::put($this->workspaceJsonPath(), json_encode($orderedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
     }
 
     /**
@@ -564,6 +615,70 @@ class WorkspaceManager
 
         if (! in_array($entry, $lines, true) && ! in_array("{$entry}/", $lines, true)) {
             File::append($gitignore, "{$entry}\n");
+        }
+    }
+
+    /**
+     * Ensure the standalone root `workspace` CLI script exists.
+     */
+    public function ensureWorkspaceScript(): void
+    {
+        $targetScript = base_path('workspace');
+        if (File::exists($targetScript)) {
+            return;
+        }
+
+        $stubPath = dirname(__DIR__, 2).'/stubs/workspace.stub';
+        if (File::exists($stubPath)) {
+            File::copy($stubPath, $targetScript);
+            @chmod($targetScript, 0755);
+        }
+    }
+
+    /**
+     * Ensure pre-install-cmd and pre-update-cmd hooks are registered in composer.json.
+     */
+    public function ensureComposerHooks(): void
+    {
+        $composerPath = $this->composerJsonPath();
+        if (! File::exists($composerPath)) {
+            return;
+        }
+
+        $composer = $this->readJsonFile($composerPath);
+        $scripts = $composer['scripts'] ?? [];
+        $hookCommand = 'php workspace restore';
+        $modified = false;
+
+        foreach (['pre-install-cmd', 'pre-update-cmd'] as $hook) {
+            if (! isset($scripts[$hook])) {
+                $scripts[$hook] = [$hookCommand];
+                $modified = true;
+            } elseif (is_string($scripts[$hook])) {
+                if ($scripts[$hook] !== $hookCommand) {
+                    $scripts[$hook] = array_values(array_unique([$hookCommand, $scripts[$hook]]));
+                    $modified = true;
+                }
+            } elseif (is_array($scripts[$hook])) {
+                if (! in_array($hookCommand, $scripts[$hook], true)) {
+                    array_unshift($scripts[$hook], $hookCommand);
+                    $modified = true;
+                }
+            }
+        }
+
+        if ($modified) {
+            $composer['scripts'] = $scripts;
+            if (isset($composer['require-dev']) && is_array($composer['require-dev']) && empty($composer['require-dev'])) {
+                $composer['require-dev'] = (object) [];
+            }
+            if (isset($composer['require']) && is_array($composer['require']) && empty($composer['require'])) {
+                $composer['require'] = (object) [];
+            }
+            if (isset($composer['repositories']) && is_array($composer['repositories']) && empty($composer['repositories'])) {
+                $composer['repositories'] = (object) [];
+            }
+            File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
         }
     }
 }

@@ -174,4 +174,28 @@ class WorkspaceManagerTest extends TestCase
         $reloaded = Workspace::load();
         $this->assertSame('manipulated-on-disk', $reloaded['default']);
     }
+
+    public function test_repository_template_defaults_and_resolves_package_clone_url(): void
+    {
+        $this->assertSame('git@github.com:{package}.git', Workspace::getRepositoryTemplate());
+        $this->assertSame('git@github.com:alex-kassel/test-pkg.git', Workspace::resolvePackageCloneUrl('alex-kassel/test-pkg'));
+
+        Workspace::setRepositoryTemplate('https://gitlab.com/{package}.git');
+        $this->assertSame('https://gitlab.com/{package}.git', Workspace::getRepositoryTemplate());
+        $this->assertSame('https://gitlab.com/alex-kassel/test-pkg.git', Workspace::resolvePackageCloneUrl('alex-kassel/test-pkg'));
+    }
+
+    public function test_ensure_workspace_script_and_composer_hooks(): void
+    {
+        Workspace::ensureWorkspaceScript();
+        $this->assertFileExists(base_path('workspace'));
+
+        Workspace::ensureComposerHooks();
+        $composer = json_decode(File::get(base_path('composer.json')), true);
+
+        $this->assertArrayHasKey('pre-install-cmd', $composer['scripts'] ?? []);
+        $this->assertArrayHasKey('pre-update-cmd', $composer['scripts'] ?? []);
+        $this->assertContains('php workspace restore', $composer['scripts']['pre-install-cmd']);
+        $this->assertContains('php workspace restore', $composer['scripts']['pre-update-cmd']);
+    }
 }

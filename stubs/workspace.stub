@@ -1,0 +1,177 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Workspace Development Toolkit CLI
+ *
+ * Standalone runner for workspace maintenance (e.g. restoring packages on fresh machines)
+ * without requiring vendor/autoload.php or a fully-bootstrapped Laravel application.
+ */
+
+$rootPath = __DIR__;
+$manifestPath = $rootPath . DIRECTORY_SEPARATOR . 'workspace.json';
+
+$command = $argv[1] ?? 'help';
+
+switch ($command) {
+    case 'restore':
+        exit(workspace_restore($rootPath, $manifestPath, array_slice($argv, 2)));
+
+    case 'status':
+        exit(workspace_status($rootPath, $manifestPath));
+
+    case 'help':
+    case '--help':
+    case '-h':
+    default:
+        workspace_help();
+        exit(0);
+}
+
+/**
+ * Restore (clone) missing packages recorded in workspace.json.
+ */
+function workspace_restore(string $rootPath, string $manifestPath, array $args): int
+{
+    if (! file_exists($manifestPath)) {
+        fwrite(STDERR, "\033[31m[ERROR]\033[0m workspace.json was not found at: {$manifestPath}\n");
+        return 1;
+    }
+
+    $content = file_get_contents($manifestPath);
+    $manifest = json_decode($content, true);
+
+    if (! is_array($manifest) || ! isset($manifest['workspaces']) || ! is_array($manifest['workspaces'])) {
+        fwrite(STDERR, "\033[31m[ERROR]\033[0m Invalid workspace.json format (missing 'workspaces' object).\n");
+        return 1;
+    }
+
+    $template = $manifest['repository_template'] ?? 'git@github.com:{package}.git';
+    $workspaces = $manifest['workspaces'];
+
+    echo "\033[36mRestoring workspace packages...\033[0m\n";
+    echo "  Template: \033[33m{$template}\033[0m\n\n";
+
+    $totalRestored = 0;
+    $totalExisting = 0;
+    $errors = 0;
+
+    foreach ($workspaces as $wsName => $wsConfig) {
+        $vendor = $wsConfig['vendor'] ?? null;
+        $packages = $wsConfig['packages'] ?? [];
+
+        foreach ($packages as $pkg) {
+            $pkgName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
+            $customUrl = is_array($pkg) ? ($pkg['url'] ?? null) : null;
+
+            if ($pkgName === '') {
+                continue;
+            }
+
+            // Determine relative target path
+            if ($vendor !== null) {
+                // Fixed-vendor workspace: e.g. labs/{package}
+                $targetRelative = $wsName . '/' . $pkgName;
+                $canonicalName = str_contains($pkgName, '/') ? $pkgName : "{$vendor}/{$pkgName}";
+            } else {
+                // Multi-vendor workspace: e.g. packages/{vendor}/{package}
+                $targetRelative = $wsName . '/' . $pkgName;
+                $canonicalName = $pkgName;
+            }
+
+            $targetRelative = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $targetRelative);
+            $fullTarget = $rootPath . DIRECTORY_SEPARATOR . $targetRelative;
+
+            // Resolve Git clone URL
+            $cloneUrl = $customUrl ?? str_replace('{package}', $canonicalName, $template);
+
+            if (file_exists($fullTarget)) {
+                echo "  [\033[32mEXISTS\033[0m]  {$canonicalName} -> {$targetRelative}\n";
+                $totalExisting++;
+                continue;
+            }
+
+            echo "  [\033[33mCLONING\033[0m] {$canonicalName} from {$cloneUrl}...\n";
+
+            // Ensure parent directory exists
+            $parentDir = dirname($fullTarget);
+            if (! is_dir($parentDir)) {
+                mkdir($parentDir, 0777, true);
+            }
+
+            $cmd = sprintf('git clone %s %s', escapeshellarg($cloneUrl), escapeshellarg($fullTarget));
+            passthru($cmd, $returnCode);
+
+            if ($returnCode === 0) {
+                echo "  [\033[32mOK\033[0m]      Successfully cloned {$canonicalName}\n";
+                $totalRestored++;
+            } else {
+                fwrite(STDERR, "  \033[31m[FAILED]\033[0m  Failed to clone {$canonicalName} (Exit code: {$returnCode})\n");
+                $errors++;
+            }
+        }
+    }
+
+    echo "\n\033[32mDone!\033[0m Restored: {$totalRestored}, Already existing: {$totalExisting}, Failed: {$errors}\n";
+
+    return $errors > 0 ? 1 : 0;
+}
+
+/**
+ * Show status of workspace packages.
+ */
+function workspace_status(string $rootPath, string $manifestPath): int
+{
+    if (! file_exists($manifestPath)) {
+        fwrite(STDERR, "\033[31m[ERROR]\033[0m workspace.json was not found at: {$manifestPath}\n");
+        return 1;
+    }
+
+    $manifest = json_decode(file_get_contents($manifestPath), true);
+    $workspaces = $manifest['workspaces'] ?? [];
+
+    echo "\033[36mWorkspace Packages Status:\033[0m\n\n";
+
+    foreach ($workspaces as $wsName => $wsConfig) {
+        $vendor = $wsConfig['vendor'] ?? null;
+        $packages = $wsConfig['packages'] ?? [];
+
+        echo "  Workspace: \033[33m{$wsName}\033[0m" . ($vendor ? " (vendor: {$vendor})" : "") . "\n";
+
+        foreach ($packages as $pkg) {
+            $pkgName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
+            $targetRelative = $wsName . '/' . $pkgName;
+            $targetRelative = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $targetRelative);
+            $fullTarget = $rootPath . DIRECTORY_SEPARATOR . $targetRelative;
+
+            $exists = file_exists($fullTarget);
+            $statusLabel = $exists ? "\033[32m[FOUND]\033[0m" : "\033[31m[MISSING]\033[0m";
+
+            echo "    {$statusLabel} {$pkgName} ({$targetRelative})\n";
+        }
+    }
+
+    echo "\n";
+    return 0;
+}
+
+/**
+ * Show help for the workspace CLI.
+ */
+function workspace_help(): void
+{
+    echo <<<HELP
+\033[33mWorkspace Development Toolkit CLI\033[0m
+
+\033[36mUsage:\033[0m
+  php workspace <command> [options]
+
+\033[36mAvailable commands:\033[0m
+  \033[32mrestore\033[0m   Clone any missing workspace packages defined in workspace.json
+  \033[32mstatus\033[0m    Check the physical presence of workspace packages on disk
+  \033[32mhelp\033[0m      Display this help message
+
+HELP;
+}

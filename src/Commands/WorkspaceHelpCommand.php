@@ -58,9 +58,11 @@ class WorkspaceHelpCommand extends Command
             ['workspace:remove <path>', 'Unregister workspace repository from Composer and manifest (files kept).'],
             ['workspace:help', 'Display this interactive guide and cheat sheet.'],
             ['package:make <name> [--workspace=] [--install] [--dev]', 'Scaffold a new local Laravel package with ServiceProvider and manifest.'],
-            ['package:install <name> [--dev]', 'Require and link a local workspace package into the root application.'],
-            ['package:uninstall <name> [--dev]', 'Remove package from root composer.json while preserving physical files.'],
-            ['package:delete <name> [--force]', 'Permanently uninstall from Composer and delete package directory from disk.'],
+            ['package:install <name> [--dev]', 'Symlink a local workspace package into root Laravel application.'],
+            ['package:uninstall <name> [--dev]', 'Remove package from root composer.json requirements (files kept).'],
+            ['package:delete <name> [--force]', 'Completely delete a package from disk, manifest, and Composer.'],
+            ['php workspace restore', 'Standalone root CLI (runs before composer install on fresh machines).'],
+            ['php workspace status', 'Check physical presence of workspace packages on disk.'],
         ];
 
         foreach ($commands as [$sig, $desc]) {

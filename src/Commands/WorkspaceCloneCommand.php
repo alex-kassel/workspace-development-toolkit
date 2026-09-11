@@ -256,11 +256,11 @@ class WorkspaceCloneCommand extends Command
             return $this->formatUrlProtocol($repo, $useSsh);
         }
 
-        // GitHub shorthand: vendor/package
+        // Shorthand vendor/package: resolve via repository_template
         if (preg_match('#^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$#', $repo)) {
-            return $useSsh
-                ? "git@github.com:{$repo}.git"
-                : "https://github.com/{$repo}.git";
+            $url = Workspace::resolvePackageCloneUrl($repo);
+
+            return $this->formatUrlProtocol($url, $useSsh);
         }
 
         return $repo;
