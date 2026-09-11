@@ -83,4 +83,5 @@ return [
     */
     'skills_path' => null,
     'auto_publish_skill' => true,
+    'scaffold_agent_skills' => true,
 ];

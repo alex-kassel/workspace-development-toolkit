@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use SplFileInfo;
 
 class SkillInstaller
@@ -24,13 +25,6 @@ class SkillInstaller
 
     /**
      * Detect the single most appropriate skills directory for the host project.
-     *
-     * Smart Single-Target Priority:
-     * 1. Explicit configuration (config('workspace.skills_path'))
-     * 2. Existing .agents/skills (primary standard for Antigravity, Claude, etc.)
-     * 3. Existing .cursor/skills (if user only uses Cursor)
-     * 4. Existing .claude/skills (if user only uses Claude Code)
-     * 5. Default fallback to .agents/skills
      */
     public function detectSkillsDirectory(): string
     {
@@ -55,28 +49,71 @@ class SkillInstaller
     }
 
     /**
-     * Check if the skill is already installed at the target location.
+     * Parse the origin metadata from a SKILL.md file.
      */
-    public function isInstalled(?string $targetDir = null): bool
+    public function readSkillOrigin(string $skillFilePath): ?string
     {
-        $target = ($targetDir ?? $this->detectSkillsDirectory()).DIRECTORY_SEPARATOR.'package-docs';
+        if (! file_exists($skillFilePath)) {
+            return null;
+        }
 
-        return file_exists($target.DIRECTORY_SEPARATOR.'SKILL.md');
+        $content = (string) file_get_contents($skillFilePath);
+        if (preg_match('/^---\s*[\r\n]+(.*?)\s*[\r\n]+---/s', $content, $matches)) {
+            if (preg_match('/^origin:\s*(.+)$/m', $matches[1], $originMatches)) {
+                return trim($originMatches[1], " \t\n\r\0\x0B\"'");
+            }
+        }
+
+        return null;
     }
 
     /**
-     * Install the skill files to the target directory.
+     * Check if the skill is already installed and belongs to this package.
      */
-    public function install(?string $targetSkillsDir = null, bool $force = false, bool $symlink = false): bool
+    public function isInstalled(?string $targetSkillsDir = null, string $skillSlug = 'package-docs'): bool
     {
         $baseSkillsDir = $targetSkillsDir ?? $this->detectSkillsDirectory();
-        $targetDir = $baseSkillsDir.DIRECTORY_SEPARATOR.'package-docs';
+        $targetSkillMd = $baseSkillsDir.DIRECTORY_SEPARATOR.$skillSlug.DIRECTORY_SEPARATOR.'SKILL.md';
+        $sourceSkillMd = $this->getSourcePath().DIRECTORY_SEPARATOR.'SKILL.md';
+
+        if (! file_exists($targetSkillMd)) {
+            return false;
+        }
+
+        $expectedOrigin = $this->readSkillOrigin($sourceSkillMd) ?? 'alex-kassel/workspace-development-toolkit';
+        $installedOrigin = $this->readSkillOrigin($targetSkillMd);
+
+        return $installedOrigin === $expectedOrigin;
+    }
+
+    /**
+     * Install the skill files to the target directory with origin collision detection.
+     */
+    public function install(?string $targetSkillsDir = null, bool $force = false, bool $symlink = false, string $skillSlug = 'package-docs'): bool
+    {
+        $baseSkillsDir = $targetSkillsDir ?? $this->detectSkillsDirectory();
+        $targetDir = $baseSkillsDir.DIRECTORY_SEPARATOR.$skillSlug;
         $sourceDir = $this->getSourcePath();
+        $sourceSkillMd = $sourceDir.DIRECTORY_SEPARATOR.'SKILL.md';
+        $targetSkillMd = $targetDir.DIRECTORY_SEPARATOR.'SKILL.md';
+
+        $expectedOrigin = $this->readSkillOrigin($sourceSkillMd) ?? 'alex-kassel/workspace-development-toolkit';
 
         if (file_exists($targetDir)) {
-            if (! $force) {
-                return false;
+            $installedOrigin = $this->readSkillOrigin($targetSkillMd);
+
+            // If it belongs to a different origin and not forcing, raise collision exception
+            if ($installedOrigin !== null && $installedOrigin !== $expectedOrigin && ! $force) {
+                throw new RuntimeException(
+                    "Skill collision detected! A skill named '{$skillSlug}' is already installed from '{$installedOrigin}'. "
+                    ."Expected origin: '{$expectedOrigin}'. Configure an alias or use --force to overwrite."
+                );
             }
+
+            if (! $force && $installedOrigin === $expectedOrigin) {
+                return true; // Already installed and up-to-date
+            }
+
             $this->deleteDirectory($targetDir);
         }
 
@@ -94,9 +131,8 @@ class SkillInstaller
             return false;
         }
 
-        $sourceSkill = $sourceDir.DIRECTORY_SEPARATOR.'SKILL.md';
-        if (file_exists($sourceSkill)) {
-            @copy($sourceSkill, $targetDir.DIRECTORY_SEPARATOR.'SKILL.md');
+        if (file_exists($sourceSkillMd)) {
+            @copy($sourceSkillMd, $targetSkillMd);
         }
 
         $this->copyDirectory(
@@ -109,7 +145,7 @@ class SkillInstaller
             $targetDir.DIRECTORY_SEPARATOR.'resources'
         );
 
-        return file_exists($targetDir.DIRECTORY_SEPARATOR.'SKILL.md');
+        return file_exists($targetSkillMd);
     }
 
     /**

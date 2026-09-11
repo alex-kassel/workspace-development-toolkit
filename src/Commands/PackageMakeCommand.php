@@ -17,7 +17,7 @@ class PackageMakeCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'package:make {name : Package name (vendor/package for multi-vendor, or single-word for fixed-vendor workspace)} {--as= : Optional directory alias (flat workspaces only)} {--alias= : Optional directory alias (synonym for --as)} {--workspace= : The target workspace directory} {--install : Install the package via Composer immediately} {--dev : When installing, require as a development dependency} {--git : Initialize Git repository in package directory}';
+    protected $signature = 'package:make {name : Package name (vendor/package for multi-vendor, or single-word for fixed-vendor workspace)} {--as= : Optional directory alias (flat workspaces only)} {--alias= : Optional directory alias (synonym for --as)} {--workspace= : The target workspace directory} {--install : Install the package via Composer immediately} {--dev : When installing, require as a development dependency} {--git : Initialize Git repository in package directory} {--skills : Scaffold an agent skill in resources/skills} {--no-skills : Skip scaffolding an agent skill} {--skill-name= : Explicit name for the initial agent skill}';
 
     /**
      * The console command description.
@@ -216,7 +216,14 @@ class {$providerClass} extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        if (\$this->app->runningInConsole()) {
+            \$skillsPath = __DIR__.'/../resources/skills';
+            if (is_dir(\$skillsPath)) {
+                \$this->publishes([
+                    \$skillsPath => base_path('.agents/skills'),
+                ], '{$package}-skills');
+            }
+        }
     }
 }
 
@@ -247,6 +254,37 @@ PHP;
 
         File::makeDirectory("{$packagePath}/tests/Unit", 0755, true, true);
         File::put("{$packagePath}/tests/Unit/.gitkeep", '');
+
+        $scaffoldSkills = $this->option('no-skills')
+            ? false
+            : ($this->option('skills') || config('workspace.scaffold_agent_skills', true));
+
+        if ($scaffoldSkills) {
+            $skillSlug = (string) $this->option('skill-name');
+            if ($skillSlug === '') {
+                $skillSlug = Str::kebab($package);
+            }
+
+            $skillsDir = "{$packagePath}/resources/skills/{$skillSlug}";
+            File::makeDirectory($skillsDir, 0755, true, true);
+
+            $skillContent = <<<MARKDOWN
+---
+name: {$skillSlug}
+origin: {$name}
+version: 0.0.1
+description: >-
+  Operational agent skill for {$name} package.
+---
+
+# {$skillSlug} Skill
+
+This skill assists AI agents in interacting with and using the `{$name}` package.
+
+MARKDOWN;
+
+            File::put("{$skillsDir}/SKILL.md", $skillContent);
+        }
 
         Workspace::sync();
 
