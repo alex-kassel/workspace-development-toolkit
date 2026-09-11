@@ -85,7 +85,8 @@ class PackageInstallCommand extends Command
             $this->warn("Notice: Package [{$name}] was not found locally. Installing from remote Composer repositories via [--remote].");
         }
 
-        $args = ['composer', 'require', $name];
+        $packageConstraint = $packagePath ? "{$name}:@dev" : $name;
+        $args = ['composer', 'require', $packageConstraint];
 
         if ($isDev) {
             $args[] = '--dev';
