@@ -20,6 +20,7 @@ class PackageCheckCommand extends Command
     protected $signature = 'package:check
         {name? : Package name or alias}
         {--all : Verify all packages across workspaces}
+        {--quick : Run only quick checks (Composer validate and Pint)}
         {--fix : Automatically fix code style issues with Pint}
         {--only= : Comma-separated list of checks to run (composer,pint,phpstan,tests)}
         {--isolated : Install and test an independent temporary package copy (Phase 3)}';
@@ -44,14 +45,16 @@ class PackageCheckCommand extends Command
     {
         $rawName = (string) $this->argument('name');
         $all = (bool) $this->option('all');
+        $quick = (bool) $this->option('quick');
         $fix = (bool) $this->option('fix');
         $isolated = (bool) $this->option('isolated');
+        $tier = $quick ? 'quick' : 'deep';
 
         $rawOnly = (string) $this->option('only');
         $only = $rawOnly !== '' ? array_map('trim', explode(',', $rawOnly)) : [];
 
         if ($all) {
-            return $this->handleAllPackages($only, $fix, $isolated);
+            return $this->handleAllPackages($tier, $only, $fix, $isolated);
         }
 
         if ($rawName === '') {
@@ -63,7 +66,7 @@ class PackageCheckCommand extends Command
             return self::FAILURE;
         }
 
-        return $this->handleSinglePackage($rawName, $only, $fix, $isolated);
+        return $this->handleSinglePackage($rawName, $tier, $only, $fix, $isolated);
     }
 
     /**
@@ -71,7 +74,7 @@ class PackageCheckCommand extends Command
      *
      * @param  array<int, string>  $only
      */
-    protected function handleSinglePackage(string $name, array $only, bool $fix, bool $isolated = false): int
+    protected function handleSinglePackage(string $name, string $tier, array $only, bool $fix, bool $isolated = false): int
     {
         $packagePath = Workspace::findPackagePath($name);
 
@@ -89,7 +92,7 @@ class PackageCheckCommand extends Command
         $this->newLine();
 
         try {
-            $results = $this->verifier->checkAll($packagePath, $canonicalName, $only, $fix, $isolated);
+            $results = $this->verifier->checkAll($packagePath, $canonicalName, $tier, $only, $fix, $isolated);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -146,7 +149,7 @@ class PackageCheckCommand extends Command
      *
      * @param  array<int, string>  $only
      */
-    protected function handleAllPackages(array $only, bool $fix, bool $isolated = false): int
+    protected function handleAllPackages(string $tier, array $only, bool $fix, bool $isolated = false): int
     {
         $packagesToVerify = [];
         $data = Workspace::sync();
@@ -176,7 +179,7 @@ class PackageCheckCommand extends Command
         $this->newLine();
 
         try {
-            $allResults = $this->verifier->checkAllPackages($packagesToVerify, $only, $fix, $isolated);
+            $allResults = $this->verifier->checkAllPackages($packagesToVerify, $tier, $only, $fix, $isolated);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 

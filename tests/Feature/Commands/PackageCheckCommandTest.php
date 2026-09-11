@@ -95,6 +95,120 @@ class PackageCheckCommandTest extends TestCase
         });
     }
 
+    public function test_package_check_with_quick_flag_runs_only_composer_and_pint(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => Process::result(output: 'OK'),
+        ]);
+
+        $this->artisan('package:check', [
+            'name' => 'acme/my-pkg',
+            '--quick' => true,
+        ])
+            ->expectsOutputToContain('COMPOSER')
+            ->expectsOutputToContain('PINT')
+            ->doesntExpectOutputToContain('PHPSTAN')
+            ->doesntExpectOutputToContain('TESTS')
+            ->expectsOutputToContain('Verification passed for package [acme/my-pkg]')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'composer') && str_contains($cmd, 'validate');
+        });
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'pint');
+        });
+
+        Process::assertNotRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'phpstan');
+        });
+
+        Process::assertNotRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'phpunit');
+        });
+    }
+
+    public function test_package_check_with_quick_and_only_flags_work_together(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => Process::result(output: 'OK'),
+        ]);
+
+        $this->artisan('package:check', [
+            'name' => 'acme/my-pkg',
+            '--quick' => true,
+            '--only' => 'pint',
+        ])
+            ->expectsOutputToContain('PINT')
+            ->doesntExpectOutputToContain('COMPOSER')
+            ->doesntExpectOutputToContain('PHPSTAN')
+            ->doesntExpectOutputToContain('TESTS')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'pint');
+        });
+
+        Process::assertNotRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'validate');
+        });
+
+        Process::assertNotRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'phpstan');
+        });
+
+        Process::assertNotRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'phpunit');
+        });
+    }
+
+    public function test_package_verifier_tier_parameter(): void
+    {
+        Workspace::add('packages', null, true);
+        $dir = $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => Process::result(output: 'OK'),
+        ]);
+
+        /** @var \AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier $verifier */
+        $verifier = app(\AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier::class);
+
+        $quickResults = $verifier->checkAll($dir, tier: 'quick');
+        $checks = array_map(fn ($r) => $r->check, $quickResults);
+        $this->assertSame(['composer', 'pint'], $checks);
+
+        $deepResults = $verifier->checkAll($dir, tier: 'deep');
+        $checks = array_map(fn ($r) => $r->check, $deepResults);
+        $this->assertSame(['composer', 'pint', 'phpstan', 'tests'], $checks);
+    }
+
     public function test_package_check_with_only_flag_runs_subset_of_checks(): void
     {
         Workspace::add('packages', null, true);
@@ -238,4 +352,47 @@ class PackageCheckCommandTest extends TestCase
             ->expectsOutputToContain('ISOLATED')
             ->assertSuccessful();
     }
+
+    public function test_package_check_all_with_quick_flag_runs_quick_tier(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->scaffoldTestPackage('packages/acme/pkg-a', 'acme/pkg-a');
+        $this->scaffoldTestPackage('packages/acme/pkg-b', 'acme/pkg-b');
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => Process::result(output: 'OK'),
+        ]);
+
+        $this->artisan('package:check', ['--all' => true, '--quick' => true])
+            ->expectsOutputToContain('Verifying 2 package(s) across workspaces')
+            ->expectsOutputToContain('acme/pkg-a')
+            ->expectsOutputToContain('acme/pkg-b')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'composer') && str_contains($cmd, 'validate');
+        });
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'pint');
+        });
+
+        Process::assertNotRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'phpstan');
+        });
+
+        Process::assertNotRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'phpunit');
+        });
+    }
 }
+

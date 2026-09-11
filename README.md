@@ -324,8 +324,11 @@ php artisan package:delete ai-assistant --force
 Runs automated quality gates across local packages (Composer validation, Pint, PHPStan, PHPUnit/Pest).
 
 ```bash
-# Check a single package:
+# Check a single package (deep tier by default: Composer + Pint + PHPStan + Tests):
 php artisan package:check my-package
+
+# Run quick tier checks only (Composer + Pint in seconds):
+php artisan package:check my-package --quick
 
 # Run specific checks only:
 php artisan package:check my-package --only=pint,phpstan
@@ -338,7 +341,17 @@ php artisan package:check my-package --isolated
 
 # Check all registered packages across workspaces:
 php artisan package:check --all
+
+# Check all registered packages with quick checks:
+php artisan package:check --all --quick
 ```
+
+**Options**:
+* `--quick`: Run quick tier checks only (`composer` validation and `pint` style check). Default is deep tier (`composer`, `pint`, `phpstan`, `tests`).
+* `--fix`: Automatically format and fix code style issues using Pint.
+* `--only=`: Comma-separated list of checks to run (`composer`, `pint`, `phpstan`, `tests`, `isolated`).
+* `--isolated`: Install and test an independent temporary copy of the package in isolation.
+* `--all`: Verify all packages across all registered workspaces.
 
 ---
 

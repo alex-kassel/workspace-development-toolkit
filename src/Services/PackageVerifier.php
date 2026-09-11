@@ -275,11 +275,32 @@ class PackageVerifier
      */
     public function checkAll(
         string $packagePath,
-        ?string $packageName = null,
+        string|array|null $packageName = null,
+        string|array $tier = 'deep',
         array $only = [],
         bool $fix = false,
         bool $isolated = false
     ): array {
+        if ($packageName === 'quick' || $packageName === 'deep') {
+            if (is_array($tier)) {
+                $isolated = (bool) $fix;
+                $fix = (bool) ($only ?: false);
+                $only = $tier;
+            }
+            $tier = $packageName;
+            $packageName = null;
+        } elseif (is_array($packageName)) {
+            $only = $packageName;
+            $packageName = null;
+        }
+
+        if (is_array($tier)) {
+            $isolated = (bool) $fix;
+            $fix = (bool) ($only ?: false);
+            $only = $tier;
+            $tier = 'deep';
+        }
+
         $absPackagePath = $this->normalizePath($packagePath);
         $packageName ??= $this->resolvePackageName($absPackagePath);
 
@@ -292,27 +313,39 @@ class PackageVerifier
             }
         }
 
-        $shouldRun = fn (string $check): bool => empty($only) ? ($check !== 'isolated' || $isolated) : in_array($check, $only, true);
+        $checks = match ($tier) {
+            'quick' => ['composer', 'pint'],
+            'deep' => ['composer', 'pint', 'phpstan', 'tests'],
+            default => ['composer', 'pint', 'phpstan', 'tests'],
+        };
+
+        if ($isolated || in_array('isolated', $only, true)) {
+            $checks[] = 'isolated';
+        }
+
+        if (! empty($only)) {
+            $checks = array_values(array_intersect($checks, $only));
+        }
 
         $results = [];
 
-        if ($shouldRun('composer')) {
+        if (in_array('composer', $checks, true)) {
             $results[] = $this->checkComposer($absPackagePath, $packageName);
         }
 
-        if ($shouldRun('pint')) {
+        if (in_array('pint', $checks, true)) {
             $results[] = $this->checkPint($absPackagePath, $packageName, $fix);
         }
 
-        if ($shouldRun('phpstan')) {
+        if (in_array('phpstan', $checks, true)) {
             $results[] = $this->checkPhpstan($absPackagePath, $packageName);
         }
 
-        if ($shouldRun('tests')) {
+        if (in_array('tests', $checks, true)) {
             $results[] = $this->checkTests($absPackagePath, $packageName);
         }
 
-        if ($shouldRun('isolated')) {
+        if (in_array('isolated', $checks, true)) {
             $results[] = $this->checkIsolated($absPackagePath, $packageName);
         }
 
@@ -328,17 +361,25 @@ class PackageVerifier
      */
     public function checkAllPackages(
         array $packagePaths,
+        string|array $tier = 'deep',
         array $only = [],
         bool $fix = false,
         bool $isolated = false
     ): array {
+        if (is_array($tier)) {
+            $isolated = $fix;
+            $fix = (bool) $only;
+            $only = $tier;
+            $tier = 'deep';
+        }
+
         $results = [];
 
         // If fix or isolated mode is requested, run sequentially to avoid conflicts
         if ($fix || $isolated || count($packagePaths) <= 1) {
             foreach ($packagePaths as $key => $path) {
                 $packageName = is_string($key) && ! is_numeric($key) ? $key : null;
-                $results[$path] = $this->checkAll($path, $packageName, $only, $fix, $isolated);
+                $results[$path] = $this->checkAll($path, $packageName, $tier, $only, $fix, $isolated);
             }
 
             return $results;
@@ -347,19 +388,26 @@ class PackageVerifier
         $tasks = [];
         $checkResults = [];
 
+        $baseChecks = match ($tier) {
+            'quick' => ['composer', 'pint'],
+            'deep' => ['composer', 'pint', 'phpstan', 'tests'],
+            default => ['composer', 'pint', 'phpstan', 'tests'],
+        };
+
+        if ($isolated || in_array('isolated', $only, true)) {
+            $baseChecks[] = 'isolated';
+        }
+
+        if (! empty($only)) {
+            $baseChecks = array_values(array_intersect($baseChecks, $only));
+        }
+
         foreach ($packagePaths as $key => $path) {
             $absPackagePath = $this->normalizePath($path);
             $packageName = is_string($key) && ! is_numeric($key) ? $key : $this->resolvePackageName($absPackagePath);
             $checkResults[$path] = [];
 
-            $allowedChecks = ['composer', 'pint', 'phpstan', 'tests'];
-            $shouldRun = fn (string $check): bool => empty($only) || in_array($check, $only, true);
-
-            foreach ($allowedChecks as $check) {
-                if (! $shouldRun($check)) {
-                    continue;
-                }
-
+            foreach ($baseChecks as $check) {
                 $task = $this->buildCheckTask($absPackagePath, $packageName, $check);
                 $taskId = $packageName.':'.$check;
 
