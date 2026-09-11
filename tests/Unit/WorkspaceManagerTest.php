@@ -264,4 +264,72 @@ class WorkspaceManagerTest extends TestCase
         $this->assertCount(1, $duplicates);
         $this->assertStringContainsString('packages/other/Scraper', $duplicates[0]);
     }
+
+    public function test_update_composer_path_references_updates_lock_and_installed_json(): void
+    {
+        // 1. Seed composer.lock with a path repository package
+        $lockData = [
+            'packages' => [
+                [
+                    'name' => 'alex-kassel/scraper-core',
+                    'dist' => [
+                        'type' => 'path',
+                        'url' => 'app/Cores/old-dir',
+                    ],
+                ],
+                [
+                    'name' => 'other/package',
+                    'dist' => [
+                        'type' => 'git',
+                        'url' => 'https://github.com/other/package.git',
+                    ],
+                ],
+            ],
+            'packages-dev' => [
+                [
+                    'name' => 'alex-kassel/dev-tool',
+                    'dist' => [
+                        'type' => 'path',
+                        'url' => 'packages/dev-tool',
+                    ],
+                ],
+            ],
+        ];
+        File::put(base_path('composer.lock'), json_encode($lockData, JSON_PRETTY_PRINT));
+
+        // 2. Seed vendor/composer/installed.json
+        File::ensureDirectoryExists(base_path('vendor/composer'));
+        $installedData = [
+            'packages' => [
+                [
+                    'name' => 'alex-kassel/scraper-core',
+                    'dist' => [
+                        'type' => 'path',
+                        'url' => 'app/Cores/old-dir',
+                    ],
+                ],
+            ],
+        ];
+        File::put(base_path('vendor/composer/installed.json'), json_encode($installedData, JSON_PRETTY_PRINT));
+
+        // 3. Execute updateComposerPathReferences
+        Workspace::updateComposerPathReferences('alex-kassel/scraper-core', 'app/Cores/old-dir', 'app/Cores/new-alias');
+
+        // 4. Assert composer.lock updated
+        $updatedLock = json_decode(File::get(base_path('composer.lock')), true);
+        $this->assertSame('app/Cores/new-alias', $updatedLock['packages'][0]['dist']['url']);
+        $this->assertSame('https://github.com/other/package.git', $updatedLock['packages'][1]['dist']['url']);
+
+        // 5. Assert vendor/composer/installed.json updated
+        $updatedInstalled = json_decode(File::get(base_path('vendor/composer/installed.json')), true);
+        $this->assertSame('app/Cores/new-alias', $updatedInstalled['packages'][0]['dist']['url']);
+    }
+
+    public function test_update_composer_path_references_handles_missing_files_gracefully(): void
+    {
+        // Neither composer.lock nor installed.json exist in this fresh state
+        // Method should not throw any exceptions
+        Workspace::updateComposerPathReferences('non/existent', 'old/path', 'new/path');
+        $this->assertTrue(true);
+    }
 }

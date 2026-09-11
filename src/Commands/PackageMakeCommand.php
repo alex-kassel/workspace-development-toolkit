@@ -232,32 +232,7 @@ PHP;
         Workspace::sync();
 
         if ($alias !== '') {
-            $data = Workspace::load();
-            $wsPackages = $data['workspaces'][$workspace]['packages'] ?? [];
-            $newPackages = [];
-
-            foreach ($wsPackages as $item) {
-                $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
-                if ($existingName === $shortName || $existingName === $dirName) {
-                    continue;
-                }
-                $newPackages[] = $item;
-            }
-
-            $newPackages[] = [
-                'name' => $shortName,
-                'alias' => $alias,
-            ];
-
-            usort($newPackages, function ($a, $b) {
-                $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
-                $nameB = is_array($b) ? ($b['alias'] ?? $b['name']) : $b;
-
-                return strcasecmp($nameA, $nameB);
-            });
-
-            $data['workspaces'][$workspace]['packages'] = $newPackages;
-            Workspace::save($data);
+            Workspace::registerPackageAlias($workspace, $shortName, $alias);
 
             $duplicates = Workspace::findDuplicateAliases($alias, "{$workspace}/{$dirName}");
             if (! empty($duplicates)) {

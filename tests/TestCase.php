@@ -6,14 +6,36 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider;
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\File;
-use Tests\TestCase as BaseTestCase;
+
+if (class_exists(\Orchestra\Testbench\TestCase::class)) {
+    class_alias(\Orchestra\Testbench\TestCase::class, __NAMESPACE__.'\BaseTestCase');
+} elseif (class_exists(\Tests\TestCase::class)) {
+    class_alias(\Tests\TestCase::class, __NAMESPACE__.'\BaseTestCase');
+} else {
+    class_alias(\Illuminate\Foundation\Testing\TestCase::class, __NAMESPACE__.'\BaseTestCase');
+}
 
 abstract class TestCase extends BaseTestCase
 {
     protected string $tempDir;
 
     protected string $originalBasePath;
+
+    /**
+     * Get package providers for Orchestra Testbench.
+     *
+     * @param  Application  $app
+     * @return array<int, class-string>
+     */
+    protected function getPackageProviders($app): array
+    {
+        return [
+            WorkspaceDevelopmentToolkitServiceProvider::class,
+        ];
+    }
 
     protected function setUp(): void
     {

@@ -1,0 +1,198 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
+
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
+use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
+
+class ComposerManager
+{
+    /**
+     * Synchronize path repositories in root composer.json with registered workspaces.
+     *
+     * @param  array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>  $workspaces
+     */
+    public function syncRepositories(array $workspaces): void
+    {
+        $composerPath = base_path('composer.json');
+        if (! File::exists($composerPath)) {
+            return;
+        }
+
+        $composer = json_decode(File::get($composerPath), true) ?: [];
+        $existingRepos = $composer['repositories'] ?? [];
+
+        // Normalize if object
+        if ($existingRepos instanceof \stdClass || (is_array($existingRepos) && empty($existingRepos))) {
+            $existingRepos = [];
+        }
+
+        $managedRepoKeys = [];
+        $newRepos = [];
+
+        // Keep non-workspace repositories intact
+        foreach ($existingRepos as $key => $repo) {
+            if (is_array($repo) && isset($repo['name']) && str_starts_with($repo['name'], 'workspace-')) {
+                continue;
+            }
+            $newRepos[] = $repo;
+        }
+
+        // Add repository definitions for all configured workspaces
+        foreach ($workspaces as $wsPath => $config) {
+            $vendor = $config['vendor'] ?? null;
+            $repoName = 'workspace-'.str_replace(['/', '\\'], '-', $wsPath);
+            $managedRepoKeys[] = $repoName;
+
+            $urlPattern = $vendor !== null ? "{$wsPath}/*" : "{$wsPath}/*/*";
+
+            $newRepos[] = [
+                'name' => $repoName,
+                'type' => 'path',
+                'url' => $urlPattern,
+            ];
+        }
+
+        $composer['repositories'] = empty($newRepos) ? (object) [] : $newRepos;
+        File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+    }
+
+    /**
+     * Ensure root composer.json has pre-install and pre-update hooks for standalone workspace restore.
+     */
+    public function ensureComposerHooks(): void
+    {
+        $composerPath = base_path('composer.json');
+        if (! File::exists($composerPath)) {
+            return;
+        }
+
+        $composer = json_decode(File::get($composerPath), true) ?: [];
+        $scripts = $composer['scripts'] ?? [];
+        $modified = false;
+
+        $targetHook = 'php workspace restore';
+
+        foreach (['pre-install-cmd', 'pre-update-cmd'] as $hookName) {
+            $current = $scripts[$hookName] ?? [];
+            if (is_string($current)) {
+                $current = [$current];
+            }
+
+            if (! in_array($targetHook, $current, true)) {
+                $current[] = $targetHook;
+                $scripts[$hookName] = $current;
+                $modified = true;
+            }
+        }
+
+        if ($modified) {
+            $composer['scripts'] = $scripts;
+            File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+        }
+    }
+
+    /**
+     * Ensure the standalone `workspace` CLI script exists in the root directory.
+     */
+    public function ensureWorkspaceScript(): void
+    {
+        $targetPath = base_path('workspace');
+        $stubPath = __DIR__.'/../../stubs/workspace.stub';
+
+        if (! File::exists($stubPath)) {
+            return;
+        }
+
+        $stubContent = File::get($stubPath);
+
+        if (! File::exists($targetPath) || File::get($targetPath) !== $stubContent) {
+            File::put($targetPath, $stubContent);
+            @chmod($targetPath, 0755);
+        }
+    }
+
+    /**
+     * Update Composer lock and installed.json path references when a package directory moves.
+     */
+    public function updateComposerPathReferences(string $canonicalName, string $oldRelPath, string $newRelPath): void
+    {
+        $oldRelPath = str_replace('\\', '/', $oldRelPath);
+        $newRelPath = str_replace('\\', '/', $newRelPath);
+
+        // 1. Update composer.lock if present
+        $lockFile = base_path('composer.lock');
+        if (File::exists($lockFile)) {
+            $lockContent = File::get($lockFile);
+            $lockData = json_decode($lockContent, true);
+            if (is_array($lockData)) {
+                $changed = false;
+                foreach (['packages', 'packages-dev'] as $section) {
+                    if (! isset($lockData[$section]) || ! is_array($lockData[$section])) {
+                        continue;
+                    }
+                    foreach ($lockData[$section] as &$pkg) {
+                        if (($pkg['name'] ?? '') === $canonicalName && ($pkg['dist']['type'] ?? '') === 'path') {
+                            $pkg['dist']['url'] = $newRelPath;
+                            $changed = true;
+                        }
+                    }
+                    unset($pkg);
+                }
+                if ($changed) {
+                    File::put($lockFile, json_encode($lockData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n");
+                }
+            }
+        }
+
+        // 2. Update vendor/composer/installed.json if present
+        $installedFile = base_path('vendor/composer/installed.json');
+        if (File::exists($installedFile)) {
+            $installedContent = File::get($installedFile);
+            $installedData = json_decode($installedContent, true);
+            if (is_array($installedData)) {
+                $changed = false;
+                $packages = &$installedData['packages'];
+                if (is_array($packages)) {
+                    foreach ($packages as &$pkg) {
+                        if (($pkg['name'] ?? '') === $canonicalName && ($pkg['dist']['type'] ?? '') === 'path') {
+                            $pkg['dist']['url'] = $newRelPath;
+                            $changed = true;
+                        }
+                    }
+                    unset($pkg);
+                }
+                if ($changed) {
+                    File::put($installedFile, json_encode($installedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n");
+                }
+            }
+        }
+    }
+
+    /**
+     * Run Composer command.
+     *
+     * @param  array<int, string>  $args
+     *
+     * @throws ComposerProcessException
+     */
+    public function runComposer(array $args, int $timeout = 300): ProcessResult
+    {
+        $command = array_merge(['composer'], $args);
+        $result = Process::timeout($timeout)->path(base_path())->run($command);
+
+        if (! $result->successful()) {
+            throw new ComposerProcessException(
+                implode(' ', $command),
+                $result->exitCode() ?? 1,
+                $result->errorOutput() ?: $result->output()
+            );
+        }
+
+        return $result;
+    }
+}
