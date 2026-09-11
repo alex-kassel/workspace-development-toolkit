@@ -45,13 +45,24 @@ class WorkspaceListCommand extends Command
             $vendor = $config['vendor'] ?? null;
             $packages = $config['packages'] ?? [];
 
+            $formattedPackages = array_map(function ($pkg) {
+                if (is_array($pkg)) {
+                    $name = $pkg['name'] ?? '';
+                    $alias = $pkg['alias'] ?? null;
+
+                    return $alias ? "{$name} (as: {$alias})" : $name;
+                }
+
+                return (string) $pkg;
+            }, $packages);
+
             $rows[] = [
                 $workspace,
                 $workspace === $default ? 'Yes' : 'No',
                 $vendor ?? '(none / multi)',
                 $vendor ? 'Flat' : 'Nested',
                 count($packages),
-                empty($packages) ? '(none)' : implode("\n", $packages),
+                empty($packages) ? '(none)' : implode("\n", $formattedPackages),
             ];
         }
 

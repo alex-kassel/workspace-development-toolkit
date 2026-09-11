@@ -59,6 +59,7 @@ class WorkspaceHelpCommand extends Command
             ['workspace:help', 'Display this interactive guide and cheat sheet.'],
             ['package:make <name> [--workspace=] [--install] [--dev]', 'Scaffold a new local Laravel package with ServiceProvider and manifest.'],
             ['package:install <name> [--dev]', 'Symlink a local workspace package into root Laravel application.'],
+            ['package:alias <name> <alias> [--as=]', 'Assign a directory alias to a package in a flat workspace.'],
             ['package:uninstall <name> [--dev]', 'Remove package from root composer.json requirements (files kept).'],
             ['package:delete <name> [--force]', 'Completely delete a package from disk, manifest, and Composer.'],
             ['php workspace restore', 'Standalone root CLI (runs before composer install on fresh machines).'],

@@ -28,6 +28,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static void ensureWorkspaceScript()
  * @method static void ensureComposerHooks()
  * @method static bool deleteDirectoryRecursively(string $dir)
+ * @method static array aliasPackage(string $packageName, string $alias)
+ * @method static array findDuplicateAliases(string $alias, ?string $excludePath = null)
  * @method static void save(array $data)
  *
  * @see WorkspaceManager

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAliasCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDeleteCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageMakeCommand;
@@ -44,6 +45,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 PackageInstallCommand::class,
                 PackageUninstallCommand::class,
                 PackageDeleteCommand::class,
+                PackageAliasCommand::class,
                 WorkspaceAddCommand::class,
                 WorkspaceCloneCommand::class,
                 WorkspaceDefaultCommand::class,

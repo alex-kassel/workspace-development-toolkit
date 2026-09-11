@@ -64,20 +64,23 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
 
         foreach ($packages as $pkg) {
             $pkgName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
+            $alias = is_array($pkg) ? ($pkg['alias'] ?? null) : null;
             $customUrl = is_array($pkg) ? ($pkg['url'] ?? null) : null;
 
             if ($pkgName === '') {
                 continue;
             }
 
+            $effectiveDir = $alias ?? $pkgName;
+
             // Determine relative target path
             if ($vendor !== null) {
-                // Fixed-vendor workspace: e.g. labs/{package}
-                $targetRelative = $wsName . '/' . $pkgName;
+                // Fixed-vendor workspace: e.g. labs/{package} or labs/{alias}
+                $targetRelative = $wsName . '/' . $effectiveDir;
                 $canonicalName = str_contains($pkgName, '/') ? $pkgName : "{$vendor}/{$pkgName}";
             } else {
                 // Multi-vendor workspace: e.g. packages/{vendor}/{package}
-                $targetRelative = $wsName . '/' . $pkgName;
+                $targetRelative = $wsName . '/' . $effectiveDir;
                 $canonicalName = $pkgName;
             }
 
@@ -88,12 +91,13 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
             $cloneUrl = $customUrl ?? str_replace('{package}', $canonicalName, $template);
 
             if (file_exists($fullTarget)) {
-                echo "  [\033[32mEXISTS\033[0m]  {$canonicalName} -> {$targetRelative}\n";
+                $aliasLabel = $alias ? " [alias: {$alias}]" : '';
+                echo "  [\033[32mEXISTS\033[0m]  {$canonicalName}{$aliasLabel} -> {$targetRelative}\n";
                 $totalExisting++;
                 continue;
             }
 
-            echo "  [\033[33mCLONING\033[0m] {$canonicalName} from {$cloneUrl}...\n";
+            echo "  [\033[33mCLONING\033[0m] {$canonicalName} from {$cloneUrl} into {$targetRelative}...\n";
 
             // Ensure parent directory exists
             $parentDir = dirname($fullTarget);
@@ -142,14 +146,18 @@ function workspace_status(string $rootPath, string $manifestPath): int
 
         foreach ($packages as $pkg) {
             $pkgName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
-            $targetRelative = $wsName . '/' . $pkgName;
+            $alias = is_array($pkg) ? ($pkg['alias'] ?? null) : null;
+            $effectiveDir = $alias ?? $pkgName;
+
+            $targetRelative = $wsName . '/' . $effectiveDir;
             $targetRelative = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $targetRelative);
             $fullTarget = $rootPath . DIRECTORY_SEPARATOR . $targetRelative;
 
             $exists = file_exists($fullTarget);
             $statusLabel = $exists ? "\033[32m[FOUND]\033[0m" : "\033[31m[MISSING]\033[0m";
+            $aliasSuffix = $alias ? " (alias: \033[35m{$alias}\033[0m)" : "";
 
-            echo "    {$statusLabel} {$pkgName} ({$targetRelative})\n";
+            echo "    {$statusLabel} {$pkgName}{$aliasSuffix} ({$targetRelative})\n";
         }
     }
 

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Unit;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\AmbiguousPackageException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
@@ -197,5 +199,69 @@ class WorkspaceManagerTest extends TestCase
         $this->assertArrayHasKey('pre-update-cmd', $composer['scripts'] ?? []);
         $this->assertContains('php workspace restore', $composer['scripts']['pre-install-cmd']);
         $this->assertContains('php workspace restore', $composer['scripts']['pre-update-cmd']);
+    }
+
+    public function test_alias_package_in_flat_workspace_renames_dir_and_updates_manifest(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel');
+        $this->createDummyPackage('app/Cores/scraper-core', 'alex-kassel/scraper-core');
+        Workspace::sync();
+
+        $result = Workspace::aliasPackage('scraper-core', 'Scraper');
+
+        $this->assertSame('app/Cores/scraper-core', $result['old_path']);
+        $this->assertSame('app/Cores/Scraper', $result['new_path']);
+        $this->assertSame('alex-kassel/scraper-core', $result['canonical_name']);
+
+        $this->assertDirectoryDoesNotExist(base_path('app/Cores/scraper-core'));
+        $this->assertDirectoryExists(base_path('app/Cores/Scraper'));
+
+        $manifest = Workspace::load();
+        $packages = $manifest['workspaces']['app/Cores']['packages'];
+        $this->assertSame([['name' => 'scraper-core', 'alias' => 'Scraper']], $packages);
+
+        // Can find by alias
+        $this->assertSame('app/Cores/Scraper', Workspace::findPackagePath('Scraper'));
+        // Can find by short name
+        $this->assertSame('app/Cores/Scraper', Workspace::findPackagePath('scraper-core'));
+        // Can find by canonical name
+        $this->assertSame('app/Cores/Scraper', Workspace::findPackagePath('alex-kassel/scraper-core'));
+    }
+
+    public function test_alias_package_rejects_nested_workspace(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/alex-kassel/core-lib', 'alex-kassel/core-lib');
+        Workspace::sync();
+
+        $this->expectException(WorkspaceException::class);
+        $this->expectExceptionMessage('Aliases are only supported in flat (fixed-vendor) workspaces');
+        Workspace::aliasPackage('core-lib', 'CoreLib');
+    }
+
+    public function test_find_package_path_throws_ambiguous_package_exception_when_duplicate_names_exist(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel');
+        Workspace::add('packages', null);
+        $this->createDummyPackage('app/Cores/Scraper', 'alex-kassel/scraper');
+        $this->createDummyPackage('packages/other/scraper', 'other/scraper');
+        Workspace::sync();
+
+        $this->expectException(AmbiguousPackageException::class);
+        $this->expectExceptionMessage('Ambiguous package reference [scraper]');
+        Workspace::findPackagePath('scraper');
+    }
+
+    public function test_find_duplicate_aliases_detects_collisions_across_workspaces(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel');
+        Workspace::add('packages', null);
+        $this->createDummyPackage('app/Cores/Scraper', 'alex-kassel/scraper');
+        $this->createDummyPackage('packages/other/Scraper', 'other/scraper');
+        Workspace::sync();
+
+        $duplicates = Workspace::findDuplicateAliases('Scraper', 'app/Cores/Scraper');
+        $this->assertCount(1, $duplicates);
+        $this->assertStringContainsString('packages/other/Scraper', $duplicates[0]);
     }
 }

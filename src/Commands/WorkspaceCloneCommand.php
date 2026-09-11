@@ -20,6 +20,8 @@ class WorkspaceCloneCommand extends Command
         {repository? : Git repository URL or GitHub shorthand (e.g. vendor/package)}
         {--self : Clone the workspace toolkit itself}
         {--workspace= : The target workspace directory (defaults to configured default workspace)}
+        {--as= : Optional directory alias (flat workspaces only)}
+        {--alias= : Optional directory alias (flat workspaces only)}
         {--ssh : Prefer SSH clone format (git@github.com:vendor/package.git) for GitHub shorthands}
         {--install : Register and symlink the cloned package into Composer immediately}
         {--dev : When installing, require as a development dependency (--dev)}';
@@ -96,12 +98,20 @@ class WorkspaceCloneCommand extends Command
         }
 
         $workspaceVendor = Workspace::getWorkspaceVendor($workspace);
+        $alias = (string) ($this->option('as') ?: $this->option('alias'));
+
+        if ($alias !== '' && $workspaceVendor === null) {
+            $this->error('Aliases are only supported in flat (fixed-vendor) workspaces.');
+            $this->line("  <comment>Notice:</comment> Workspace [{$workspace}] is a nested multi-vendor workspace (e.g. packages/{vendor}/{package}).");
+
+            return self::FAILURE;
+        }
 
         // Pre-parse vendor and package hints from URL (e.g. vendor/package)
         [$inferredVendor, $inferredPackage] = $this->parseRepoVendorAndPackage($repoUrl);
 
         if ($workspaceVendor !== null) {
-            // Fixed-vendor workspace (flat): labs/{package}
+            // Fixed-vendor workspace (flat): labs/{package} or labs/{alias}
             if ($inferredVendor !== null && strtolower($inferredVendor) !== strtolower($workspaceVendor)) {
                 $this->error("Vendor mismatch: repository vendor [{$inferredVendor}] does not match fixed workspace vendor [{$workspaceVendor}].");
                 $this->line('  <comment>How to fix:</comment> Clone this package into a multi-vendor workspace (e.g. packages), or use a matching repository.');
@@ -109,7 +119,7 @@ class WorkspaceCloneCommand extends Command
                 return self::FAILURE;
             }
 
-            $packageName = $inferredPackage ?? basename(rtrim($repoUrl, '/'), '.git');
+            $packageName = $alias !== '' ? $alias : ($inferredPackage ?? basename(rtrim($repoUrl, '/'), '.git'));
             $relativeTargetPath = "{$workspace}/{$packageName}";
         } else {
             // Multi-vendor workspace (nested): packages/{vendor}/{package}
@@ -164,7 +174,27 @@ class WorkspaceCloneCommand extends Command
             $canonicalComposerName = $pkgData['name'] ?? null;
         }
 
+        if ($alias !== '') {
+            Workspace::aliasPackage($canonicalComposerName ?: $packageName, $alias);
+        }
+
         $this->info("Repository successfully cloned to [{$relativeTargetPath}].");
+
+        // Check if the chosen alias already exists elsewhere
+        if ($alias !== '') {
+            $duplicates = Workspace::findDuplicateAliases($alias, $relativeTargetPath);
+            if (! empty($duplicates)) {
+                $this->newLine();
+                $this->warn("Notice: The alias/name [{$alias}] is also used by another package:");
+                foreach ($duplicates as $duplicate) {
+                    $this->line("  • {$duplicate}");
+                }
+                $this->newLine();
+                $this->line("  <comment>Hint:</comment> Both packages will work normally in Composer, but resolving by short name '{$alias}' will be ambiguous.");
+                $this->line('  If you wish to differentiate them, you can assign a unique alias:');
+                $this->line("  <info>php artisan package:alias {$relativeTargetPath} UniqueAlias</info>");
+            }
+        }
 
         // Optional symlinking via Composer
         if ($install && $canonicalComposerName) {
@@ -193,7 +223,8 @@ class WorkspaceCloneCommand extends Command
         $this->line('  <comment>Next steps:</comment>');
         $this->line('  • Check registered packages: <info>php artisan workspace:list</info>');
         if (! $install && $canonicalComposerName) {
-            $this->line("  • Link into Composer:        <info>php artisan package:install {$canonicalComposerName}".($dev ? ' --dev' : '').'</info>');
+            $refName = $alias !== '' ? $alias : $canonicalComposerName;
+            $this->line("  • Link into Composer:        <info>php artisan package:install {$refName}".($dev ? ' --dev' : '').'</info>');
         }
 
         return self::SUCCESS;

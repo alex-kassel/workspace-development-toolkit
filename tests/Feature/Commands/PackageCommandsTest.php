@@ -444,4 +444,94 @@ class PackageCommandsTest extends TestCase
         // But the workspace directory remains
         $this->assertDirectoryExists(base_path('packages'));
     }
+
+    public function test_package_alias_renames_directory_and_updates_manifest(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel', true);
+        $this->createDummyPackage('app/Cores/scraper-core', 'alex-kassel/scraper-core');
+        Workspace::sync();
+
+        Process::fake([
+            '*' => Process::result(output: 'dumped'),
+        ]);
+
+        $this->artisan('package:alias', [
+            'package' => 'scraper-core',
+            'alias' => 'Scraper',
+        ])
+            ->expectsOutputToContain('successfully aliased to [Scraper]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryDoesNotExist(base_path('app/Cores/scraper-core'));
+        $this->assertDirectoryExists(base_path('app/Cores/Scraper'));
+
+        $manifest = Workspace::load();
+        $packages = $manifest['workspaces']['app/Cores']['packages'];
+        $this->assertSame([['name' => 'scraper-core', 'alias' => 'Scraper']], $packages);
+    }
+
+    public function test_package_alias_with_as_and_alias_options(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel', true);
+        $this->createDummyPackage('app/Cores/scraper-core', 'alex-kassel/scraper-core');
+        Workspace::sync();
+
+        Process::fake([
+            '*' => Process::result(output: 'dumped'),
+        ]);
+
+        $this->artisan('package:alias', [
+            'package' => 'scraper-core',
+            '--as' => 'ScraperEngine',
+        ])
+            ->expectsOutputToContain('successfully aliased to [ScraperEngine]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists(base_path('app/Cores/ScraperEngine'));
+
+        // Test with --alias option
+        $this->artisan('package:alias', [
+            'package' => 'ScraperEngine',
+            '--alias' => 'Scraper',
+        ])
+            ->expectsOutputToContain('successfully aliased to [Scraper]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists(base_path('app/Cores/Scraper'));
+    }
+
+    public function test_package_alias_warns_when_duplicate_alias_exists(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel');
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('app/Cores/scraper-core', 'alex-kassel/scraper-core');
+        $this->createDummyPackage('packages/acme/Scraper', 'acme/scraper');
+        Workspace::sync();
+
+        Process::fake([
+            '*' => Process::result(output: 'dumped'),
+        ]);
+
+        $this->artisan('package:alias', [
+            'package' => 'scraper-core',
+            'alias' => 'Scraper',
+        ])
+            ->expectsOutputToContain('successfully aliased to [Scraper]')
+            ->expectsOutputToContain('The alias/name [Scraper] is also used by another package:')
+            ->assertSuccessful();
+    }
+
+    public function test_package_alias_rejects_nested_workspace(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/my-lib', 'acme/my-lib');
+        Workspace::sync();
+
+        $this->artisan('package:alias', [
+            'package' => 'my-lib',
+            'alias' => 'MyLib',
+        ])
+            ->expectsOutputToContain('Aliases are only supported in flat (fixed-vendor) workspaces')
+            ->assertFailed();
+    }
 }

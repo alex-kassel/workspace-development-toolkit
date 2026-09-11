@@ -418,4 +418,50 @@ class WorkspaceCommandsTest extends TestCase
             return str_contains($cmd, 'composer require') && str_contains($cmd, 'alex-kassel/workspace-development-toolkit:@dev') && str_contains($cmd, '--dev');
         });
     }
+
+    public function test_workspace_clone_with_as_in_flat_workspace(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel', true);
+        $targetPath = base_path('app/Cores/Scraper');
+
+        Process::fake([
+            '*' => function ($process) use ($targetPath) {
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+                if (str_contains($cmd, 'git clone')) {
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'alex-kassel/scraper-core',
+                    ]));
+
+                    return Process::result(output: 'Cloned into Scraper');
+                }
+
+                return Process::result(output: 'Composer done');
+            },
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'alex-kassel/scraper-core',
+            '--as' => 'Scraper',
+        ])
+            ->expectsOutputToContain('into [app/Cores/Scraper]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists($targetPath);
+        $manifest = Workspace::load();
+        $this->assertSame([['name' => 'scraper-core', 'alias' => 'Scraper']], $manifest['workspaces']['app/Cores']['packages']);
+    }
+
+    public function test_workspace_clone_with_alias_rejects_nested_workspace(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'alex-kassel/scraper-core',
+            '--alias' => 'Scraper',
+        ])
+            ->expectsOutputToContain('Aliases are only supported in flat (fixed-vendor) workspaces')
+            ->assertFailed();
+    }
 }

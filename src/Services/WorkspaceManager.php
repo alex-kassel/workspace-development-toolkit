@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\AmbiguousPackageException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -145,34 +147,80 @@ class WorkspaceManager
     }
 
     /**
-     * Find relative directory path for a given package name.
-     * Supports both short name (if belonging to fixed vendor workspace) and canonical vendor/package name.
+     * Find relative directory path for a given package name or alias.
+     * Supports canonical name (vendor/package), short name, and custom alias.
+     *
+     * @throws AmbiguousPackageException
      */
-    public function findPackagePath(string $packageName): ?string
+    public function findPackagePath(string $packageName, ?string $workspace = null): ?string
     {
         $packageName = trim($packageName);
         $workspaces = $this->all();
 
-        foreach ($workspaces as $workspace => $config) {
-            $vendor = $config['vendor'] ?? null;
-
-            // Determine if packageName matches directly or with fixed vendor prefix
-            $targetCanonicalName = $packageName;
-            if ($vendor !== null && ! str_contains($packageName, '/')) {
-                $targetCanonicalName = "{$vendor}/{$packageName}";
+        // Scope to single workspace if requested
+        if ($workspace !== null) {
+            $normalizedWs = trim(preg_replace('#[/\\\\]+#', '/', $workspace) ?? '', '/');
+            if (isset($workspaces[$normalizedWs])) {
+                $workspaces = [$normalizedWs => $workspaces[$normalizedWs]];
             }
+        }
 
-            // Fixed vendor workspace is strictly flat (1-level), multi-vendor is strictly nested (2-level)
+        $matches = [];
+
+        foreach ($workspaces as $ws => $config) {
+            $vendor = $config['vendor'] ?? null;
             $files = $vendor !== null
-                ? (File::glob(base_path("{$workspace}/*/composer.json")) ?: [])
-                : (File::glob(base_path("{$workspace}/*/*/composer.json")) ?: []);
+                ? (File::glob(base_path("{$ws}/*/composer.json")) ?: [])
+                : (File::glob(base_path("{$ws}/*/*/composer.json")) ?: []);
+
+            // Check configured packages/aliases in workspace config
+            $aliasMap = [];
+            foreach ($config['packages'] ?? [] as $pkgItem) {
+                if (is_array($pkgItem) && isset($pkgItem['name'], $pkgItem['alias'])) {
+                    $aliasMap[strtolower($pkgItem['alias'])] = $pkgItem['name'];
+                }
+            }
 
             foreach ($files as $file) {
                 try {
                     $json = json_decode(File::get($file), true, 512, JSON_THROW_ON_ERROR);
-                    $name = $json['name'] ?? '';
-                    if ($name === $targetCanonicalName || $name === $packageName) {
-                        return trim(str_replace([base_path(), '\\'], ['', '/'], dirname($file)), '/');
+                    $canonicalName = $json['name'] ?? '';
+                    $dirName = basename(dirname($file));
+                    $relPath = trim(str_replace([base_path(), '\\'], ['', '/'], dirname($file)), '/');
+
+                    $isMatch = false;
+
+                    // Match 1: Exact canonical name (e.g. "alex-kassel/scraper-core")
+                    if (strcasecmp($canonicalName, $packageName) === 0) {
+                        $isMatch = true;
+                    }
+
+                    // Match 2: Directory name matches alias or package name
+                    if (! $isMatch && strcasecmp($dirName, $packageName) === 0) {
+                        $isMatch = true;
+                    }
+
+                    // Match 3: If package has a fixed vendor and packageName matches short name
+                    if (! $isMatch && $vendor !== null) {
+                        $expectedShort = str_starts_with($canonicalName, "{$vendor}/")
+                            ? substr($canonicalName, strlen("{$vendor}/"))
+                            : $canonicalName;
+
+                        if (strcasecmp($expectedShort, $packageName) === 0) {
+                            $isMatch = true;
+                        }
+                    }
+
+                    // Match 4: Check alias map in manifest
+                    if (! $isMatch && isset($aliasMap[strtolower($packageName)])) {
+                        $aliasedName = $aliasMap[strtolower($packageName)];
+                        if (strcasecmp($canonicalName, $aliasedName) === 0 || strcasecmp($canonicalName, "{$vendor}/{$aliasedName}") === 0) {
+                            $isMatch = true;
+                        }
+                    }
+
+                    if ($isMatch) {
+                        $matches[$relPath] = "{$relPath} ({$canonicalName})";
                     }
                 } catch (JsonException $e) {
                     throw new InvalidJsonException($file, "Corrupted package manifest: {$e->getMessage()}", $e);
@@ -180,31 +228,48 @@ class WorkspaceManager
             }
         }
 
-        return null;
+        if (count($matches) > 1) {
+            throw new AmbiguousPackageException($packageName, array_values($matches));
+        }
+
+        return count($matches) === 1 ? (string) array_key_first($matches) : null;
     }
 
     /**
      * Resolve full canonical vendor/package name.
+     * Supports canonical name, short name, and custom alias.
+     *
+     * @throws AmbiguousPackageException
      */
     public function resolveCanonicalPackageName(string $packageName, ?string $workspace = null): string
     {
         $packageName = trim($packageName);
 
+        // If explicitly in vendor/package format, verify whether it matches a local package path
         if (str_contains($packageName, '/')) {
+            $path = $this->findPackagePath($packageName, $workspace);
+            if ($path !== null && File::exists(base_path("{$path}/composer.json"))) {
+                $data = json_decode(File::get(base_path("{$path}/composer.json")), true);
+                if (! empty($data['name'])) {
+                    return $data['name'];
+                }
+            }
+
             return $packageName;
+        }
+
+        // Try locating local package path by alias or short name
+        $path = $this->findPackagePath($packageName, $workspace);
+        if ($path !== null && File::exists(base_path("{$path}/composer.json"))) {
+            $data = json_decode(File::get(base_path("{$path}/composer.json")), true);
+            if (! empty($data['name'])) {
+                return $data['name'];
+            }
         }
 
         if ($workspace !== null) {
             $vendor = $this->getWorkspaceVendor($workspace);
             if ($vendor !== null) {
-                return "{$vendor}/{$packageName}";
-            }
-        }
-
-        // Search in all registered workspaces
-        foreach ($this->all() as $ws => $config) {
-            $vendor = $config['vendor'] ?? null;
-            if ($vendor !== null && in_array($packageName, $config['packages'], true)) {
                 return "{$vendor}/{$packageName}";
             }
         }
@@ -281,6 +346,159 @@ class WorkspaceManager
         $template = $this->getRepositoryTemplate();
 
         return str_replace('{package}', trim($packageName), $template);
+    }
+
+    /**
+     * Assign a directory alias to a package in a flat (fixed-vendor) workspace.
+     *
+     * @return array{old_path: string, new_path: string, canonical_name: string}
+     *
+     * @throws WorkspaceException
+     */
+    public function aliasPackage(string $packageName, string $alias): array
+    {
+        $alias = trim($alias);
+        if ($alias === '' || ! preg_match('/^[a-zA-Z0-9_.-]+$/', $alias)) {
+            throw new WorkspaceException(
+                "Invalid alias [{$alias}].",
+                'Alias must contain only alphanumeric characters, dashes, underscores, and dots.'
+            );
+        }
+
+        $packagePath = $this->findPackagePath($packageName);
+        if ($packagePath === null) {
+            throw new WorkspaceException(
+                "Package [{$packageName}] was not found in any workspace.",
+                'Verify the package exists or run php artisan workspace:list.'
+            );
+        }
+
+        $matchedWorkspace = null;
+        $workspaces = $this->all();
+        $wsKeys = array_keys($workspaces);
+        usort($wsKeys, fn ($a, $b) => strlen($b) <=> strlen($a));
+
+        foreach ($wsKeys as $ws) {
+            if ($packagePath === $ws || str_starts_with($packagePath, "{$ws}/")) {
+                $matchedWorkspace = $ws;
+                break;
+            }
+        }
+
+        if ($matchedWorkspace === null) {
+            throw new WorkspaceException(
+                "Could not determine workspace for package [{$packageName}].",
+                'Verify workspace configuration in workspace.json.'
+            );
+        }
+
+        $workspace = $matchedWorkspace;
+        $vendor = $this->getWorkspaceVendor($workspace);
+        if ($vendor === null) {
+            throw new WorkspaceException(
+                'Aliases are only supported in flat (fixed-vendor) workspaces (e.g. app/Cores/{package}).',
+                "Package [{$packageName}] is in nested workspace [{$workspace}], which enforces vendor/package structure."
+            );
+        }
+
+        $currentDir = basename($packagePath);
+
+        $composerPath = base_path("{$packagePath}/composer.json");
+        $composerData = $this->readJsonFile($composerPath);
+        $canonicalName = $composerData['name'] ?? "{$vendor}/{$currentDir}";
+        $baseShortName = str_starts_with($canonicalName, "{$vendor}/")
+            ? substr($canonicalName, strlen("{$vendor}/"))
+            : $canonicalName;
+
+        $targetRelativePath = "{$workspace}/{$alias}";
+        $targetFullPath = base_path($targetRelativePath);
+
+        if (strcasecmp($currentDir, $alias) !== 0 && File::exists($targetFullPath)) {
+            throw new WorkspaceException(
+                "Target directory [{$targetRelativePath}] already exists on disk.",
+                'Choose a different alias or remove the existing directory.'
+            );
+        }
+
+        // Rename directory on disk if needed
+        $oldFullPath = base_path($packagePath);
+        if (strcasecmp($currentDir, $alias) !== 0) {
+            File::move($oldFullPath, $targetFullPath);
+
+            $this->updateComposerPathReferences($canonicalName, $packagePath, $targetRelativePath);
+            $this->updateVendorSymlink($canonicalName, $targetFullPath);
+        }
+
+        // Update workspace.json
+        $data = $this->load();
+        $wsPackages = $data['workspaces'][$workspace]['packages'] ?? [];
+        $newPackages = [];
+
+        foreach ($wsPackages as $item) {
+            $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            if ($existingName === $baseShortName || $existingName === $currentDir || $existingName === $canonicalName) {
+                continue;
+            }
+            $newPackages[] = $item;
+        }
+
+        $newPackages[] = [
+            'name' => $baseShortName,
+            'alias' => $alias,
+        ];
+
+        // Sort by package name or alias
+        usort($newPackages, function ($a, $b) {
+            $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
+            $nameB = is_array($b) ? ($b['alias'] ?? $b['name']) : $b;
+
+            return strcasecmp($nameA, $nameB);
+        });
+
+        $data['workspaces'][$workspace]['packages'] = $newPackages;
+        $this->save($data);
+
+        return [
+            'old_path' => $packagePath,
+            'new_path' => $targetRelativePath,
+            'canonical_name' => $canonicalName,
+        ];
+    }
+
+    /**
+     * Find any other packages matching a given alias/name across workspaces.
+     *
+     * @return array<int, string>
+     */
+    public function findDuplicateAliases(string $alias, ?string $excludePath = null): array
+    {
+        $duplicates = [];
+        $workspaces = $this->all();
+
+        foreach ($workspaces as $ws => $config) {
+            $vendor = $config['vendor'] ?? null;
+            $files = $vendor !== null
+                ? (File::glob(base_path("{$ws}/*/composer.json")) ?: [])
+                : (File::glob(base_path("{$ws}/*/*/composer.json")) ?: []);
+
+            foreach ($files as $file) {
+                $dirName = basename(dirname($file));
+                $relPath = trim(str_replace([base_path(), '\\'], ['', '/'], dirname($file)), '/');
+
+                if ($excludePath !== null && strcasecmp($relPath, $excludePath) === 0) {
+                    continue;
+                }
+
+                $json = json_decode(File::get($file), true) ?: [];
+                $canonicalName = $json['name'] ?? '';
+
+                if (strcasecmp($dirName, $alias) === 0) {
+                    $duplicates[] = "{$relPath} ({$canonicalName})";
+                }
+            }
+        }
+
+        return $duplicates;
     }
 
     /**
@@ -441,9 +659,9 @@ class WorkspaceManager
     }
 
     /**
-     * Scan a workspace directory for package names.
+     * Scan a workspace directory for package names (preserving configured aliases).
      *
-     * @return array<int, string>
+     * @return array<int, string|array{name: string, alias: string}>
      */
     public function scanPackages(string $workspace, ?string $vendor = null): array
     {
@@ -452,17 +670,49 @@ class WorkspaceManager
             ? (File::glob(base_path("{$workspace}/*/composer.json")) ?: [])
             : (File::glob(base_path("{$workspace}/*/*/composer.json")) ?: []);
 
+        // Read existing alias map if available
+        $existingAliases = [];
+        if (File::exists($this->workspaceJsonPath())) {
+            try {
+                $currentData = json_decode(File::get($this->workspaceJsonPath()), true) ?: [];
+                $configured = $currentData['workspaces'][$workspace]['packages'] ?? [];
+                foreach ($configured as $item) {
+                    if (is_array($item) && isset($item['name'], $item['alias'])) {
+                        $existingAliases[$item['name']] = $item['alias'];
+                        $existingAliases[$item['alias']] = $item['alias'];
+                    }
+                }
+            } catch (\Throwable) {
+                // Ignore corrupted json during scan
+            }
+        }
+
         foreach ($files as $file) {
             try {
                 $json = json_decode(File::get($file), true, 512, JSON_THROW_ON_ERROR);
                 $name = $json['name'] ?? null;
+                $dirName = basename(dirname($file));
+
                 if (! empty($name)) {
                     if ($vendor !== null) {
                         // In fixed vendor workspace, strip vendor/ prefix for packages list
-                        if (str_starts_with($name, "{$vendor}/")) {
-                            $packages[] = substr($name, strlen("{$vendor}/"));
+                        $baseShort = str_starts_with($name, "{$vendor}/")
+                            ? substr($name, strlen("{$vendor}/"))
+                            : $name;
+
+                        // Check if directory name is an alias or if alias exists in configuration
+                        if (strcasecmp($dirName, $baseShort) !== 0) {
+                            $packages[] = [
+                                'name' => $baseShort,
+                                'alias' => $dirName,
+                            ];
+                        } elseif (isset($existingAliases[$baseShort])) {
+                            $packages[] = [
+                                'name' => $baseShort,
+                                'alias' => $existingAliases[$baseShort],
+                            ];
                         } else {
-                            $packages[] = $name;
+                            $packages[] = $baseShort;
                         }
                     } else {
                         $packages[] = $name;
@@ -473,9 +723,14 @@ class WorkspaceManager
             }
         }
 
-        sort($packages);
+        usort($packages, function ($a, $b) {
+            $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
+            $nameB = is_array($b) ? ($b['alias'] ?? $b['name']) : $b;
 
-        return array_values(array_unique($packages));
+            return strcasecmp($nameA, $nameB);
+        });
+
+        return array_values($packages);
     }
 
     /**
@@ -718,6 +973,85 @@ class WorkspaceManager
             return ! File::isDirectory($dir);
         } catch (\Throwable) {
             return File::deleteDirectory($dir);
+        }
+    }
+
+    /**
+     * Update Composer lock and installed.json path references when a package directory moves.
+     */
+    public function updateComposerPathReferences(string $canonicalName, string $oldRelPath, string $newRelPath): void
+    {
+        $oldRelPath = str_replace('\\', '/', $oldRelPath);
+        $newRelPath = str_replace('\\', '/', $newRelPath);
+
+        // 1. Update composer.lock if present
+        $lockFile = base_path('composer.lock');
+        if (File::exists($lockFile)) {
+            $lockContent = File::get($lockFile);
+            $lockData = json_decode($lockContent, true);
+            if (is_array($lockData)) {
+                $changed = false;
+                foreach (['packages', 'packages-dev'] as $section) {
+                    if (! isset($lockData[$section]) || ! is_array($lockData[$section])) {
+                        continue;
+                    }
+                    foreach ($lockData[$section] as &$pkg) {
+                        if (($pkg['name'] ?? '') === $canonicalName && ($pkg['dist']['type'] ?? '') === 'path') {
+                            $pkg['dist']['url'] = $newRelPath;
+                            $changed = true;
+                        }
+                    }
+                    unset($pkg);
+                }
+                if ($changed) {
+                    File::put($lockFile, json_encode($lockData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n");
+                }
+            }
+        }
+
+        // 2. Update vendor/composer/installed.json if present
+        $installedFile = base_path('vendor/composer/installed.json');
+        if (File::exists($installedFile)) {
+            $installedContent = File::get($installedFile);
+            $installedData = json_decode($installedContent, true);
+            if (is_array($installedData)) {
+                $changed = false;
+                $packages = &$installedData['packages'];
+                if (is_array($packages)) {
+                    foreach ($packages as &$pkg) {
+                        if (($pkg['name'] ?? '') === $canonicalName && ($pkg['dist']['type'] ?? '') === 'path') {
+                            $pkg['dist']['url'] = $newRelPath;
+                            $changed = true;
+                        }
+                    }
+                    unset($pkg);
+                }
+                if ($changed) {
+                    File::put($installedFile, json_encode($installedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n");
+                }
+            }
+        }
+    }
+
+    /**
+     * Re-point or recreate symlink / junction in vendor directory.
+     */
+    public function updateVendorSymlink(string $canonicalName, string $targetFullPath): void
+    {
+        $vendorPackageDir = base_path("vendor/{$canonicalName}");
+        $winVendor = str_replace('/', '\\', $vendorPackageDir);
+        $winTarget = str_replace('/', '\\', $targetFullPath);
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            if (is_link($vendorPackageDir) || file_exists($vendorPackageDir) || is_dir($vendorPackageDir)) {
+                @rmdir($vendorPackageDir);
+                Process::run("cmd /c mklink /J \"{$winVendor}\" \"{$winTarget}\"");
+            }
+        } else {
+            if (is_link($vendorPackageDir) || file_exists($vendorPackageDir)) {
+                @unlink($vendorPackageDir);
+                @symlink($targetFullPath, $vendorPackageDir);
+            }
         }
     }
 }
