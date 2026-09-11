@@ -1,7 +1,8 @@
-﻿---
+---
 name: package-docs
 origin: alex-kassel/workspace-development-toolkit
 version: 1.1.0
+status: published
 description: >-
   Standardized documentation lifecycle skill for PHP and Laravel packages.
   Orchestrates documentation scaffolding, synchronization, and drift review

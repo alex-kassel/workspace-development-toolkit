@@ -68,9 +68,10 @@ class SkillInstaller
     }
 
     /**
-     * Check if a skill file is marked as draft.
+     * Check if a skill file is officially published and ready for distribution.
+     * Only skills with status: published are allowed to be materialized.
      */
-    public function isDraft(string $skillFilePath): bool
+    public function isPublished(string $skillFilePath): bool
     {
         if (! file_exists($skillFilePath)) {
             return false;
@@ -78,10 +79,7 @@ class SkillInstaller
 
         $content = (string) file_get_contents($skillFilePath);
         if (preg_match('/^---\s*[\r\n]+(.*?)\s*[\r\n]+---/s', $content, $matches)) {
-            if (preg_match('/^status:\s*(draft|disabled)$/mi', $matches[1])) {
-                return true;
-            }
-            if (preg_match('/^draft:\s*(true|1|yes)$/mi', $matches[1])) {
+            if (preg_match('/^status:\s*published$/mi', $matches[1])) {
                 return true;
             }
         }
@@ -121,8 +119,8 @@ class SkillInstaller
 
         $expectedOrigin = $this->readSkillOrigin($sourceSkillMd) ?? 'alex-kassel/workspace-development-toolkit';
 
-        // Draft skills must never be automatically materialized into active agent skills
-        if ($this->isDraft($sourceSkillMd) && ! $force) {
+        // Strict Publication Gate: Only officially published skills may be materialized
+        if (! $this->isPublished($sourceSkillMd) && ! $force) {
             return false;
         }
 
