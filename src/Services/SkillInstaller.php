@@ -68,6 +68,28 @@ class SkillInstaller
     }
 
     /**
+     * Check if a skill file is marked as draft.
+     */
+    public function isDraft(string $skillFilePath): bool
+    {
+        if (! file_exists($skillFilePath)) {
+            return false;
+        }
+
+        $content = (string) file_get_contents($skillFilePath);
+        if (preg_match('/^---\s*[\r\n]+(.*?)\s*[\r\n]+---/s', $content, $matches)) {
+            if (preg_match('/^status:\s*(draft|disabled)$/mi', $matches[1])) {
+                return true;
+            }
+            if (preg_match('/^draft:\s*(true|1|yes)$/mi', $matches[1])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Check if the skill is already installed and belongs to this package.
      */
     public function isInstalled(?string $targetSkillsDir = null, string $skillSlug = 'package-docs'): bool
@@ -98,6 +120,11 @@ class SkillInstaller
         $targetSkillMd = $targetDir.DIRECTORY_SEPARATOR.'SKILL.md';
 
         $expectedOrigin = $this->readSkillOrigin($sourceSkillMd) ?? 'alex-kassel/workspace-development-toolkit';
+
+        // Draft skills must never be automatically materialized into active agent skills
+        if ($this->isDraft($sourceSkillMd) && ! $force) {
+            return false;
+        }
 
         if (file_exists($targetDir)) {
             $installedOrigin = $this->readSkillOrigin($targetSkillMd);

@@ -257,7 +257,7 @@ PHP;
 
         $scaffoldSkills = $this->option('no-skills')
             ? false
-            : ($this->option('skills') || config('workspace.scaffold_agent_skills', false));
+            : ($this->option('skills') || config('workspace.scaffold_agent_skills', true));
 
         if ($scaffoldSkills) {
             $skillSlug = (string) $this->option('skill-name');
@@ -273,13 +273,16 @@ PHP;
 name: {$skillSlug}
 origin: {$name}
 version: 0.0.1
+status: draft
 description: >-
-  Operational agent skill for {$name} package.
+  TODO: Operational agent skill for {$name} package.
 ---
 
 # {$skillSlug} Skill
 
-This skill assists AI agents in interacting with and using the `{$name}` package.
+> [!NOTE]
+> This skill is currently in **draft** status.
+> Fill in instructions and workflows for AI agents, then remove `status: draft` to activate publishing.
 
 MARKDOWN;
 
