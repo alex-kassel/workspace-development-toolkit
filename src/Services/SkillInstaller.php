@@ -8,6 +8,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
+use Symfony\Component\Yaml\Yaml;
 
 class SkillInstaller
 {
@@ -49,22 +50,39 @@ class SkillInstaller
     }
 
     /**
-     * Parse the origin metadata from a SKILL.md file.
+     * Parse YAML frontmatter from a SKILL.md file.
+     *
+     * @return array<string, mixed>
      */
-    public function readSkillOrigin(string $skillFilePath): ?string
+    public function parseSkillFrontmatter(string $skillFilePath): array
     {
         if (! file_exists($skillFilePath)) {
-            return null;
+            return [];
         }
 
         $content = (string) file_get_contents($skillFilePath);
         if (preg_match('/^---\s*[\r\n]+(.*?)\s*[\r\n]+---/s', $content, $matches)) {
-            if (preg_match('/^origin:\s*(.+)$/m', $matches[1], $originMatches)) {
-                return trim($originMatches[1], " \t\n\r\0\x0B\"'");
+            try {
+                $parsed = Yaml::parse($matches[1]);
+
+                return is_array($parsed) ? $parsed : [];
+            } catch (\Throwable) {
+                return [];
             }
         }
 
-        return null;
+        return [];
+    }
+
+    /**
+     * Parse the origin metadata from a SKILL.md file.
+     */
+    public function readSkillOrigin(string $skillFilePath): ?string
+    {
+        $metadata = $this->parseSkillFrontmatter($skillFilePath);
+        $origin = $metadata['origin'] ?? null;
+
+        return is_string($origin) && trim($origin) !== '' ? trim($origin) : null;
     }
 
     /**
@@ -73,18 +91,9 @@ class SkillInstaller
      */
     public function isPublished(string $skillFilePath): bool
     {
-        if (! file_exists($skillFilePath)) {
-            return false;
-        }
+        $metadata = $this->parseSkillFrontmatter($skillFilePath);
 
-        $content = (string) file_get_contents($skillFilePath);
-        if (preg_match('/^---\s*[\r\n]+(.*?)\s*[\r\n]+---/s', $content, $matches)) {
-            if (preg_match('/^status:\s*published$/mi', $matches[1])) {
-                return true;
-            }
-        }
-
-        return false;
+        return ($metadata['status'] ?? null) === 'published';
     }
 
     /**
