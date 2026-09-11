@@ -157,6 +157,15 @@ class WorkspaceManager
             }
         }
 
+        // Check if default workspace has a fixed vendor
+        $defaultWs = $this->getDefault();
+        if ($defaultWs !== null) {
+            $defaultVendor = $this->getWorkspaceVendor($defaultWs);
+            if ($defaultVendor !== null) {
+                return "{$defaultVendor}/{$packageName}";
+            }
+        }
+
         return $packageName;
     }
 

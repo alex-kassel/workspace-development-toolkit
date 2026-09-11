@@ -61,6 +61,14 @@ class WorkspaceAddCommand extends Command
 
         $path = $normalizedPath;
 
+        if (array_key_exists($path, Workspace::all())) {
+            $this->error("Workspace [{$path}] is already registered.");
+            $this->line('  <comment>How to fix:</comment> View registered workspaces using:');
+            $this->line('  <info>php artisan workspace:list</info>');
+
+            return self::FAILURE;
+        }
+
         try {
             Workspace::add($path, $vendor, $isDefault);
         } catch (WorkspaceException $e) {

@@ -83,7 +83,10 @@ class PackageDeleteCommand extends Command
         $realFullPath = realpath($fullPath);
         $realBasePath = realpath(base_path());
 
-        if (! $realFullPath || ! $realBasePath || ! str_starts_with($realFullPath, $realBasePath.DIRECTORY_SEPARATOR)) {
+        $normalizedFullPath = $realFullPath ? strtolower(rtrim(str_replace('\\', '/', $realFullPath), '/')) : '';
+        $normalizedBasePath = $realBasePath ? strtolower(rtrim(str_replace('\\', '/', $realBasePath), '/')) : '';
+
+        if (! $realFullPath || ! $realBasePath || ! str_starts_with($normalizedFullPath, $normalizedBasePath.'/')) {
             $this->error("Security violation: Package path [{$fullPath}] resolves outside the application root.");
 
             return self::FAILURE;
