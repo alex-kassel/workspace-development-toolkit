@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -23,38 +24,63 @@ class ComposerManager
             return;
         }
 
-        $composer = json_decode(File::get($composerPath), true) ?: [];
-        $existingRepos = $composer['repositories'] ?? [];
-
-        // Normalize if object
-        if ($existingRepos instanceof \stdClass || (is_array($existingRepos) && empty($existingRepos))) {
-            $existingRepos = [];
+        $content = File::get($composerPath);
+        try {
+            $composer = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new InvalidJsonException(
+                $composerPath,
+                "Failed to parse composer.json: {$e->getMessage()}",
+                $e
+            );
         }
 
-        $managedRepoKeys = [];
+        if (! is_array($composer)) {
+            throw new InvalidJsonException(
+                $composerPath,
+                'composer.json must be a valid JSON object'
+            );
+        }
+
+        $existingRepos = $composer['repositories'] ?? [];
+
+        // Determine if existing repositories was an associative dictionary (e.g. {"packagist.org": false})
+        $isAssociative = is_array($existingRepos) && ! array_is_list($existingRepos);
+
         $newRepos = [];
 
         // Keep non-workspace repositories intact
-        foreach ($existingRepos as $key => $repo) {
-            if (is_array($repo) && isset($repo['name']) && str_starts_with($repo['name'], 'workspace-')) {
-                continue;
+        if (is_array($existingRepos)) {
+            foreach ($existingRepos as $key => $repo) {
+                // If repo is a path repo managed by workspace toolkit, skip it
+                if (is_array($repo) && isset($repo['name']) && str_starts_with((string) $repo['name'], 'workspace-')) {
+                    continue;
+                }
+                if ($isAssociative) {
+                    $newRepos[$key] = $repo;
+                } else {
+                    $newRepos[] = $repo;
+                }
             }
-            $newRepos[] = $repo;
         }
 
         // Add repository definitions for all configured workspaces
         foreach ($workspaces as $wsPath => $config) {
             $vendor = $config['vendor'] ?? null;
             $repoName = 'workspace-'.str_replace(['/', '\\'], '-', $wsPath);
-            $managedRepoKeys[] = $repoName;
-
             $urlPattern = $vendor !== null ? "{$wsPath}/*" : "{$wsPath}/*/*";
 
-            $newRepos[] = [
+            $definition = [
                 'name' => $repoName,
                 'type' => 'path',
                 'url' => $urlPattern,
             ];
+
+            if ($isAssociative) {
+                $newRepos[$repoName] = $definition;
+            } else {
+                $newRepos[] = $definition;
+            }
         }
 
         $composer['repositories'] = empty($newRepos) ? (object) [] : $newRepos;
@@ -71,7 +97,20 @@ class ComposerManager
             return;
         }
 
-        $composer = json_decode(File::get($composerPath), true) ?: [];
+        $content = File::get($composerPath);
+        try {
+            $composer = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new InvalidJsonException(
+                $composerPath,
+                "Failed to parse composer.json: {$e->getMessage()}",
+                $e
+            );
+        }
+
+        if (! is_array($composer)) {
+            return;
+        }
         $scripts = $composer['scripts'] ?? [];
         $modified = false;
 

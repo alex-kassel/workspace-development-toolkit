@@ -278,6 +278,54 @@ class ManifestRepository
     }
 
     /**
+     * Record a package entry in workspace.json preserving custom URL, alias, etc.
+     */
+    public function recordPackage(string $workspace, string $packageName, ?string $alias = null, ?string $url = null): void
+    {
+        $cleanWorkspace = $this->normalizeWorkspacePath($workspace);
+        $data = $this->load();
+
+        if (! isset($data['workspaces'][$cleanWorkspace])) {
+            throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
+        }
+
+        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'] ?? [];
+        $newPackages = [];
+
+        foreach ($wsPackages as $item) {
+            $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
+            if ($existingName === $packageName || ($alias !== null && $existingAlias === $alias)) {
+                continue;
+            }
+            $newPackages[] = $item;
+        }
+
+        if ($alias !== null || $url !== null) {
+            $entry = ['name' => $packageName];
+            if ($alias !== null) {
+                $entry['alias'] = $alias;
+            }
+            if ($url !== null) {
+                $entry['url'] = $url;
+            }
+            $newPackages[] = $entry;
+        } else {
+            $newPackages[] = $packageName;
+        }
+
+        usort($newPackages, function ($a, $b) {
+            $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
+            $nameB = is_array($b) ? ($b['alias'] ?? $b['name']) : $b;
+
+            return strcasecmp($nameA, $nameB);
+        });
+
+        $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
+        $this->save($data);
+    }
+
+    /**
      * Normalize and validate workspace path.
      *
      * @throws InvalidWorkspacePathException

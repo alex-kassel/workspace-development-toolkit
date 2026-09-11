@@ -68,10 +68,14 @@ class PackageAliasCommand extends Command
         $newPath = $result['new_path'];
         $canonicalName = $result['canonical_name'];
 
-        $this->info("Package [{$canonicalName}] successfully aliased to [{$rawAlias}] ({$newPath}).");
-
         // Refresh Composer autoloader to account for directory rename
-        Process::path(base_path())->run(['composer', 'dump-autoload']);
+        $dumpResult = Process::path(base_path())->run(['composer', 'dump-autoload']);
+        if (! $dumpResult->successful()) {
+            $this->warn('Notice: Composer dump-autoload encountered warnings or errors:');
+            $this->line('  '.trim($dumpResult->errorOutput() ?: $dumpResult->output()));
+        }
+
+        $this->info("Package [{$canonicalName}] successfully aliased to [{$rawAlias}] ({$newPath}).");
 
         // Check if the chosen alias already exists elsewhere
         $duplicates = Workspace::findDuplicateAliases($rawAlias, $newPath);

@@ -43,20 +43,25 @@ class PackageResolver
             ? (File::glob(base_path("{$workspace}/*/composer.json")) ?: [])
             : (File::glob(base_path("{$workspace}/*/*/composer.json")) ?: []);
 
-        // Read existing alias map if available from manifest
-        $existingAliases = [];
+        // Read existing configured packages map from manifest to preserve URLs, offline packages, etc.
+        $configuredPackages = [];
         try {
             $currentData = $this->manifest->load();
             $configured = $currentData['workspaces'][$workspace]['packages'] ?? [];
             foreach ($configured as $item) {
-                if (is_array($item) && isset($item['name'], $item['alias'])) {
-                    $existingAliases[$item['name']] = $item['alias'];
-                    $existingAliases[$item['alias']] = $item['alias'];
+                $pkgName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+                if ($pkgName !== '') {
+                    $configuredPackages[$pkgName] = $item;
+                    if (is_array($item) && isset($item['alias'])) {
+                        $configuredPackages[$item['alias']] = $item;
+                    }
                 }
             }
         } catch (Throwable) {
             // Ignore errors during scan
         }
+
+        $discoveredNames = [];
 
         foreach ($files as $file) {
             try {
@@ -71,26 +76,60 @@ class PackageResolver
                             ? substr($name, strlen("{$vendor}/"))
                             : $name;
 
-                        // Check if directory name is an alias or if alias exists in configuration
-                        if (strcasecmp($dirName, $baseShort) !== 0) {
-                            $packages[] = [
-                                'name' => $baseShort,
-                                'alias' => $dirName,
-                            ];
-                        } elseif (isset($existingAliases[$baseShort])) {
-                            $packages[] = [
-                                'name' => $baseShort,
-                                'alias' => $existingAliases[$baseShort],
-                            ];
+                        $existing = $configuredPackages[$baseShort] ?? $configuredPackages[$dirName] ?? null;
+                        $existingAlias = is_array($existing) ? ($existing['alias'] ?? null) : null;
+                        $existingUrl = is_array($existing) ? ($existing['url'] ?? null) : null;
+
+                        $discoveredNames[$baseShort] = true;
+                        if ($existingAlias !== null) {
+                            $discoveredNames[$existingAlias] = true;
+                        }
+
+                        $effectiveAlias = (strcasecmp($dirName, $baseShort) !== 0) ? $dirName : $existingAlias;
+
+                        if ($effectiveAlias !== null || $existingUrl !== null) {
+                            $entry = ['name' => $baseShort];
+                            if ($effectiveAlias !== null) {
+                                $entry['alias'] = $effectiveAlias;
+                            }
+                            if ($existingUrl !== null) {
+                                $entry['url'] = $existingUrl;
+                            }
+                            $packages[] = $entry;
                         } else {
                             $packages[] = $baseShort;
                         }
                     } else {
-                        $packages[] = $name;
+                        $existing = $configuredPackages[$name] ?? null;
+                        $existingUrl = is_array($existing) ? ($existing['url'] ?? null) : null;
+
+                        $discoveredNames[$name] = true;
+
+                        if ($existingUrl !== null) {
+                            $packages[] = [
+                                'name' => $name,
+                                'url' => $existingUrl,
+                            ];
+                        } else {
+                            $packages[] = $name;
+                        }
                     }
                 }
             } catch (JsonException $e) {
                 throw new InvalidJsonException($file, "Corrupted package manifest: {$e->getMessage()}", $e);
+            }
+        }
+
+        // Retain previously configured packages that may temporarily be offline/missing from disk
+        foreach ($configuredPackages as $key => $item) {
+            $name = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            if ($name === '' || isset($discoveredNames[$name]) || ($key !== $name && isset($discoveredNames[$key]))) {
+                continue;
+            }
+            $packages[] = $item;
+            $discoveredNames[$name] = true;
+            if (is_array($item) && isset($item['alias'])) {
+                $discoveredNames[$item['alias']] = true;
             }
         }
 

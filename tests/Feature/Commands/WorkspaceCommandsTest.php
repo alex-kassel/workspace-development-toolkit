@@ -587,4 +587,16 @@ class WorkspaceCommandsTest extends TestCase
 
         $this->assertDirectoryDoesNotExist(base_path('packages/secret/private-repo'));
     }
+
+    public function test_workspace_clone_rejects_path_traversal_in_alias(): void
+    {
+        Workspace::add('labs', 'alex-kassel-labs', true);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'alex-kassel-labs/tool',
+            '--as' => '../../outside',
+        ])
+            ->expectsOutputToContain('Invalid alias [../../outside]')
+            ->assertFailed();
+    }
 }

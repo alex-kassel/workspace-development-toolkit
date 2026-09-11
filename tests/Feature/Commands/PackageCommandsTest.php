@@ -30,7 +30,8 @@ class PackageCommandsTest extends TestCase
         $this->assertArrayHasKey('php', $composerContent['require']);
         $this->assertArrayHasKey('illuminate/support', $composerContent['require']);
         $this->assertStringContainsString('^11.0', $composerContent['require']['illuminate/support']);
-        $this->assertStringContainsString('^13.0', $composerContent['require']['illuminate/support']);
+        $currentMajor = (int) explode('.', app()->version())[0];
+        $this->assertStringContainsString("^{$currentMajor}.0", $composerContent['require']['illuminate/support']);
 
         // Assert ServiceProvider content is syntactically complete
         $spContent = File::get($packageDir.'/src/BillingModuleServiceProvider.php');

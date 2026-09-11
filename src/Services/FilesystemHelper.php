@@ -29,8 +29,17 @@ class FilesystemHelper
             );
 
             foreach ($items as $item) {
-                $itemPath = $item->getRealPath();
-                if ($itemPath === false) {
+                // Use pathname directly so symlinks are not followed to their real path targets
+                $itemPath = $item->getPathname();
+
+                if ($item->isLink() || is_link($itemPath)) {
+                    @chmod($itemPath, 0777);
+                    if (PHP_OS_FAMILY === 'Windows' && is_dir($itemPath)) {
+                        @rmdir($itemPath);
+                    } else {
+                        @unlink($itemPath);
+                    }
+
                     continue;
                 }
 

@@ -198,6 +198,15 @@ class WorkspaceManager
     }
 
     /**
+     * Record package metadata in workspace.json.
+     */
+    public function recordPackage(string $workspace, string $packageName, ?string $alias = null, ?string $url = null): void
+    {
+        $this->manifest->recordPackage($workspace, $packageName, $alias, $url);
+        $this->resolver->clearCache();
+    }
+
+    /**
      * Scan workspace directory for packages.
      *
      * @return array<int, string|array{name: string, alias: string}>
@@ -390,15 +399,59 @@ class WorkspaceManager
 
         // Rename directory on disk if needed
         $oldFullPath = base_path($packagePath);
-        if (strcasecmp($currentDir, $alias) !== 0) {
-            File::move($oldFullPath, $targetFullPath);
+        $moved = false;
 
-            $this->updateComposerPathReferences($canonicalName, $packagePath, $targetRelativePath);
-            $this->updateVendorSymlink($canonicalName, $targetFullPath);
+        if (strcasecmp($currentDir, $alias) !== 0) {
+            $moveSuccess = @rename($oldFullPath, $targetFullPath);
+            if (! $moveSuccess) {
+                // Fallback to File::move
+                try {
+                    $moveSuccess = File::move($oldFullPath, $targetFullPath);
+                } catch (\Throwable $e) {
+                    throw new WorkspaceException(
+                        "Failed to rename directory [{$packagePath}] to [{$targetRelativePath}]: {$e->getMessage()}",
+                        'Check directory permissions or close any programs holding files open in this directory.'
+                    );
+                }
+            }
+
+            if (! $moveSuccess || ! File::isDirectory($targetFullPath)) {
+                throw new WorkspaceException(
+                    "Failed to rename directory [{$packagePath}] to [{$targetRelativePath}].",
+                    'Check directory permissions or close any programs holding files open in this directory.'
+                );
+            }
+
+            $moved = true;
+
+            try {
+                $this->updateComposerPathReferences($canonicalName, $packagePath, $targetRelativePath);
+                $this->updateVendorSymlink($canonicalName, $targetFullPath);
+            } catch (\Throwable $e) {
+                // Rollback directory move if reference update fails
+                @rename($targetFullPath, $oldFullPath);
+                throw new WorkspaceException(
+                    "Failed to update references after renaming [{$targetRelativePath}]: {$e->getMessage()}",
+                    'The directory rename was rolled back.'
+                );
+            }
         }
 
-        // Register alias in manifest
-        $this->registerPackageAlias($workspace, $baseShortName, $alias);
+        try {
+            // Register alias in manifest
+            $this->registerPackageAlias($workspace, $baseShortName, $alias);
+        } catch (\Throwable $e) {
+            if ($moved) {
+                // Rollback directory move and references
+                @rename($targetFullPath, $oldFullPath);
+                $this->updateComposerPathReferences($canonicalName, $targetRelativePath, $packagePath);
+                $this->updateVendorSymlink($canonicalName, $oldFullPath);
+            }
+            throw new WorkspaceException(
+                "Failed to update workspace manifest: {$e->getMessage()}",
+                'The directory rename was rolled back.'
+            );
+        }
 
         return [
             'old_path' => $packagePath,

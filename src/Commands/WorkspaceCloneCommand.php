@@ -98,13 +98,22 @@ class WorkspaceCloneCommand extends Command
         }
 
         $workspaceVendor = Workspace::getWorkspaceVendor($workspace);
-        $alias = (string) ($this->option('as') ?: $this->option('alias'));
+        $alias = trim((string) ($this->option('as') ?: $this->option('alias')));
 
-        if ($alias !== '' && $workspaceVendor === null) {
-            $this->error('Aliases are only supported in flat (fixed-vendor) workspaces.');
-            $this->line("  <comment>Notice:</comment> Workspace [{$workspace}] is a nested multi-vendor workspace (e.g. packages/{vendor}/{package}).");
+        if ($alias !== '') {
+            if ($workspaceVendor === null) {
+                $this->error('Aliases are only supported in flat (fixed-vendor) workspaces.');
+                $this->line("  <comment>Notice:</comment> Workspace [{$workspace}] is a nested multi-vendor workspace (e.g. packages/{vendor}/{package}).");
 
-            return self::FAILURE;
+                return self::FAILURE;
+            }
+
+            if (! preg_match('/^[a-zA-Z0-9_.-]+$/', $alias) || str_contains($alias, '/') || str_contains($alias, '\\') || $alias === '.' || $alias === '..') {
+                $this->error("Invalid alias [{$alias}].");
+                $this->line('  <comment>Notice:</comment> Alias must contain only alphanumeric characters, dashes, underscores, and dots.');
+
+                return self::FAILURE;
+            }
         }
 
         // Pre-parse vendor and package hints from URL (e.g. vendor/package)
@@ -126,6 +135,15 @@ class WorkspaceCloneCommand extends Command
             $vendorName = $inferredVendor ?? 'packages';
             $packageName = $inferredPackage ?? basename(rtrim($repoUrl, '/'), '.git');
             $relativeTargetPath = "{$workspace}/{$vendorName}/{$packageName}";
+        }
+
+        // Validate target path stays strictly inside workspace boundary
+        $normalizedWorkspace = trim(str_replace('\\', '/', $workspace), '/');
+        $normalizedRelativeTarget = trim(str_replace('\\', '/', $relativeTargetPath), '/');
+        if (! str_starts_with($normalizedRelativeTarget, "{$normalizedWorkspace}/") || str_contains($normalizedRelativeTarget, '..')) {
+            $this->error("Invalid target path [{$relativeTargetPath}]. Target must reside within workspace [{$workspace}].");
+
+            return self::FAILURE;
         }
 
         $fullTargetPath = base_path($relativeTargetPath);
@@ -173,6 +191,19 @@ class WorkspaceCloneCommand extends Command
             $pkgData = json_decode(File::get($clonedComposerPath), true);
             $canonicalComposerName = $pkgData['name'] ?? null;
         }
+
+        $recordedName = $canonicalComposerName ?: $packageName;
+        if ($workspaceVendor !== null) {
+            $recordedName = str_starts_with($recordedName, "{$workspaceVendor}/")
+                ? substr($recordedName, strlen("{$workspaceVendor}/"))
+                : $recordedName;
+        }
+
+        $isShorthand = ! $isSelf && preg_match('#^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$#', trim($rawRepo));
+        $customUrl = ($isShorthand || $isSelf) ? null : $repoUrl;
+
+        // Store package entry with optional custom URL and optional alias in workspace.json
+        Workspace::recordPackage($workspace, $recordedName, $alias !== '' ? $alias : null, $customUrl);
 
         if ($alias !== '') {
             Workspace::aliasPackage($canonicalComposerName ?: $packageName, $alias);

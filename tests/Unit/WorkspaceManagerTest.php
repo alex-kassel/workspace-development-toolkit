@@ -11,6 +11,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathExcept
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 
@@ -331,5 +332,91 @@ class WorkspaceManagerTest extends TestCase
         // Method should not throw any exceptions
         Workspace::updateComposerPathReferences('non/existent', 'old/path', 'new/path');
         $this->assertTrue(true);
+    }
+
+    public function test_delete_directory_recursively_does_not_delete_target_of_symlink(): void
+    {
+        // Create outside sensitive directory and file
+        $outsideDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'wdt_outside_'.uniqid();
+        File::ensureDirectoryExists($outsideDir);
+        $sensitiveFile = $outsideDir.DIRECTORY_SEPARATOR.'important.txt';
+        File::put($sensitiveFile, 'do not delete');
+
+        // Create package directory with symlink pointing to sensitive file
+        $packageDir = base_path('packages/test-pkg');
+        File::ensureDirectoryExists($packageDir);
+        $symlinkPath = $packageDir.DIRECTORY_SEPARATOR.'symlinked-file.txt';
+
+        if (PHP_OS_FAMILY !== 'Windows') {
+            @symlink($sensitiveFile, $symlinkPath);
+        } else {
+            // Windows: create directory junction or symlink if permitted
+            @symlink($sensitiveFile, $symlinkPath);
+        }
+
+        if (is_link($symlinkPath)) {
+            Workspace::deleteDirectoryRecursively($packageDir);
+
+            // Package dir must be gone, but sensitive outside file MUST still exist!
+            $this->assertDirectoryDoesNotExist($packageDir);
+            $this->assertFileExists($sensitiveFile);
+            $this->assertSame('do not delete', File::get($sensitiveFile));
+        } else {
+            // If OS environment cannot create file symlinks without elevation, pass gracefully
+            $this->assertTrue(true);
+        }
+
+        File::deleteDirectory($outsideDir);
+    }
+
+    public function test_workspace_sync_preserves_offline_packages_and_custom_metadata(): void
+    {
+        Workspace::add('packages', null, true);
+
+        // Pre-record an offline package with a custom URL in workspace.json
+        Workspace::recordPackage('packages', 'acme/remote-offline-pkg', null, 'git@gitlab.com:acme/remote.git');
+
+        $manifest = Workspace::load();
+        $this->assertSame([['name' => 'acme/remote-offline-pkg', 'url' => 'git@gitlab.com:acme/remote.git']], $manifest['workspaces']['packages']['packages']);
+
+        // Run sync() with empty disk — the offline package must NOT be wiped
+        Workspace::sync();
+
+        $synced = Workspace::load();
+        $this->assertSame([['name' => 'acme/remote-offline-pkg', 'url' => 'git@gitlab.com:acme/remote.git']], $synced['workspaces']['packages']['packages']);
+    }
+
+    public function test_composer_manager_rejects_malformed_json(): void
+    {
+        File::put(base_path('composer.json'), '{ broken json ...');
+
+        $this->expectException(InvalidJsonException::class);
+        $composer = app(ComposerManager::class);
+        $composer->syncRepositories([]);
+    }
+
+    public function test_composer_manager_preserves_keyed_repositories_shape(): void
+    {
+        $customComposer = [
+            'name' => 'test/app',
+            'repositories' => [
+                'packagist.org' => false,
+                'custom-repo' => [
+                    'type' => 'vcs',
+                    'url' => 'https://github.com/custom/repo.git',
+                ],
+            ],
+        ];
+
+        File::put(base_path('composer.json'), json_encode($customComposer, JSON_PRETTY_PRINT));
+
+        $composer = app(ComposerManager::class);
+        $composer->syncRepositories(['packages' => ['vendor' => null, 'packages' => []]]);
+
+        $saved = json_decode(File::get(base_path('composer.json')), true);
+        $this->assertArrayHasKey('packagist.org', $saved['repositories']);
+        $this->assertFalse($saved['repositories']['packagist.org']);
+        $this->assertArrayHasKey('custom-repo', $saved['repositories']);
+        $this->assertArrayHasKey('workspace-packages', $saved['repositories']);
     }
 }
