@@ -16,7 +16,7 @@ class PackageMakeCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'package:make {name : Package name (vendor/package for multi-vendor, or single-word for fixed-vendor workspace)} {--workspace= : The target workspace directory} {--install : Install the package via Composer immediately} {--dev : When installing, require as a development dependency}';
+    protected $signature = 'package:make {name : Package name (vendor/package for multi-vendor, or single-word for fixed-vendor workspace)} {--as= : Optional directory alias (flat workspaces only)} {--alias= : Optional directory alias (synonym for --as)} {--workspace= : The target workspace directory} {--install : Install the package via Composer immediately} {--dev : When installing, require as a development dependency}';
 
     /**
      * The console command description.
@@ -69,6 +69,23 @@ class PackageMakeCommand extends Command
         }
 
         $workspaceVendor = Workspace::getWorkspaceVendor($workspace);
+        $rawAlias = (string) ($this->option('as') ?: $this->option('alias'));
+        $alias = trim($rawAlias);
+
+        if ($alias !== '' && $workspaceVendor === null) {
+            $this->error('Aliases are only supported in flat (fixed-vendor) workspaces.');
+            $this->line("  <comment>Notice:</comment> Workspace [{$workspace}] is a nested multi-vendor workspace (e.g. packages/{vendor}/{package}).");
+
+            return self::FAILURE;
+        }
+
+        if ($alias !== '' && ! preg_match('/^[a-zA-Z0-9_.-]+$/', $alias)) {
+            $this->error("Invalid alias [{$alias}].");
+            $this->line('  <comment>How to fix:</comment> Alias must contain only alphanumeric characters, dashes, underscores, and dots.');
+
+            return self::FAILURE;
+        }
+
         $rawName = (string) $this->argument('name');
         $normalizedInput = str_replace('\\', '/', trim($rawName));
 
@@ -105,7 +122,8 @@ class PackageMakeCommand extends Command
             $vendor = $workspaceVendor;
             $name = "{$vendor}/{$package}";
             $shortName = $package;
-            $packagePath = base_path("{$workspace}/{$package}");
+            $dirName = $alias !== '' ? $alias : $package;
+            $packagePath = base_path("{$workspace}/{$dirName}");
         } else {
             // Nested 2-level workspace: vendor is required
             if (! str_contains($normalizedInput, '/')) {
@@ -212,6 +230,46 @@ PHP;
         File::put("{$packagePath}/src/{$providerClass}.php", $providerContent);
 
         Workspace::sync();
+
+        if ($alias !== '') {
+            $data = Workspace::load();
+            $wsPackages = $data['workspaces'][$workspace]['packages'] ?? [];
+            $newPackages = [];
+
+            foreach ($wsPackages as $item) {
+                $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+                if ($existingName === $shortName || $existingName === $dirName) {
+                    continue;
+                }
+                $newPackages[] = $item;
+            }
+
+            $newPackages[] = [
+                'name' => $shortName,
+                'alias' => $alias,
+            ];
+
+            usort($newPackages, function ($a, $b) {
+                $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
+                $nameB = is_array($b) ? ($b['alias'] ?? $b['name']) : $b;
+
+                return strcasecmp($nameA, $nameB);
+            });
+
+            $data['workspaces'][$workspace]['packages'] = $newPackages;
+            Workspace::save($data);
+
+            $duplicates = Workspace::findDuplicateAliases($alias, "{$workspace}/{$dirName}");
+            if (! empty($duplicates)) {
+                $this->newLine();
+                $this->warn("Notice: The alias/name [{$alias}] is also used by another package:");
+                foreach ($duplicates as $duplicate) {
+                    $this->line("  • {$duplicate}");
+                }
+                $this->newLine();
+                $this->line("  <comment>Hint:</comment> Both packages will work normally in Composer, but resolving by short name '{$alias}' will be ambiguous.");
+            }
+        }
 
         $displayPath = trim(str_replace(base_path(), '', $packagePath), '/\\');
         $this->info("Package [{$name}] created successfully in [{$displayPath}].");

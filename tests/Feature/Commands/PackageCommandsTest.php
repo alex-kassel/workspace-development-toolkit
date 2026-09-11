@@ -86,6 +86,41 @@ class PackageCommandsTest extends TestCase
         $this->assertStringContainsString('class DemoBotServiceProvider extends ServiceProvider', $spContent);
     }
 
+    public function test_package_make_with_as_scaffolds_into_alias_directory_and_updates_manifest(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel', true);
+
+        $this->artisan('package:make', [
+            'name' => 'scraper-core',
+            '--as' => 'Scraper',
+        ])
+            ->expectsOutputToContain('created successfully in')
+            ->assertSuccessful();
+
+        $packageDir = base_path('app/Cores/Scraper');
+        $this->assertDirectoryExists($packageDir);
+        $this->assertDirectoryDoesNotExist(base_path('app/Cores/scraper-core'));
+        $this->assertFileExists($packageDir.'/composer.json');
+
+        $composerContent = json_decode(File::get($packageDir.'/composer.json'), true);
+        $this->assertSame('alex-kassel/scraper-core', $composerContent['name']);
+
+        $manifest = Workspace::load();
+        $this->assertSame([['name' => 'scraper-core', 'alias' => 'Scraper']], $manifest['workspaces']['app/Cores']['packages']);
+    }
+
+    public function test_package_make_with_alias_rejects_nested_workspace(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $this->artisan('package:make', [
+            'name' => 'acme/foo-pkg',
+            '--alias' => 'Foo',
+        ])
+            ->expectsOutputToContain('Aliases are only supported in flat (fixed-vendor) workspaces')
+            ->assertFailed();
+    }
+
     public function test_package_make_rejects_vendor_mismatch_in_fixed_vendor_workspace(): void
     {
         Workspace::add('labs', 'alex-kassel-labs', true);
