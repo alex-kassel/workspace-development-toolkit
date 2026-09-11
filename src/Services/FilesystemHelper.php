@@ -62,7 +62,7 @@ class FilesystemHelper
                 @rmdir($linkPath);
                 $winLink = str_replace('/', '\\', $linkPath);
                 $winTarget = str_replace('/', '\\', $targetFullPath);
-                Process::run("cmd /c mklink /J \"{$winLink}\" \"{$winTarget}\"");
+                Process::run(sprintf('cmd /c mklink /J %s %s', escapeshellarg($winLink), escapeshellarg($winTarget)));
             }
         } else {
             if (is_link($linkPath) || file_exists($linkPath)) {

@@ -27,6 +27,10 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/workspace.php', 'workspace');
 
+        $this->app->singleton(Services\ManifestRepository::class);
+        $this->app->singleton(Services\FilesystemHelper::class);
+        $this->app->singleton(Services\ComposerManager::class);
+        $this->app->singleton(Services\PackageResolver::class);
         $this->app->singleton(WorkspaceManager::class);
     }
 

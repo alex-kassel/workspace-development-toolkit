@@ -43,21 +43,19 @@ class PackageResolver
             ? (File::glob(base_path("{$workspace}/*/composer.json")) ?: [])
             : (File::glob(base_path("{$workspace}/*/*/composer.json")) ?: []);
 
-        // Read existing alias map if available
+        // Read existing alias map if available from manifest
         $existingAliases = [];
-        if (File::exists($this->manifest->workspaceJsonPath())) {
-            try {
-                $currentData = json_decode(File::get($this->manifest->workspaceJsonPath()), true) ?: [];
-                $configured = $currentData['workspaces'][$workspace]['packages'] ?? [];
-                foreach ($configured as $item) {
-                    if (is_array($item) && isset($item['name'], $item['alias'])) {
-                        $existingAliases[$item['name']] = $item['alias'];
-                        $existingAliases[$item['alias']] = $item['alias'];
-                    }
+        try {
+            $currentData = $this->manifest->load();
+            $configured = $currentData['workspaces'][$workspace]['packages'] ?? [];
+            foreach ($configured as $item) {
+                if (is_array($item) && isset($item['name'], $item['alias'])) {
+                    $existingAliases[$item['name']] = $item['alias'];
+                    $existingAliases[$item['alias']] = $item['alias'];
                 }
-            } catch (Throwable) {
-                // Ignore corrupted json during scan
             }
+        } catch (Throwable) {
+            // Ignore errors during scan
         }
 
         foreach ($files as $file) {
@@ -198,32 +196,19 @@ class PackageResolver
     {
         $packageName = trim($packageName);
 
-        // If explicitly in vendor/package format, verify whether it matches a local package path
-        if (str_contains($packageName, '/')) {
-            $path = $this->findPackagePath($packageName, $workspace);
-            if ($path !== null) {
-                $composerPath = base_path("{$path}/composer.json");
-                if (File::exists($composerPath)) {
-                    $composer = json_decode(File::get($composerPath), true);
-                    if (isset($composer['name'])) {
-                        return (string) $composer['name'];
-                    }
-                }
-            }
-
-            return $packageName;
-        }
-
-        // Try to find package path in workspaces
+        // Find package path in workspaces
         $path = $this->findPackagePath($packageName, $workspace);
         if ($path !== null) {
-            $composerPath = base_path("{$path}/composer.json");
-            if (File::exists($composerPath)) {
-                $composer = json_decode(File::get($composerPath), true);
-                if (isset($composer['name'])) {
-                    return (string) $composer['name'];
+            $allPackages = $this->getPackageIndex();
+            foreach ($allPackages as $wsPackages) {
+                if (isset($wsPackages[$path])) {
+                    return $wsPackages[$path]['canonicalName'];
                 }
             }
+        }
+
+        if (str_contains($packageName, '/')) {
+            return $packageName;
         }
 
         // Check if requested workspace or default workspace has a fixed vendor

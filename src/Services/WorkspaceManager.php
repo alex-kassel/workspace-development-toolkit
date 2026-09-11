@@ -15,25 +15,12 @@ use JsonException;
 
 class WorkspaceManager
 {
-    public readonly ManifestRepository $manifest;
-
-    public readonly PackageResolver $resolver;
-
-    public readonly ComposerManager $composer;
-
-    public readonly FilesystemHelper $filesystem;
-
     public function __construct(
-        ?ManifestRepository $manifest = null,
-        ?PackageResolver $resolver = null,
-        ?ComposerManager $composer = null,
-        ?FilesystemHelper $filesystem = null,
-    ) {
-        $this->manifest = $manifest ?? new ManifestRepository;
-        $this->resolver = $resolver ?? new PackageResolver($this->manifest);
-        $this->composer = $composer ?? new ComposerManager;
-        $this->filesystem = $filesystem ?? new FilesystemHelper;
-    }
+        public readonly ManifestRepository $manifest,
+        public readonly PackageResolver $resolver,
+        public readonly ComposerManager $composer,
+        public readonly FilesystemHelper $filesystem,
+    ) {}
 
     /**
      * Clear in-memory caches.

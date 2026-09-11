@@ -67,14 +67,24 @@ abstract class TestCase extends BaseTestCase
         $this->app->setBasePath($this->tempDir);
 
         // Re-bind singleton to ensure fresh instance
-        $this->app->singleton(WorkspaceManager::class, fn () => new WorkspaceManager);
+        $this->app->singleton(WorkspaceManager::class);
+        $this->app->forgetInstance(Services\ManifestRepository::class);
+        $this->app->forgetInstance(Services\FilesystemHelper::class);
+        $this->app->forgetInstance(Services\ComposerManager::class);
+        $this->app->forgetInstance(Services\PackageResolver::class);
+        $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
     }
 
     protected function tearDown(): void
     {
         $this->app->setBasePath($this->originalBasePath);
-        $this->app->singleton(WorkspaceManager::class, fn () => new WorkspaceManager);
+        $this->app->singleton(WorkspaceManager::class);
+        $this->app->forgetInstance(Services\ManifestRepository::class);
+        $this->app->forgetInstance(Services\FilesystemHelper::class);
+        $this->app->forgetInstance(Services\ComposerManager::class);
+        $this->app->forgetInstance(Services\PackageResolver::class);
+        $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
 
         if (isset($this->tempDir) && File::isDirectory($this->tempDir)) {

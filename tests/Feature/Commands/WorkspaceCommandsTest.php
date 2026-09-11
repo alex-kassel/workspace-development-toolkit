@@ -464,4 +464,127 @@ class WorkspaceCommandsTest extends TestCase
             ->expectsOutputToContain('Aliases are only supported in flat (fixed-vendor) workspaces')
             ->assertFailed();
     }
+
+    public function test_workspace_clone_shorthand_resolves_via_template_and_clones(): void
+    {
+        Workspace::add('packages', null, true);
+        $targetPath = base_path('packages/foo/bar');
+
+        Process::fake([
+            '*' => function ($process) use ($targetPath) {
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+                if (str_contains($cmd, 'git clone')) {
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'foo/bar',
+                    ]));
+
+                    return Process::result(output: 'Cloned into bar');
+                }
+
+                return Process::result(output: 'ok');
+            },
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'foo/bar',
+        ])
+            ->expectsOutputToContain('into [packages/foo/bar]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists($targetPath);
+        $manifest = Workspace::load();
+        $this->assertContains('foo/bar', $manifest['workspaces']['packages']['packages']);
+    }
+
+    public function test_workspace_clone_full_https_and_ssh_urls(): void
+    {
+        Workspace::add('packages', null, true);
+        $targetPath = base_path('packages/acme/widgets');
+
+        Process::fake([
+            '*' => function ($process) use ($targetPath) {
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+                if (str_contains($cmd, 'git clone')) {
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'acme/widgets',
+                    ]));
+
+                    return Process::result(output: 'Cloned widgets');
+                }
+
+                return Process::result(output: 'ok');
+            },
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'https://gitlab.com/acme/widgets.git',
+        ])
+            ->expectsOutputToContain('into [packages/acme/widgets]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists($targetPath);
+    }
+
+    public function test_workspace_clone_with_install_and_dev_flags(): void
+    {
+        Workspace::add('packages', null, true);
+        $targetPath = base_path('packages/acme/tools');
+
+        Process::fake([
+            '*' => function ($process) use ($targetPath) {
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+                if (str_contains($cmd, 'git clone')) {
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'acme/tools',
+                    ]));
+
+                    return Process::result(output: 'Cloned tools');
+                }
+
+                return Process::result(output: 'Composer install ok');
+            },
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'acme/tools',
+            '--install' => true,
+            '--dev' => true,
+        ])
+            ->expectsOutputToContain('Registering and symlinking [acme/tools]')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer require') && str_contains($cmd, 'acme/tools:@dev') && str_contains($cmd, '--dev');
+        });
+    }
+
+    public function test_workspace_clone_handles_git_failure_gracefully(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result(
+                output: '',
+                errorOutput: 'fatal: repository not found or access denied',
+                exitCode: 128
+            ),
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'secret/private-repo',
+        ])
+            ->expectsOutputToContain('Failed to clone repository')
+            ->expectsOutputToContain('fatal: repository not found or access denied')
+            ->assertFailed();
+
+        $this->assertDirectoryDoesNotExist(base_path('packages/secret/private-repo'));
+    }
 }
