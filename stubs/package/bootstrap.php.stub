@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+
+$candidates = [
+    __DIR__.'/../vendor/autoload.php',
+    __DIR__.'/../../../vendor/autoload.php',
+    __DIR__.'/../../../../vendor/autoload.php',
+];
+
+$autoloader = null;
+foreach ($candidates as $candidate) {
+    if (file_exists($candidate)) {
+        $autoloader = require $candidate;
+        break;
+    }
+}
+
+if ($autoloader === null) {
+    throw new RuntimeException('Composer autoloader not found. Run "composer install" or link the package in a workspace.');
+}
+
+$autoloader->addPsr4('{{ vendorNamespace }}\\{{ packageNamespace }}\\Tests\\', __DIR__);

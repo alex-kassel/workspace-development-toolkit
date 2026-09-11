@@ -1,0 +1,45 @@
+# {{ packageNamespace }}
+
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/{{ vendor }}/{{ package }}.svg?style=flat-square)](https://packagist.org/packages/{{ vendor }}/{{ package }})
+[![Total Downloads](https://img.shields.io/packagist/dt/{{ vendor }}/{{ package }}.svg?style=flat-square)](https://packagist.org/packages/{{ vendor }}/{{ package }})
+
+{{ packageNamespace }} package for Laravel ecosystem.
+
+## Requirements
+
+- PHP: ^8.2
+- illuminate/support: `{{ illuminate_constraint }}`
+
+## Installation
+
+Install the package via Composer:
+
+```bash
+composer require {{ vendor }}/{{ package }}
+```
+
+## Usage
+
+```php
+use {{ vendorNamespace }}\{{ packageNamespace }}\{{ providerClass }};
+
+// Implementation example
+```
+
+## Testing
+
+```bash
+composer test
+```
+
+## Changelog
+
+Please see [CHANGELOG.md](CHANGELOG.md) for more information on what has changed recently.
+
+## Security Vulnerabilities
+
+Please review [Security Policies](https://github.com/{{ vendor }}/{{ package }}/security/policy) on how to report vulnerabilities.
+
+## License
+
+The MIT License (MIT). Copyright (c) {{ year }} {{ vendor }}.

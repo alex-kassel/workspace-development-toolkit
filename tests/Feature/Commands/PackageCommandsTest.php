@@ -570,4 +570,100 @@ class PackageCommandsTest extends TestCase
             ->expectsOutputToContain('Aliases are only supported in flat (fixed-vendor) workspaces')
             ->assertFailed();
     }
+
+    public function test_package_make_generates_all_stub_files(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $this->artisan('package:make', ['name' => 'acme/all-stubs-pkg'])
+            ->assertSuccessful();
+
+        $packageDir = base_path('packages/acme/all-stubs-pkg');
+        $this->assertDirectoryExists($packageDir);
+        $this->assertFileExists($packageDir.'/.gitattributes');
+        $this->assertFileExists($packageDir.'/.gitignore');
+        $this->assertFileExists($packageDir.'/phpunit.xml');
+        $this->assertFileExists($packageDir.'/phpstan.neon');
+        $this->assertFileExists($packageDir.'/CHANGELOG.md');
+        $this->assertFileExists($packageDir.'/README.md');
+        $this->assertFileExists($packageDir.'/tests/TestCase.php');
+        $this->assertFileExists($packageDir.'/tests/bootstrap.php');
+        $this->assertFileExists($packageDir.'/tests/Unit/.gitkeep');
+    }
+
+    public function test_package_make_replaces_placeholders_in_stubs(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $this->artisan('package:make', ['name' => 'acme/placeholder-pkg'])
+            ->assertSuccessful();
+
+        $packageDir = base_path('packages/acme/placeholder-pkg');
+
+        $readme = File::get($packageDir.'/README.md');
+        $this->assertStringContainsString('# PlaceholderPkg', $readme);
+        $this->assertStringContainsString('composer require acme/placeholder-pkg', $readme);
+        $this->assertStringContainsString('use Acme\PlaceholderPkg\PlaceholderPkgServiceProvider;', $readme);
+        $this->assertStringContainsString('Copyright (c) '.date('Y').' acme.', $readme);
+        $this->assertStringNotContainsString('{{', $readme);
+
+        $changelog = File::get($packageDir.'/CHANGELOG.md');
+        $this->assertStringContainsString('acme/placeholder-pkg', $changelog);
+        $this->assertStringContainsString('## [Unreleased]', $changelog);
+        $this->assertStringNotContainsString('{{', $changelog);
+
+        $testCase = File::get($packageDir.'/tests/TestCase.php');
+        $this->assertStringContainsString('namespace Acme\PlaceholderPkg\Tests;', $testCase);
+        $this->assertStringContainsString('use Acme\PlaceholderPkg\PlaceholderPkgServiceProvider;', $testCase);
+        $this->assertStringContainsString('PlaceholderPkgServiceProvider::class,', $testCase);
+        $this->assertStringNotContainsString('{{', $testCase);
+
+        $bootstrap = File::get($packageDir.'/tests/bootstrap.php');
+        $this->assertStringContainsString("addPsr4('Acme\\\\PlaceholderPkg\\\\Tests\\\\'", $bootstrap);
+        $this->assertStringNotContainsString('{{', $bootstrap);
+    }
+
+    public function test_package_make_custom_stubs_override_default_stubs(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $customStubsDir = base_path('stubs/workspace');
+        File::ensureDirectoryExists($customStubsDir);
+        File::put($customStubsDir.'/README.md.stub', "# Custom Header for {{ package }}\nBy {{ vendor }}.\n");
+
+        $this->artisan('package:make', ['name' => 'acme/custom-stub-pkg'])
+            ->assertSuccessful();
+
+        $packageDir = base_path('packages/acme/custom-stub-pkg');
+        $readme = File::get($packageDir.'/README.md');
+        $this->assertSame("# Custom Header for custom-stub-pkg\nBy acme.\n", $readme);
+    }
+
+    public function test_package_make_git_option_initializes_git_repo_and_creates_commit(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result(output: 'ok'),
+        ]);
+
+        $this->artisan('package:make', [
+            'name' => 'acme/git-pkg',
+            '--git' => true,
+        ])
+            ->expectsOutputToContain('Git repository initialized with initial commit.')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'git add');
+        });
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'git commit') && str_contains($cmd, 'acme/git-pkg');
+        });
+    }
 }

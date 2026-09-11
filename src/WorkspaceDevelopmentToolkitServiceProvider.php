@@ -48,6 +48,10 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 __DIR__.'/../config/workspace.php' => config_path('workspace.php'),
             ], 'workspace-config');
 
+            $this->publishes([
+                __DIR__.'/../stubs/package' => base_path('stubs/workspace'),
+            ], 'workspace-stubs');
+
             $this->commands([
                 PackageMakeCommand::class,
                 PackageInstallCommand::class,

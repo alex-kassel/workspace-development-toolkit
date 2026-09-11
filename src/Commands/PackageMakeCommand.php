@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
 class PackageMakeCommand extends Command
@@ -16,7 +17,7 @@ class PackageMakeCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'package:make {name : Package name (vendor/package for multi-vendor, or single-word for fixed-vendor workspace)} {--as= : Optional directory alias (flat workspaces only)} {--alias= : Optional directory alias (synonym for --as)} {--workspace= : The target workspace directory} {--install : Install the package via Composer immediately} {--dev : When installing, require as a development dependency}';
+    protected $signature = 'package:make {name : Package name (vendor/package for multi-vendor, or single-word for fixed-vendor workspace)} {--as= : Optional directory alias (flat workspaces only)} {--alias= : Optional directory alias (synonym for --as)} {--workspace= : The target workspace directory} {--install : Install the package via Composer immediately} {--dev : When installing, require as a development dependency} {--git : Initialize Git repository in package directory}';
 
     /**
      * The console command description.
@@ -223,6 +224,30 @@ PHP;
 
         File::put("{$packagePath}/src/{$providerClass}.php", $providerContent);
 
+        $replacements = [
+            '{{ vendor }}' => $vendor,
+            '{{ package }}' => $package,
+            '{{ vendorNamespace }}' => $vendorNamespace,
+            '{{ packageNamespace }}' => $packageNamespace,
+            '{{ year }}' => date('Y'),
+            '{{ illuminate_constraint }}' => $illuminateConstraint,
+            '{{ providerClass }}' => $providerClass,
+        ];
+
+        File::put("{$packagePath}/.gitattributes", $this->renderStub('gitattributes', $replacements));
+        File::put("{$packagePath}/.gitignore", $this->renderStub('gitignore', $replacements));
+        File::put("{$packagePath}/phpunit.xml", $this->renderStub('phpunit.xml', $replacements));
+        File::put("{$packagePath}/phpstan.neon", $this->renderStub('phpstan.neon', $replacements));
+        File::put("{$packagePath}/CHANGELOG.md", $this->renderStub('CHANGELOG.md', $replacements));
+        File::put("{$packagePath}/README.md", $this->renderStub('README.md', $replacements));
+
+        File::makeDirectory("{$packagePath}/tests", 0755, true, true);
+        File::put("{$packagePath}/tests/TestCase.php", $this->renderStub('TestCase.php', $replacements));
+        File::put("{$packagePath}/tests/bootstrap.php", $this->renderStub('bootstrap.php', $replacements));
+
+        File::makeDirectory("{$packagePath}/tests/Unit", 0755, true, true);
+        File::put("{$packagePath}/tests/Unit/.gitkeep", '');
+
         Workspace::sync();
 
         if ($alias !== '') {
@@ -242,6 +267,10 @@ PHP;
 
         $displayPath = trim(str_replace(base_path(), '', $packagePath), '/\\');
         $this->info("Package [{$name}] created successfully in [{$displayPath}].");
+
+        if ($this->option('git')) {
+            $this->initializeGitRepository($packagePath, $name);
+        }
 
         if ($install) {
             $this->newLine();
@@ -268,5 +297,73 @@ PHP;
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Render a stub file with replacements.
+     *
+     * @param  array<string, string>  $replacements
+     */
+    protected function renderStub(string $name, array $replacements): string
+    {
+        $content = $this->getStubContent($name);
+
+        return str_replace(array_keys($replacements), array_values($replacements), $content);
+    }
+
+    /**
+     * Get stub content from custom workspace stubs or fallback to package stubs.
+     */
+    protected function getStubContent(string $name): string
+    {
+        $customStubPath = base_path("stubs/workspace/{$name}.stub");
+
+        if (File::exists($customStubPath)) {
+            return File::get($customStubPath);
+        }
+
+        $packageStubPath = __DIR__."/../../stubs/package/{$name}.stub";
+
+        if (File::exists($packageStubPath)) {
+            return File::get($packageStubPath);
+        }
+
+        throw new \RuntimeException("Stub file [{$name}.stub] not found.");
+    }
+
+    /**
+     * Initialize Git repository with an initial commit.
+     */
+    protected function initializeGitRepository(string $packagePath, string $name): void
+    {
+        $gitDir = $packagePath.'/.git';
+        if (File::isDirectory($gitDir)) {
+            $this->line('  <comment>Notice:</comment> Git repository is already initialized.');
+
+            return;
+        }
+
+        $initResult = Process::path($packagePath)->run(['git', 'init']);
+        if (! $initResult->successful()) {
+            $this->warn('Notice: Failed to initialize Git repository: '.$initResult->errorOutput());
+
+            return;
+        }
+
+        Process::path($packagePath)->run(['git', 'add', '.']);
+        $commitResult = Process::path($packagePath)->run([
+            'git',
+            'commit',
+            '-m',
+            "feat: scaffold initial {$name} package",
+        ]);
+
+        if (! $commitResult->successful()) {
+            $this->warn('Notice: Failed to create initial commit: '.$commitResult->errorOutput());
+
+            return;
+        }
+
+        $this->line('  <info>Git repository initialized with initial commit.</info>');
     }
 }
