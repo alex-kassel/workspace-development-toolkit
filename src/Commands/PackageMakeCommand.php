@@ -163,7 +163,7 @@ class PackageMakeCommand extends Command
         File::makeDirectory("{$packagePath}/src", 0755, true, true);
 
         // Determine dynamic illuminate/support version constraint based on current Laravel environment
-        $frameworkVersion = $this->getApplication()->getVersion();
+        $frameworkVersion = $this->getApplication()?->getVersion() ?? '11.0.0';
         $currentMajor = 11;
         if (preg_match('/^(\d+)/', $frameworkVersion, $matches)) {
             $currentMajor = max(11, (int) $matches[1]);

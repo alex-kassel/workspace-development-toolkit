@@ -51,7 +51,7 @@ class PackageResolver
             $currentData = $this->manifest->load();
             $configured = $currentData['workspaces'][$workspace]['packages'] ?? [];
             foreach ($configured as $item) {
-                $pkgName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+                $pkgName = is_array($item) ? $item['name'] : (string) $item;
                 if ($pkgName !== '') {
                     $configuredPackages[$pkgName] = $item;
                     if (is_array($item) && isset($item['alias'])) {
@@ -124,7 +124,7 @@ class PackageResolver
 
         // Retain previously configured packages that may temporarily be offline/missing from disk
         foreach ($configuredPackages as $key => $item) {
-            $name = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            $name = is_array($item) ? $item['name'] : (string) $item;
             if ($name === '' || isset($discoveredNames[$name]) || ($key !== $name && isset($discoveredNames[$key]))) {
                 continue;
             }
@@ -142,7 +142,7 @@ class PackageResolver
             return strcasecmp($nameA, $nameB);
         });
 
-        return array_values($packages);
+        return $packages;
     }
 
     /**
@@ -173,8 +173,8 @@ class PackageResolver
             $vendor = $config['vendor'] ?? null;
 
             $aliasMap = [];
-            foreach ($config['packages'] ?? [] as $pkgItem) {
-                if (is_array($pkgItem) && isset($pkgItem['name'], $pkgItem['alias'])) {
+            foreach ($config['packages'] as $pkgItem) {
+                if (is_array($pkgItem) && isset($pkgItem['alias'])) {
                     $aliasMap[strtolower($pkgItem['alias'])] = $pkgItem['name'];
                 }
             }

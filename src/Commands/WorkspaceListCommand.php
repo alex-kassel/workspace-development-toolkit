@@ -80,7 +80,7 @@ class WorkspaceListCommand extends Command
                     $statusParts[] = 'not installed';
                 }
 
-                $suffix = ! empty($statusParts) ? ' ['.implode('; ', $statusParts).']' : '';
+                $suffix = ' ['.implode('; ', $statusParts).']';
 
                 return $rawName.$suffix;
             }, $packages);

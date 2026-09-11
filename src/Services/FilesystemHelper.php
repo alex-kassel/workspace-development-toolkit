@@ -54,8 +54,9 @@ class FilesystemHelper
 
             @chmod($dir, 0755);
             @rmdir($dir);
+            clearstatcache(true, $dir);
 
-            return ! File::isDirectory($dir);
+            return ! is_dir($dir);
         } catch (Throwable) {
             return File::deleteDirectory($dir);
         }

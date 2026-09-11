@@ -16,7 +16,7 @@ class ManifestRepository
     /**
      * In-memory cache for workspace configuration.
      *
-     * @var array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}|null
+     * @var array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}|null
      */
     protected ?array $cache = null;
 
@@ -39,7 +39,7 @@ class ManifestRepository
     /**
      * Load configuration from workspace.json.
      *
-     * @return array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}
+     * @return array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}
      *
      * @throws InvalidJsonException
      */
@@ -77,6 +77,7 @@ class ManifestRepository
 
         $this->validateWorkspaceJson($data, $path);
 
+        /** @var array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>} $data */
         $this->cache = $data;
 
         return $data;
@@ -85,7 +86,7 @@ class ManifestRepository
     /**
      * Save configuration to workspace.json.
      *
-     * @param  array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}  $data
+     * @param  array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}  $data
      */
     public function save(array $data): void
     {
@@ -96,13 +97,13 @@ class ManifestRepository
     }
 
     /**
-     * Get all workspaces configuration.
+     * Get all workspaces.
      *
-     * @return array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>
+     * @return array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>
      */
     public function all(): array
     {
-        return $this->load()['workspaces'] ?? [];
+        return $this->load()['workspaces'];
     }
 
     /**
@@ -250,11 +251,11 @@ class ManifestRepository
             throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
         }
 
-        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'] ?? [];
+        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
         $newPackages = [];
 
         foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            $existingName = is_array($item) ? $item['name'] : (string) $item;
             if ($existingName === $packageName || $existingName === $alias) {
                 continue;
             }
@@ -289,11 +290,11 @@ class ManifestRepository
             throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
         }
 
-        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'] ?? [];
+        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
         $newPackages = [];
 
         foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            $existingName = is_array($item) ? $item['name'] : (string) $item;
             $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
             if ($existingName === $packageName || ($alias !== null && $existingAlias === $alias)) {
                 continue;
@@ -339,23 +340,23 @@ class ManifestRepository
             throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
         }
 
-        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'] ?? [];
+        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
         $newPackages = [];
         $found = false;
 
         foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            $existingName = is_array($item) ? $item['name'] : (string) $item;
             if ($existingName === $packageName) {
                 $found = true;
                 $entry = is_array($item) ? $item : ['name' => $packageName];
                 if (! empty($skills)) {
                     $entry['skills'] = array_values(array_unique($skills));
-                } else {
+                } elseif (isset($entry['skills'])) {
                     unset($entry['skills']);
                 }
 
                 // If only name remains, flatten to string if preferred, or keep as array
-                if (count($entry) === 1 && isset($entry['name'])) {
+                if (count($entry) === 1) {
                     $newPackages[] = $packageName;
                 } else {
                     $newPackages[] = $entry;

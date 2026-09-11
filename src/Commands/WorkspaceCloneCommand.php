@@ -271,7 +271,7 @@ class WorkspaceCloneCommand extends Command
         $this->line('  • Check registered packages: <info>php artisan workspace:list</info>');
         if (! $install && $canonicalComposerName) {
             $refName = $alias !== '' ? $alias : $canonicalComposerName;
-            $this->line("  • Link into Composer:        <info>php artisan package:install {$refName}".($dev ? ' --dev' : '').'</info>');
+            $this->line("  • Link into Composer:        <info>php artisan package:install {$refName}</info>");
         }
 
         return self::SUCCESS;

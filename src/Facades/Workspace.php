@@ -35,6 +35,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static array aliasPackage(string $packageName, string $alias)
  * @method static array findDuplicateAliases(string $alias, ?string $excludePath = null)
  * @method static void registerPackageAlias(string $workspace, string $packageName, string $alias)
+ * @method static void recordPackage(string $workspace, string $packageName, ?string $alias = null, ?string $url = null)
+ * @method static void updatePackageSkills(string $workspace, string $packageName, array $skills)
  * @method static array validatePackageName(string $input, ?string $workspaceVendor = null)
  * @method static void removeFromGitignore(string $path)
  * @method static \Illuminate\Contracts\Process\ProcessResult runComposer(array $args, ?int $timeout = null)

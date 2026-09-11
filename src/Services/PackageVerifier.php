@@ -394,7 +394,7 @@ class PackageVerifier
             default => ['composer', 'pint', 'phpstan', 'tests'],
         };
 
-        if ($isolated || in_array('isolated', $only, true)) {
+        if (in_array('isolated', $only, true)) {
             $baseChecks[] = 'isolated';
         }
 

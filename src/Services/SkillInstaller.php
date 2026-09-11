@@ -221,6 +221,7 @@ class SkillInstaller
         }
 
         $this->deleteDirectory($targetDir);
+        clearstatcache(true, $targetDir);
 
         return ! file_exists($targetDir);
     }

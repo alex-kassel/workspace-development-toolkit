@@ -101,7 +101,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
      */
     protected function autoPublishSkill(): void
     {
-        if ($this->app->isProduction()) {
+        if ($this->app->environment('production')) {
             return;
         }
 

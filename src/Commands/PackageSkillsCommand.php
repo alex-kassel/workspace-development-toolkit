@@ -59,8 +59,9 @@ class PackageSkillsCommand extends Command
         // Find which workspace this package belongs to
         $workspace = null;
         foreach (Workspace::all() as $wsPath => $wsConfig) {
-            if (str_starts_with($packagePath, $wsPath.'/')) {
-                $workspace = $wsPath;
+            $wsPathStr = (string) $wsPath;
+            if (str_starts_with($packagePath, $wsPathStr.'/')) {
+                $workspace = $wsPathStr;
                 break;
             }
         }
