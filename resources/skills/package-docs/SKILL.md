@@ -18,6 +18,7 @@ This skill provides an autonomous, engineering-grade documentation lifecycle fra
 ## Architecture & References
 
 - [**Documentation Policy (v1.1)**](./references/policy.md) — Product Truth hierarchy, surface area taxonomy, snippet rules, definition of done.
+- [**Badge Palette & README Skeleton**](./references/badge-palette-and-sections.md) — Canonical 5-badge color sequence, Hero markup, and copy-paste skeleton.
 - [**README Profiles**](./references/profiles.md) — Structural profiles for `laravel-package`, `cli-tool`, `library`, and `workspace-toolkit`.
 - [**Diátaxis System Guide**](./references/diataxis.md) — 4-quadrant methodology (Tutorial, How-to, Reference, Explanation).
 - [**Drift Inspection Guide**](./references/drift-detection.md) — Mechanical, factual, and conceptual drift verification.

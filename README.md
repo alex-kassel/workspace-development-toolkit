@@ -5,9 +5,20 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/alex-kassel/workspace-development-toolkit"><img src="https://img.shields.io/badge/Release-v1.0.0-10b981?logo=git" alt="Version"></a>
+  <a href="#requirements">Requirements</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#quick-start-tutorial-60-seconds">Quick Start</a> •
+  <a href="#command-reference">Commands</a> •
+  <a href="#testing">Testing</a> •
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
+  <a href="AUDIT.json"><img src="https://img.shields.io/badge/Audit-Verified-10b981?logo=shield" alt="Audit Verified"></a>
+  <a href="https://packagist.org/packages/alex-kassel/workspace-development-toolkit"><img src="https://img.shields.io/packagist/v/alex-kassel/workspace-development-toolkit?color=f59e0b&logo=packagist&logoColor=white" alt="Latest Version"></a>
   <a href="https://laravel.com"><img src="https://img.shields.io/badge/Laravel-11%20%7C%2012%20%7C%2013-ff2d20?logo=laravel&logoColor=white" alt="Laravel Support"></a>
   <a href="https://php.net"><img src="https://img.shields.io/badge/PHP-8.2+-777bb4?logo=php&logoColor=white" alt="PHP Support"></a>
+  <a href="phpstan.neon.dist"><img src="https://img.shields.io/badge/PHPStan-Level%208-8b5cf6?logo=php&logoColor=white" alt="PHPStan Level 8"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
 </p>
 

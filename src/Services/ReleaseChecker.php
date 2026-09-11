@@ -100,10 +100,24 @@ class ReleaseChecker
             $latestTag = $this->gitInspector->getLatestTag($fullPath) ?? 'none (initial release)';
         }
 
-        // 2. Audit Certificate Freshness Gate (RELEASE-GATE.md)
+        // 2. Audit Certificate Freshness Gate (AUDIT.json or RELEASE-GATE.md)
+        $auditJsonFile = $fullPath.DIRECTORY_SEPARATOR.'AUDIT.json';
         $releaseGateFile = $fullPath.DIRECTORY_SEPARATOR.'RELEASE-GATE.md';
-        if (File::exists($releaseGateFile)) {
+        $certificateFile = null;
+        $certifiedCommit = null;
+
+        if (File::exists($auditJsonFile)) {
+            $certificateFile = 'AUDIT.json';
+            $auditData = json_decode(File::get($auditJsonFile), true);
+            if (is_array($auditData) && ! empty($auditData['audit']['commit'])) {
+                $certifiedCommit = strtolower((string) $auditData['audit']['commit']);
+            }
+        } elseif (File::exists($releaseGateFile)) {
+            $certificateFile = 'RELEASE-GATE.md';
             $certifiedCommit = $this->extractCertifiedCommit(File::get($releaseGateFile));
+        }
+
+        if ($certificateFile !== null) {
             if ($certifiedCommit !== null && $this->gitInspector->hasGitRepository($fullPath)) {
                 $delta = Process::path($fullPath)->run(['git', 'rev-list', '--count', "{$certifiedCommit}..HEAD", '--', 'src/', 'config/', 'composer.json']);
                 if ($delta->successful()) {
@@ -132,20 +146,20 @@ class ReleaseChecker
                 $checks['audit_freshness'] = [
                     'name' => 'Audit Freshness Gate',
                     'status' => 'action_required',
-                    'message' => 'RELEASE-GATE.md present but missing a certified commit hash.',
+                    'message' => "{$certificateFile} present but missing a certified commit hash.",
                 ];
             } else {
                 $checks['audit_freshness'] = [
                     'name' => 'Audit Freshness Gate',
                     'status' => 'passed',
-                    'message' => "RELEASE-GATE.md present with certified commit {$certifiedCommit}.",
+                    'message' => "{$certificateFile} present with certified commit {$certifiedCommit}.",
                 ];
             }
         } else {
             $checks['audit_freshness'] = [
                 'name' => 'Audit Freshness Gate',
                 'status' => 'not_configured',
-                'message' => 'No RELEASE-GATE.md found (unaudited package).',
+                'message' => 'No AUDIT.json or RELEASE-GATE.md found (unaudited package).',
             ];
         }
 
