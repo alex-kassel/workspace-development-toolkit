@@ -15,6 +15,10 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\ServiceProvider;
 
@@ -27,10 +31,10 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/workspace.php', 'workspace');
 
-        $this->app->singleton(Services\ManifestRepository::class);
-        $this->app->singleton(Services\FilesystemHelper::class);
-        $this->app->singleton(Services\ComposerManager::class);
-        $this->app->singleton(Services\PackageResolver::class);
+        $this->app->singleton(ManifestRepository::class);
+        $this->app->singleton(FilesystemHelper::class);
+        $this->app->singleton(ComposerManager::class);
+        $this->app->singleton(PackageResolver::class);
         $this->app->singleton(WorkspaceManager::class);
     }
 

@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider;
 use Illuminate\Foundation\Application;
@@ -68,10 +72,10 @@ abstract class TestCase extends BaseTestCase
 
         // Re-bind singleton to ensure fresh instance
         $this->app->singleton(WorkspaceManager::class);
-        $this->app->forgetInstance(Services\ManifestRepository::class);
-        $this->app->forgetInstance(Services\FilesystemHelper::class);
-        $this->app->forgetInstance(Services\ComposerManager::class);
-        $this->app->forgetInstance(Services\PackageResolver::class);
+        $this->app->forgetInstance(ManifestRepository::class);
+        $this->app->forgetInstance(FilesystemHelper::class);
+        $this->app->forgetInstance(ComposerManager::class);
+        $this->app->forgetInstance(PackageResolver::class);
         $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
     }
@@ -80,10 +84,10 @@ abstract class TestCase extends BaseTestCase
     {
         $this->app->setBasePath($this->originalBasePath);
         $this->app->singleton(WorkspaceManager::class);
-        $this->app->forgetInstance(Services\ManifestRepository::class);
-        $this->app->forgetInstance(Services\FilesystemHelper::class);
-        $this->app->forgetInstance(Services\ComposerManager::class);
-        $this->app->forgetInstance(Services\PackageResolver::class);
+        $this->app->forgetInstance(ManifestRepository::class);
+        $this->app->forgetInstance(FilesystemHelper::class);
+        $this->app->forgetInstance(ComposerManager::class);
+        $this->app->forgetInstance(PackageResolver::class);
         $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
 
