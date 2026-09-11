@@ -4,10 +4,10 @@
     "package": "alex-kassel/workspace-development-toolkit",
     "version": "1.0.0",
     "audit": {
-        "commit": "b9fc5fb8f3a8e02c0b602577d371a125f2528097",
-        "tree_hash": "b0d12896a970c92e9e097b52544c847a93604542",
+        "commit": "3e06956bd3b05f4beb3e97d9b9e310d8b2aea9e9",
+        "tree_hash": "a11792fc9b6b3950a11a5602955b666f44859708",
         "branch": "main",
-        "timestamp": "2026-09-11T22:33:19+00:00",
+        "timestamp": "2026-09-11T22:56:32+00:00",
         "environment": {
             "php": "8.4.24",
             "laravel": "13.31.0",
@@ -18,38 +18,38 @@
         "git_cleanliness": {
             "check": "git_cleanliness",
             "status": "passed",
-            "output": "Working tree is clean. Commit: b9fc5fb8f3a8e02c0b602577d371a125f2528097, Branch: main",
-            "duration_seconds": 0.676
+            "output": "Working tree is clean. Commit: 3e06956bd3b05f4beb3e97d9b9e310d8b2aea9e9, Branch: main",
+            "duration_seconds": 0.687
         },
         "composer_validate": {
             "check": "composer_validate",
             "status": "passed",
             "output": "./composer.json is valid",
-            "duration_seconds": 1.244
+            "duration_seconds": 1.251
         },
         "pint": {
             "check": "pint",
             "status": "passed",
             "output": "{\"tool\":\"pint\",\"result\":\"passed\"}",
-            "duration_seconds": 1.037
+            "duration_seconds": 2.669
         },
         "phpstan": {
             "check": "phpstan",
-            "status": "skipped",
-            "output": "Binary not found: vendor/bin/phpstan. Install it via composer require --dev phpstan/phpstan on host.",
-            "duration_seconds": 0
+            "status": "passed",
+            "output": "{\"tool\":\"phpstan\",\"result\":\"passed\",\"errors\":0}",
+            "duration_seconds": 2.683
         },
         "tests": {
             "check": "tests",
             "status": "passed",
-            "output": "{\"tool\":\"phpunit\",\"result\":\"passed\",\"tests\":142,\"passed\":142,\"assertions\":493,\"duration_ms\":10017}",
-            "duration_seconds": 10.727
+            "output": "{\"tool\":\"phpunit\",\"result\":\"passed\",\"tests\":142,\"passed\":142,\"assertions\":493,\"duration_ms\":11117}",
+            "duration_seconds": 11.985
         },
         "isolated": {
             "check": "isolated",
             "status": "passed",
-            "output": "PHPUnit 12.5.35 by Sebastian Bergmann and contributors.\r\n\r\nRuntime:       PHP 8.4.24\nConfiguration: C:\\Users\\Alex\\AppData\\Local\\Temp\\package-audit-6e1711442b18eb4c\\phpunit.xml.dist\n\r\n...............................................................  63 / 142 ( 44%)\n......................................\u001b[33;1mN\u001b[0m........................ 126 / 142 ( 88%)\n................                                                142 / 142 (100%)\r\n\r\nTime: 00:09.712, Memory: 50.00 MB\r\n\r\n\u001b[30;43mOK, but there were issues!\u001b[0m\r\n\u001b[30;43mTests: 142\u001b[0m\u001b[30;43m, Assertions: 493\u001b[0m\u001b[30;43m, PHPUnit Notices: 1\u001b[0m\u001b[30;43m.\u001b[0m",
-            "duration_seconds": 63.955
+            "output": "PHPUnit 12.5.35 by Sebastian Bergmann and contributors.\r\n\r\nRuntime:       PHP 8.4.24\nConfiguration: C:\\Users\\Alex\\AppData\\Local\\Temp\\package-audit-7cbddf19d0f3796f\\phpunit.xml.dist\n\r\n...............................................................  63 / 142 ( 44%)\n......................................\u001b[33;1mN\u001b[0m........................ 126 / 142 ( 88%)\n................                                                142 / 142 (100%)\r\n\r\nTime: 00:10.527, Memory: 50.00 MB\r\n\r\n\u001b[30;43mOK, but there were issues!\u001b[0m\r\n\u001b[30;43mTests: 142\u001b[0m\u001b[30;43m, Assertions: 493\u001b[0m\u001b[30;43m, PHPUnit Notices: 1\u001b[0m\u001b[30;43m.\u001b[0m",
+            "duration_seconds": 85.682
         },
         "readme": {
             "check": "readme",
@@ -65,5 +65,5 @@
         }
     },
     "verdict": "PASSED",
-    "fingerprint": "sha256:0e32ed1ac5529d4cc0638641dbd53c2a69a142be68db3c72fe5dd3879fe49159"
+    "fingerprint": "sha256:81fb17c15d2b1b4db641af5f44237e60f528dd384972d24d7268e0f88a1768f4"
 }
