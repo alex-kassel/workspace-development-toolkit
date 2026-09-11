@@ -72,4 +72,15 @@ return [
     |
     */
     'trusted_organizations' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Skills Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Target directory and auto-publishing settings for workspace agent skills.
+    |
+    */
+    'skills_path' => null,
+    'auto_publish_skill' => true,
 ];

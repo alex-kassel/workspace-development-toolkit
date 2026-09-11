@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAliasCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDeleteCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDocsInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageMakeCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageReadmeCommand;
@@ -27,6 +28,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReadmeValidator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReleaseChecker;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\ServiceProvider;
 
@@ -49,6 +51,9 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(GitInspector::class);
         $this->app->singleton(ReadmeValidator::class);
         $this->app->singleton(ReleaseChecker::class);
+        $this->app->singleton(SkillInstaller::class, function () {
+            return new SkillInstaller;
+        });
     }
 
     /**
@@ -65,6 +70,10 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 __DIR__.'/../stubs/package' => base_path('stubs/workspace'),
             ], 'workspace-stubs');
 
+            $this->publishes([
+                __DIR__.'/../resources/skills/package-docs' => base_path('.agents/skills/package-docs'),
+            ], 'workspace-skills');
+
             $this->commands([
                 PackageMakeCommand::class,
                 PackageCheckCommand::class,
@@ -74,6 +83,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 PackageAliasCommand::class,
                 PackageReadmeCommand::class,
                 PackageReleaseCheckCommand::class,
+                PackageDocsInstallCommand::class,
                 WorkspaceAddCommand::class,
                 WorkspaceCloneCommand::class,
                 WorkspaceDefaultCommand::class,
@@ -81,6 +91,29 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 WorkspaceRemoveCommand::class,
                 WorkspaceHelpCommand::class,
             ]);
+
+            $this->autoPublishSkill();
+        }
+    }
+
+    /**
+     * Automatically materialize the skill into the project during local development discovery.
+     */
+    protected function autoPublishSkill(): void
+    {
+        if ($this->app->isProduction()) {
+            return;
+        }
+
+        if (! config('workspace.auto_publish_skill', true)) {
+            return;
+        }
+
+        /** @var SkillInstaller $installer */
+        $installer = $this->app->make(SkillInstaller::class);
+
+        if (! $installer->isInstalled()) {
+            $installer->install();
         }
     }
 }
