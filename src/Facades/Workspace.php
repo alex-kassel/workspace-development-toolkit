@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static void clearCache()
  * @method static void ensureWorkspaceScript()
  * @method static void ensureComposerHooks()
+ * @method static bool deleteDirectoryRecursively(string $dir)
  * @method static void save(array $data)
  *
  * @see WorkspaceManager

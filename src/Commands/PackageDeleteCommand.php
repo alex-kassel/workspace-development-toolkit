@@ -121,13 +121,13 @@ class PackageDeleteCommand extends Command
             }
         }
 
-        File::deleteDirectory($realFullPath);
+        Workspace::deleteDirectoryRecursively($realFullPath);
 
         // If in a multi-vendor (nested) workspace, clean up parent vendor directory if left empty
         $vendorDir = dirname($realFullPath);
         $workspaceDir = dirname($vendorDir);
         if (File::isDirectory($vendorDir) && $vendorDir !== $workspaceDir && count(File::allFiles($vendorDir)) === 0 && count(File::directories($vendorDir)) === 0) {
-            File::deleteDirectory($vendorDir);
+            Workspace::deleteDirectoryRecursively($vendorDir);
         }
 
         Workspace::sync();

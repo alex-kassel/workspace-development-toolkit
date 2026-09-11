@@ -681,4 +681,43 @@ class WorkspaceManager
             File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
         }
     }
+
+    /**
+     * Recursively delete a directory, unsetting read-only flags (essential for Windows .git folders).
+     */
+    public function deleteDirectoryRecursively(string $dir): bool
+    {
+        if (! File::isDirectory($dir)) {
+            return true;
+        }
+
+        try {
+            $items = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+
+            foreach ($items as $item) {
+                $itemPath = $item->getRealPath();
+                if ($itemPath === false) {
+                    continue;
+                }
+
+                @chmod($itemPath, 0777);
+
+                if ($item->isDir()) {
+                    @rmdir($itemPath);
+                } else {
+                    @unlink($itemPath);
+                }
+            }
+
+            @chmod($dir, 0777);
+            @rmdir($dir);
+
+            return ! File::isDirectory($dir);
+        } catch (\Throwable) {
+            return File::deleteDirectory($dir);
+        }
+    }
 }
