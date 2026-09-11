@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature\Commands;
 
-require_once dirname(__DIR__, 2).'/TestCase.php';
-
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
@@ -27,9 +25,21 @@ class WorkspaceCommandsTest extends TestCase
         $gitignore = File::get(base_path('.gitignore'));
         $this->assertStringContainsString('/packages', $gitignore);
 
-        // Check composer.json repository
+        // Check composer.json repository contains exact key or url
         $composer = $this->getSandboxComposer();
-        $this->assertNotEmpty($composer['repositories']);
+        $repos = $composer['repositories'] ?? [];
+        $found = false;
+        foreach ($repos as $key => $repo) {
+            if (($key === 'workspace-packages' || ($repo['name'] ?? '') === 'workspace-packages') && ($repo['url'] ?? '') === 'packages/*/*') {
+                $found = true;
+                break;
+            }
+            if (($repo['type'] ?? '') === 'path' && ($repo['url'] ?? '') === 'packages/*/*') {
+                $found = true;
+                break;
+            }
+        }
+        $this->assertTrue($found, 'Expected path repository for packages/*/* was not registered in composer.json.');
     }
 
     public function test_workspace_add_registers_fixed_vendor_workspace(): void
@@ -46,6 +56,22 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertArrayHasKey('labs', $workspaceData['workspaces']);
         $this->assertSame('alex-kassel-labs', $workspaceData['workspaces']['labs']['vendor']);
         $this->assertSame('labs', $workspaceData['default']);
+
+        // Check composer.json has 1-level flat path repository
+        $composer = $this->getSandboxComposer();
+        $repos = $composer['repositories'] ?? [];
+        $found = false;
+        foreach ($repos as $key => $repo) {
+            if (($key === 'workspace-labs' || ($repo['name'] ?? '') === 'workspace-labs') && ($repo['url'] ?? '') === 'labs/*') {
+                $found = true;
+                break;
+            }
+            if (($repo['type'] ?? '') === 'path' && ($repo['url'] ?? '') === 'labs/*') {
+                $found = true;
+                break;
+            }
+        }
+        $this->assertTrue($found, 'Expected path repository for labs/* was not registered in composer.json.');
     }
 
     public function test_workspace_add_rejects_duplicate_workspace(): void
@@ -68,6 +94,13 @@ class WorkspaceCommandsTest extends TestCase
     {
         $this->artisan('workspace:add', ['path' => '../external'])
             ->expectsOutputToContain('Path traversal ("..") is not allowed')
+            ->assertFailed();
+    }
+
+    public function test_workspace_add_rejects_absolute_paths(): void
+    {
+        $this->artisan('workspace:add', ['path' => '/var/evil'])
+            ->expectsOutputToContain('Absolute paths are not allowed')
             ->assertFailed();
     }
 
@@ -137,8 +170,53 @@ class WorkspaceCommandsTest extends TestCase
         $workspaceData = $this->getSandboxWorkspace();
         $this->assertArrayNotHasKey('packages', $workspaceData['workspaces']);
 
+        // Assert path repository is completely removed from composer.json
+        $composer = $this->getSandboxComposer();
+        foreach ($composer['repositories'] ?? [] as $key => $repo) {
+            $name = $repo['name'] ?? (is_string($key) ? $key : '');
+            $url = $repo['url'] ?? '';
+            $this->assertNotSame('workspace-packages', $name, 'Repository key workspace-packages was not removed from composer.json.');
+            $this->assertNotSame('packages/*/*', $url, 'Repository url packages/*/* was not removed from composer.json.');
+        }
+
         // Physical folder still exists
         $this->assertDirectoryExists(base_path('packages'));
+    }
+
+    public function test_workspace_remove_switches_default_workspace_to_next_available(): void
+    {
+        Workspace::add('primary');
+        Workspace::add('secondary');
+        $this->assertSame('primary', Workspace::getDefault());
+
+        $this->artisan('workspace:remove', ['path' => 'primary'])
+            ->assertSuccessful();
+
+        // Default must automatically switch to 'secondary'
+        Workspace::clearCache();
+        $this->assertSame('secondary', Workspace::getDefault());
+    }
+
+    public function test_workspace_add_and_package_make_with_nested_path(): void
+    {
+        // Test client-specific nested workspace e.g. clients/acme
+        $this->artisan('workspace:add', [
+            'path' => 'clients/acme',
+            '--vendor' => 'acme-corp',
+        ])
+            ->expectsOutputToContain('Workspace [clients/acme] added successfully')
+            ->assertSuccessful();
+
+        $this->artisan('package:make', [
+            'name' => 'billing-portal',
+            '--workspace' => 'clients/acme',
+        ])
+            ->expectsOutputToContain('created successfully in')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists(base_path('clients/acme/billing-portal/src'));
+        $composer = json_decode(File::get(base_path('clients/acme/billing-portal/composer.json')), true);
+        $this->assertSame('acme-corp/billing-portal', $composer['name']);
     }
 
     public function test_workspace_help_displays_guide(): void

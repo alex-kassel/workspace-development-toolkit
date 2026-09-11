@@ -6,12 +6,9 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Unit;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
-
-require_once dirname(__DIR__).'/TestCase.php';
-
-use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 
@@ -131,6 +128,18 @@ class WorkspaceManagerTest extends TestCase
     {
         $this->expectException(InvalidWorkspacePathException::class);
         Workspace::add('/var/workspaces');
+    }
+
+    public function test_add_rejects_windows_drive_letter_paths(): void
+    {
+        $this->expectException(InvalidWorkspacePathException::class);
+        Workspace::add('C:/dangerous');
+    }
+
+    public function test_add_rejects_invalid_path_segments(): void
+    {
+        $this->expectException(InvalidWorkspacePathException::class);
+        Workspace::add('packages/evil;rm');
     }
 
     public function test_scan_packages_strictly_obeys_workspace_paradigm(): void

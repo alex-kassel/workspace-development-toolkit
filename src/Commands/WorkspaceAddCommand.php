@@ -70,7 +70,7 @@ class WorkspaceAddCommand extends Command
         }
 
         try {
-            Workspace::add($path, $vendor, $isDefault);
+            Workspace::add($rawPath, $vendor, $isDefault);
         } catch (WorkspaceException $e) {
             $this->error($e->getMessage());
             if ($e->getSolution()) {

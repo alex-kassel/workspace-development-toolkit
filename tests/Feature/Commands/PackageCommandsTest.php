@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature\Commands;
 
-require_once dirname(__DIR__, 2).'/TestCase.php';
-
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
@@ -33,6 +31,38 @@ class PackageCommandsTest extends TestCase
         $this->assertArrayHasKey('illuminate/support', $composerContent['require']);
         $this->assertStringContainsString('^11.0', $composerContent['require']['illuminate/support']);
         $this->assertStringContainsString('^13.0', $composerContent['require']['illuminate/support']);
+
+        // Assert ServiceProvider content is syntactically complete
+        $spContent = File::get($packageDir.'/src/BillingModuleServiceProvider.php');
+        $this->assertStringContainsString('namespace Acme\BillingModule;', $spContent);
+        $this->assertStringContainsString('class BillingModuleServiceProvider extends ServiceProvider', $spContent);
+        $this->assertStringContainsString('public function register(): void', $spContent);
+        $this->assertStringContainsString('public function boot(): void', $spContent);
+    }
+
+    public function test_package_make_fails_if_package_already_exists(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $this->artisan('package:make', ['name' => 'acme/existing-pkg'])
+            ->assertSuccessful();
+
+        // Second attempt must fail cleanly
+        $this->artisan('package:make', ['name' => 'acme/existing-pkg'])
+            ->expectsOutputToContain('already exists')
+            ->assertFailed();
+    }
+
+    public function test_package_make_rejects_dev_option_without_install_option(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $this->artisan('package:make', [
+            'name' => 'acme/dev-only-pkg',
+            '--dev' => true,
+        ])
+            ->expectsOutputToContain('The [--dev] option can only be used in combination with [--install]')
+            ->assertFailed();
     }
 
     public function test_package_make_scaffolds_flat_fixed_vendor_package(): void
@@ -50,6 +80,27 @@ class PackageCommandsTest extends TestCase
 
         $composerContent = json_decode(File::get($packageDir.'/composer.json'), true);
         $this->assertSame('alex-kassel-labs/demo-bot', $composerContent['name']);
+
+        $spContent = File::get($packageDir.'/src/DemoBotServiceProvider.php');
+        $this->assertStringContainsString('namespace AlexKasselLabs\DemoBot;', $spContent);
+        $this->assertStringContainsString('class DemoBotServiceProvider extends ServiceProvider', $spContent);
+    }
+
+    public function test_package_make_rejects_vendor_mismatch_in_fixed_vendor_workspace(): void
+    {
+        Workspace::add('labs', 'alex-kassel-labs', true);
+
+        $this->artisan('package:make', ['name' => 'wrong-vendor/my-tool'])
+            ->expectsOutputToContain('has a fixed vendor [alex-kassel-labs], but [wrong-vendor] was provided')
+            ->assertFailed();
+    }
+
+    public function test_package_make_fails_when_no_default_workspace_is_configured(): void
+    {
+        // Sandbox has no workspaces registered
+        $this->artisan('package:make', ['name' => 'acme/test-pkg'])
+            ->expectsOutputToContain('No default workspace is currently configured')
+            ->assertFailed();
     }
 
     public function test_package_make_rejects_invalid_composer_name(): void
@@ -85,6 +136,34 @@ class PackageCommandsTest extends TestCase
             '--install' => true,
         ])
             ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer require acme/installable-pkg') && ! str_contains($cmd, '--dev');
+        });
+    }
+
+    public function test_package_make_with_install_and_dev_invokes_composer_require_dev(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result(output: 'Success'),
+        ]);
+
+        $this->artisan('package:make', [
+            'name' => 'acme/dev-pkg',
+            '--install' => true,
+            '--dev' => true,
+        ])
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer require acme/dev-pkg') && str_contains($cmd, '--dev');
+        });
     }
 
     public function test_package_make_recovers_gracefully_when_install_fails(): void
@@ -120,6 +199,58 @@ class PackageCommandsTest extends TestCase
         $this->artisan('package:install', ['name' => 'acme/my-lib'])
             ->expectsOutputToContain('installed successfully')
             ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer require acme/my-lib') && ! str_contains($cmd, '--dev');
+        });
+    }
+
+    public function test_package_install_with_dev_option_runs_composer_require_dev(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/my-dev-lib', 'acme/my-dev-lib');
+        Workspace::sync();
+
+        Process::fake([
+            '*' => Process::result(output: 'Installed dev'),
+        ]);
+
+        $this->artisan('package:install', [
+            'name' => 'acme/my-dev-lib',
+            '--dev' => true,
+        ])
+            ->expectsOutputToContain('installed successfully')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer require acme/my-dev-lib') && str_contains($cmd, '--dev');
+        });
+    }
+
+    public function test_package_install_resolves_short_name_in_fixed_vendor_workspace(): void
+    {
+        Workspace::add('labs', 'alex-kassel-labs', true);
+        $this->createDummyPackage('labs/smart-agent', 'alex-kassel-labs/smart-agent');
+        Workspace::sync();
+
+        Process::fake([
+            '*' => Process::result(output: 'Installed smart agent'),
+        ]);
+
+        // Install using short name 'smart-agent'
+        $this->artisan('package:install', ['name' => 'smart-agent'])
+            ->expectsOutputToContain('installed successfully')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer require alex-kassel-labs/smart-agent');
+        });
     }
 
     public function test_package_install_fails_closed_when_package_not_in_workspace(): void
@@ -145,6 +276,12 @@ class PackageCommandsTest extends TestCase
         ])
             ->expectsOutputToContain('Installing from remote Composer repositories')
             ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer require acme/remote-package');
+        });
     }
 
     public function test_package_uninstall_removes_from_root_composer(): void
@@ -165,8 +302,50 @@ class PackageCommandsTest extends TestCase
             ->expectsOutputToContain('uninstalled successfully')
             ->assertSuccessful();
 
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer remove acme/my-lib') && ! str_contains($cmd, '--dev');
+        });
+
         // Physical files preserved
         $this->assertDirectoryExists(base_path('packages/acme/my-lib'));
+    }
+
+    public function test_package_uninstall_auto_detects_require_dev_section(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/dev-tool', 'acme/dev-tool');
+
+        // Mark as installed in sandbox composer.json under require-dev
+        $composer = $this->getSandboxComposer();
+        $composer['require-dev']['acme/dev-tool'] = 'dev-main';
+        File::put(base_path('composer.json'), json_encode($composer));
+
+        Process::fake([
+            '*' => Process::result(output: 'Removed dev package'),
+        ]);
+
+        // Call without --dev option, should auto-detect and append --dev
+        $this->artisan('package:uninstall', ['name' => 'acme/dev-tool'])
+            ->expectsOutputToContain('uninstalled successfully')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer remove acme/dev-tool') && str_contains($cmd, '--dev');
+        });
+    }
+
+    public function test_package_uninstall_fails_when_package_is_not_installed(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/uninstalled-lib', 'acme/uninstalled-lib');
+
+        $this->artisan('package:uninstall', ['name' => 'acme/uninstalled-lib'])
+            ->expectsOutputToContain('is not installed in root composer.json')
+            ->assertFailed();
     }
 
     public function test_package_delete_prevents_directory_traversal(): void
@@ -203,6 +382,43 @@ class PackageCommandsTest extends TestCase
             ->expectsOutputToContain('permanently deleted')
             ->assertSuccessful();
 
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer remove acme/to-delete') && ! str_contains($cmd, '--dev');
+        });
+
         $this->assertDirectoryDoesNotExist(base_path('packages/acme/to-delete'));
+    }
+
+    public function test_package_delete_removes_from_require_dev_section(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/dev-delete', 'acme/dev-delete');
+        Workspace::sync();
+
+        // Mark as installed under require-dev
+        $composer = $this->getSandboxComposer();
+        $composer['require-dev']['acme/dev-delete'] = 'dev-main';
+        File::put(base_path('composer.json'), json_encode($composer));
+
+        Process::fake([
+            '*' => Process::result(output: 'Removed dev'),
+        ]);
+
+        $this->artisan('package:delete', [
+            'name' => 'acme/dev-delete',
+            '--force' => true,
+        ])
+            ->expectsOutputToContain('permanently deleted')
+            ->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+            return str_contains($cmd, 'composer remove acme/dev-delete') && str_contains($cmd, '--dev');
+        });
+
+        $this->assertDirectoryDoesNotExist(base_path('packages/acme/dev-delete'));
     }
 }
