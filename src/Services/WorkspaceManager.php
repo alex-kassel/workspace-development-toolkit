@@ -211,6 +211,17 @@ class WorkspaceManager
     }
 
     /**
+     * Update active skills for a package in workspace.json.
+     *
+     * @param  array<int, string>  $skills
+     */
+    public function updatePackageSkills(string $workspace, string $packageName, array $skills): void
+    {
+        $this->manifest->updatePackageSkills($workspace, $packageName, $skills);
+        $this->resolver->clearCache();
+    }
+
+    /**
      * Scan workspace directory for packages.
      *
      * @return array<int, string|array{name: string, alias: string}>

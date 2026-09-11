@@ -326,6 +326,57 @@ class ManifestRepository
     }
 
     /**
+     * Update active skills for a package in workspace.json.
+     *
+     * @param  array<int, string>  $skills
+     */
+    public function updatePackageSkills(string $workspace, string $packageName, array $skills): void
+    {
+        $cleanWorkspace = $this->normalizeWorkspacePath($workspace);
+        $data = $this->load();
+
+        if (! isset($data['workspaces'][$cleanWorkspace])) {
+            throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
+        }
+
+        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'] ?? [];
+        $newPackages = [];
+        $found = false;
+
+        foreach ($wsPackages as $item) {
+            $existingName = is_array($item) ? ($item['name'] ?? '') : (string) $item;
+            if ($existingName === $packageName) {
+                $found = true;
+                $entry = is_array($item) ? $item : ['name' => $packageName];
+                if (! empty($skills)) {
+                    $entry['skills'] = array_values(array_unique($skills));
+                } else {
+                    unset($entry['skills']);
+                }
+
+                // If only name remains, flatten to string if preferred, or keep as array
+                if (count($entry) === 1 && isset($entry['name'])) {
+                    $newPackages[] = $packageName;
+                } else {
+                    $newPackages[] = $entry;
+                }
+            } else {
+                $newPackages[] = $item;
+            }
+        }
+
+        if (! $found && ! empty($skills)) {
+            $newPackages[] = [
+                'name' => $packageName,
+                'skills' => array_values(array_unique($skills)),
+            ];
+        }
+
+        $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
+        $this->save($data);
+    }
+
+    /**
      * Normalize and validate workspace path.
      *
      * @throws InvalidWorkspacePathException

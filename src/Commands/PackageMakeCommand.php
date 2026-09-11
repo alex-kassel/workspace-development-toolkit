@@ -198,6 +198,28 @@ class PackageMakeCommand extends Command
 
         File::put("{$packagePath}/composer.json", $composerJson."\n");
 
+        File::makeDirectory("{$packagePath}/config", 0755, true, true);
+        $configContent = <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+return [
+    /*
+     |--------------------------------------------------------------------------
+     | Agent Skills Target Path
+     |--------------------------------------------------------------------------
+     |
+     | Relative path(s) from base_path() where agent skills should be published.
+     | Supports a single string path or an array of multiple paths.
+     |
+     */
+    'skills_path' => '.agents/skills',
+];
+
+PHP;
+        File::put("{$packagePath}/config/{$package}.php", $configContent);
+
         $providerContent = <<<PHP
 <?php
 
@@ -211,17 +233,29 @@ class {$providerClass} extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        \$this->mergeConfigFrom(
+            __DIR__.'/../config/{$package}.php',
+            '{$package}'
+        );
     }
 
     public function boot(): void
     {
         if (\$this->app->runningInConsole()) {
-            \$skillsPath = __DIR__.'/../resources/skills';
-            if (is_dir(\$skillsPath)) {
-                \$this->publishes([
-                    \$skillsPath => base_path('.agents/skills'),
-                ], '{$package}-skills');
+            \$this->publishes([
+                __DIR__.'/../config/{$package}.php' => config_path('{$package}.php'),
+            ], '{$package}-config');
+
+            \$skillsSource = __DIR__.'/../resources/skills';
+            if (is_dir(\$skillsSource)) {
+                \$targetPaths = (array) config('{$package}.skills_path', ['.agents/skills']);
+                \$publishes = [];
+
+                foreach (\$targetPaths as \$targetPath) {
+                    \$publishes[\$skillsSource] = base_path(\$targetPath);
+                }
+
+                \$this->publishes(\$publishes, '{$package}-skills');
             }
         }
     }
@@ -283,6 +317,26 @@ description: >-
 > [!NOTE]
 > This skill is currently in **draft** status.
 > Fill in instructions and workflows for AI agents, then remove `status: draft` to activate publishing.
+
+---
+
+## Operational Workflow
+
+### Phase 0: Tooling Verification & Bootstrapping
+Before performing actions with this package:
+1. Verify if the package service or commands are available:
+   ```bash
+   composer show {$name}
+   ```
+2. **If installed**: Proceed to next phase.
+3. **If missing**:
+   - Check your environment execution policy:
+     - If authorized to install dependencies autonomously:
+       ```bash
+       composer require {$name}
+       ```
+     - Otherwise, request human confirmation before modifying dependencies:
+       *"The package [{$name}] is required for this operation. May I install it via composer require?"*
 
 MARKDOWN;
 

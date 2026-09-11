@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
@@ -141,6 +142,17 @@ class PackageDeleteCommand extends Command
                 $this->line("  <info>composer remove {$name}".($isDev ? ' --dev' : '').' -v</info>');
 
                 return self::FAILURE;
+            }
+        }
+
+        // Clean up any installed agent skills of this package
+        $skillsPath = $realFullPath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
+        if (File::isDirectory($skillsPath)) {
+            /** @var SkillInstaller $installer */
+            $installer = app(SkillInstaller::class);
+            $discovered = $installer->discoverSkillsInPath($skillsPath);
+            foreach ($discovered as $slug => $path) {
+                $installer->removeSkill($slug);
             }
         }
 

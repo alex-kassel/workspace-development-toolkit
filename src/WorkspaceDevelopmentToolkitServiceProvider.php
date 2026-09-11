@@ -7,11 +7,11 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAliasCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDeleteCommand;
-use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDocsInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageMakeCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageReadmeCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageReleaseCheckCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageSkillsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageUninstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceAddCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceCloneCommand;
@@ -83,7 +83,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 PackageAliasCommand::class,
                 PackageReadmeCommand::class,
                 PackageReleaseCheckCommand::class,
-                PackageDocsInstallCommand::class,
+                PackageSkillsCommand::class,
                 WorkspaceAddCommand::class,
                 WorkspaceCloneCommand::class,
                 WorkspaceDefaultCommand::class,
@@ -97,7 +97,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
     }
 
     /**
-     * Automatically materialize the skill into the project during local development discovery.
+     * Automatically materialize published skills into the project during local development discovery.
      */
     protected function autoPublishSkill(): void
     {
@@ -111,9 +111,14 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
 
         /** @var SkillInstaller $installer */
         $installer = $this->app->make(SkillInstaller::class);
+        $skillsSource = $installer->getDefaultSourcePath();
 
-        if (! $installer->isInstalled()) {
-            $installer->install();
+        $discovered = $installer->discoverSkillsInPath($skillsSource);
+        foreach ($discovered as $slug => $sourceDir) {
+            $skillMd = $sourceDir.DIRECTORY_SEPARATOR.'SKILL.md';
+            if ($installer->isPublished($skillMd) && ! $installer->isInstalled($slug, $sourceDir)) {
+                $installer->installSkill($slug, $sourceDir);
+            }
         }
     }
 }

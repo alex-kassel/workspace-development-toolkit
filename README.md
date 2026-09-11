@@ -1,28 +1,68 @@
-# Laravel Workspace Development Toolkit
+<h1 align="center">📦 Laravel Workspace Development Toolkit</h1>
 
-> **Transform your Laravel application into a Mission Control Center for building, testing, and managing multiple local packages across isolated, git-ready workspaces.**
+<p align="center">
+  <strong>Multi-workspace local package development toolkit for Laravel: manage, symlink, and develop isolated packages across git-ready workspaces.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/alex-kassel/workspace-development-toolkit"><img src="https://img.shields.io/badge/Release-v1.0.0-10b981?logo=git" alt="Version"></a>
+  <a href="https://laravel.com"><img src="https://img.shields.io/badge/Laravel-11%20%7C%2012%20%7C%2013-ff2d20?logo=laravel&logoColor=white" alt="Laravel Support"></a>
+  <a href="https://php.net"><img src="https://img.shields.io/badge/PHP-8.2+-777bb4?logo=php&logoColor=white" alt="PHP Support"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+</p>
+
+---
+
+## Requirements
+
+* **PHP**: `^8.2` (PHP 8.2, 8.3, or 8.4)
+* **Laravel**: `^11.0`, `^12.0`, or `^13.0`
+* **Composer**: `^2.2` with path repository support
+
+---
+
+## Installation
+
+Install the package via Composer into your Laravel application (typically as a dev dependency):
+
+```bash
+composer require alex-kassel/workspace-development-toolkit --dev
+```
+
+The package service provider (`AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider`) and facade (`Workspace`) are automatically discovered by Laravel.
+
+Optionally, publish the package configuration:
+
+```bash
+php artisan vendor:publish --tag=workspace-config
+```
 
 ---
 
 ## Table of Contents
 
-1. [Introduction & Philosophy](#introduction--philosophy)
-2. [Key Highlights](#key-highlights)
-3. [The Two Workspace Paradigms](#the-two-workspace-paradigms)
-   - [Multi-Vendor (Nested Structure)](#1-multi-vendor-workspace-nested-structure)
-   - [Fixed-Vendor (Flat Structure)](#2-fixed-vendor-workspace-flat-structure)
-4. [Quick Start Tutorial (60 Seconds)](#quick-start-tutorial-60-seconds)
-5. [Interactive Help & CLI Guide](#interactive-help--cli-guide)
+1. [Requirements](#requirements)
+2. [Installation](#installation)
+3. [Introduction & Philosophy](#introduction--philosophy)
+4. [Key Highlights](#key-highlights)
+5. [Usage](#usage)
+   - [The Two Workspace Paradigms](#the-two-workspace-paradigms)
+   - [Quick Start Tutorial (60 Seconds)](#quick-start-tutorial-60-seconds)
+   - [Interactive Help & CLI Guide](#interactive-help--cli-guide)
 6. [Command Reference](#command-reference)
    - [`workspace:help`](#workspacehelp)
    - [`workspace:add`](#workspaceadd)
    - [`workspace:list`](#workspacelist)
    - [`workspace:default`](#workspacedefault)
+   - [`workspace:clone`](#workspaceclone)
+   - [`php workspace restore`](#php-workspace-restore-standalone-cli-runner)
    - [`workspace:remove`](#workspaceremove)
    - [`package:make`](#packagemake)
+   - [`package:alias`](#packagealias)
    - [`package:install`](#packageinstall)
    - [`package:uninstall`](#packageuninstall)
    - [`package:delete`](#packagedelete)
+   - [`package:skills`](#packageskills)
    - [`package:check`](#packagecheck)
    - [`package:readme`](#packagereadme)
    - [`package:release-check`](#packagerelease-check)
@@ -30,6 +70,8 @@
 8. [Under the Hood: Architecture & Manifest](#under-the-hood-architecture--manifest)
 9. [Real-World Recipes & Patterns](#real-world-recipes--patterns)
 10. [Troubleshooting & Domain Exceptions](#troubleshooting--domain-exceptions)
+11. [Testing](#testing)
+12. [License](#license)
 
 ---
 
@@ -65,7 +107,11 @@ Traditional approaches force developers into agonizing compromises: awkward `rep
 
 ---
 
-## The Two Workspace Paradigms
+## Usage
+
+The toolkit supports both multi-vendor libraries and dedicated client or internal modules through flexible workspace paradigms.
+
+### The Two Workspace Paradigms
 
 ### 1. Multi-Vendor Workspace (Nested Structure)
 * **Configuration**: `"vendor": null`
@@ -277,6 +323,26 @@ php artisan package:make billing --workspace=labs --install --dev
 
 ---
 
+### `package:alias`
+Assigns a clean, customized directory alias to a package residing in a flat (fixed-vendor) workspace without altering its Composer package name.
+
+```bash
+# Assign a directory alias using arguments:
+php artisan package:alias billing MyBilling
+
+# Or using the --as option:
+php artisan package:alias billing --as=MyBilling
+```
+
+**Options**:
+* `--as=`: Alternate option to specify the new directory alias.
+* `--alias=`: Synonym for `--as`.
+
+> [!NOTE]
+> Directory aliasing renames the folder on disk, adjusts `workspace.json`, and triggers `composer dump-autoload` automatically to refresh PSR-4 autoload mappings.
+
+---
+
 ### `package:install`
 Links an existing workspace package into the root application using Composer.
 
@@ -317,6 +383,33 @@ php artisan package:delete ai-assistant --force
 ```
 > [!NOTE]
 > `package:delete` includes built-in Git safety checks (via `GitInspector`) preventing accidental removal of dirty trees, unpushed commits, or stashed changes unless `--force` is provided.
+
+---
+
+### `package:skills`
+Discovers and materializes AI agent skills (`SKILL.md`) from a package's `resources/skills` into the host application's `.agents/skills/` directory (or configured skills destination).
+
+```bash
+# Materialize published skills into the project (copy mode):
+php artisan package:skills my-package
+
+# Symlink skills for live development (changes sync immediately):
+php artisan package:skills my-package --symlink
+
+# Overwrite skills if already present:
+php artisan package:skills my-package --force
+
+# Remove all installed skills for this package from the project:
+php artisan package:skills my-package --remove
+```
+
+**Options**:
+* `--symlink`: Create symlinks instead of copying files (ideal for live development within local workspaces).
+* `--force`: Force overwrite existing skills even if already present.
+* `--remove`: Remove all materialized skills associated with this package from the project.
+
+> [!TIP]
+> The command strictly honors skill publishing lifecycle rules: skills in draft status (where `status != 'published'` in the `SKILL.md` frontmatter) are skipped automatically unless `--force` is specified.
 
 ---
 
@@ -500,6 +593,20 @@ All exceptions thrown by the toolkit extend `AlexKassel\WorkspaceDevelopmentTool
 
 ---
 
+## Testing
+
+The package includes a comprehensive PHPUnit test suite covering workspace manifest handling, package lifecycle, git safety, skill installation, and command interactions:
+
+```bash
+# Run tests from the host Laravel application:
+php artisan test packages/alex-kassel/workspace-development-toolkit/tests --compact
+
+# Or run PHPUnit directly:
+vendor/bin/phpunit packages/alex-kassel/workspace-development-toolkit/tests
+```
+
+---
+
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+The MIT License (MIT). Please see [License File](LICENSE) for more information.

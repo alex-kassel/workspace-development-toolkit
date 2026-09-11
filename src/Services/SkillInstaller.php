@@ -13,15 +13,15 @@ use Symfony\Component\Yaml\Yaml;
 class SkillInstaller
 {
     public function __construct(
-        private readonly ?string $sourcePath = null
+        private readonly ?string $defaultSourcePath = null
     ) {}
 
     /**
-     * Get the source directory of the skill files.
+     * Get the default source directory of the toolkit skill files.
      */
-    public function getSourcePath(): string
+    public function getDefaultSourcePath(): string
     {
-        return $this->sourcePath ?? dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills'.DIRECTORY_SEPARATOR.'package-docs';
+        return $this->defaultSourcePath ?? dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
     }
 
     /**
@@ -87,7 +87,6 @@ class SkillInstaller
 
     /**
      * Check if a skill file is officially published and ready for distribution.
-     * Only skills with status: published are allowed to be materialized.
      */
     public function isPublished(string $skillFilePath): bool
     {
@@ -97,46 +96,75 @@ class SkillInstaller
     }
 
     /**
-     * Check if the skill is already installed and belongs to this package.
+     * Discover all skill directories within a given package's resources/skills path.
+     *
+     * @return array<string, string> Map of skill-slug => absolute-skill-path
      */
-    public function isInstalled(?string $targetSkillsDir = null, string $skillSlug = 'package-docs'): bool
+    public function discoverSkillsInPath(string $skillsBasePath): array
+    {
+        if (! is_dir($skillsBasePath)) {
+            return [];
+        }
+
+        $skills = [];
+        $iterator = new RecursiveDirectoryIterator($skillsBasePath, RecursiveDirectoryIterator::SKIP_DOTS);
+
+        /** @var SplFileInfo $item */
+        foreach ($iterator as $item) {
+            if ($item->isDir() && file_exists($item->getPathname().DIRECTORY_SEPARATOR.'SKILL.md')) {
+                $skills[$item->getFilename()] = $item->getPathname();
+            }
+        }
+
+        return $skills;
+    }
+
+    /**
+     * Check if a skill is already installed and matches expected origin.
+     */
+    public function isInstalled(string $skillSlug, string $sourceSkillDir, ?string $targetSkillsDir = null): bool
     {
         $baseSkillsDir = $targetSkillsDir ?? $this->detectSkillsDirectory();
         $targetSkillMd = $baseSkillsDir.DIRECTORY_SEPARATOR.$skillSlug.DIRECTORY_SEPARATOR.'SKILL.md';
-        $sourceSkillMd = $this->getSourcePath().DIRECTORY_SEPARATOR.'SKILL.md';
+        $sourceSkillMd = $sourceSkillDir.DIRECTORY_SEPARATOR.'SKILL.md';
 
         if (! file_exists($targetSkillMd)) {
             return false;
         }
 
-        $expectedOrigin = $this->readSkillOrigin($sourceSkillMd) ?? 'alex-kassel/workspace-development-toolkit';
+        $expectedOrigin = $this->readSkillOrigin($sourceSkillMd);
         $installedOrigin = $this->readSkillOrigin($targetSkillMd);
 
-        return $installedOrigin === $expectedOrigin;
+        return $installedOrigin !== null && $installedOrigin === $expectedOrigin;
     }
 
     /**
-     * Install the skill files to the target directory with origin collision detection.
+     * Install a single skill directory to target location.
      */
-    public function install(?string $targetSkillsDir = null, bool $force = false, bool $symlink = false, string $skillSlug = 'package-docs'): bool
-    {
-        $baseSkillsDir = $targetSkillsDir ?? $this->detectSkillsDirectory();
-        $targetDir = $baseSkillsDir.DIRECTORY_SEPARATOR.$skillSlug;
-        $sourceDir = $this->getSourcePath();
-        $sourceSkillMd = $sourceDir.DIRECTORY_SEPARATOR.'SKILL.md';
-        $targetSkillMd = $targetDir.DIRECTORY_SEPARATOR.'SKILL.md';
-
-        $expectedOrigin = $this->readSkillOrigin($sourceSkillMd) ?? 'alex-kassel/workspace-development-toolkit';
-
-        // Strict Publication Gate: Only officially published skills may be materialized
-        if (! $this->isPublished($sourceSkillMd) && ! $force) {
+    public function installSkill(
+        string $skillSlug,
+        string $sourceSkillDir,
+        ?string $targetSkillsDir = null,
+        bool $force = false,
+        bool $symlink = false
+    ): bool {
+        $sourceSkillMd = $sourceSkillDir.DIRECTORY_SEPARATOR.'SKILL.md';
+        if (! file_exists($sourceSkillMd)) {
             return false;
         }
+
+        if (! $this->isPublished($sourceSkillMd) && ! $force) {
+            return false; // Skip draft skills
+        }
+
+        $baseSkillsDir = $targetSkillsDir ?? $this->detectSkillsDirectory();
+        $targetDir = $baseSkillsDir.DIRECTORY_SEPARATOR.$skillSlug;
+        $targetSkillMd = $targetDir.DIRECTORY_SEPARATOR.'SKILL.md';
+        $expectedOrigin = $this->readSkillOrigin($sourceSkillMd);
 
         if (file_exists($targetDir)) {
             $installedOrigin = $this->readSkillOrigin($targetSkillMd);
 
-            // If it belongs to a different origin and not forcing, raise collision exception
             if ($installedOrigin !== null && $installedOrigin !== $expectedOrigin && ! $force) {
                 throw new RuntimeException(
                     "Skill collision detected! A skill named '{$skillSlug}' is already installed from '{$installedOrigin}'. "
@@ -145,7 +173,7 @@ class SkillInstaller
             }
 
             if (! $force && $installedOrigin === $expectedOrigin) {
-                return true; // Already installed and up-to-date
+                return true;
             }
 
             $this->deleteDirectory($targetDir);
@@ -156,7 +184,7 @@ class SkillInstaller
         }
 
         if ($symlink) {
-            if (@symlink($sourceDir, $targetDir)) {
+            if (@symlink($sourceSkillDir, $targetDir)) {
                 return true;
             }
         }
@@ -165,21 +193,36 @@ class SkillInstaller
             return false;
         }
 
-        if (file_exists($sourceSkillMd)) {
-            @copy($sourceSkillMd, $targetSkillMd);
+        @copy($sourceSkillMd, $targetSkillMd);
+
+        $referencesDir = $sourceSkillDir.DIRECTORY_SEPARATOR.'references';
+        if (is_dir($referencesDir)) {
+            $this->copyDirectory($referencesDir, $targetDir.DIRECTORY_SEPARATOR.'references');
         }
 
-        $this->copyDirectory(
-            $sourceDir.DIRECTORY_SEPARATOR.'references',
-            $targetDir.DIRECTORY_SEPARATOR.'references'
-        );
-
-        $this->copyDirectory(
-            $sourceDir.DIRECTORY_SEPARATOR.'resources',
-            $targetDir.DIRECTORY_SEPARATOR.'resources'
-        );
+        $resourcesDir = $sourceSkillDir.DIRECTORY_SEPARATOR.'resources';
+        if (is_dir($resourcesDir)) {
+            $this->copyDirectory($resourcesDir, $targetDir.DIRECTORY_SEPARATOR.'resources');
+        }
 
         return file_exists($targetSkillMd);
+    }
+
+    /**
+     * Remove an installed skill by slug.
+     */
+    public function removeSkill(string $skillSlug, ?string $targetSkillsDir = null): bool
+    {
+        $baseSkillsDir = $targetSkillsDir ?? $this->detectSkillsDirectory();
+        $targetDir = $baseSkillsDir.DIRECTORY_SEPARATOR.$skillSlug;
+
+        if (! file_exists($targetDir)) {
+            return false;
+        }
+
+        $this->deleteDirectory($targetDir);
+
+        return ! file_exists($targetDir);
     }
 
     /**

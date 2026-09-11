@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -197,8 +198,8 @@ class PackageCheckCommandTest extends TestCase
             '*' => Process::result(output: 'OK'),
         ]);
 
-        /** @var \AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier $verifier */
-        $verifier = app(\AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier::class);
+        /** @var PackageVerifier $verifier */
+        $verifier = app(PackageVerifier::class);
 
         $quickResults = $verifier->checkAll($dir, tier: 'quick');
         $checks = array_map(fn ($r) => $r->check, $quickResults);
@@ -395,4 +396,3 @@ class PackageCheckCommandTest extends TestCase
         });
     }
 }
-
