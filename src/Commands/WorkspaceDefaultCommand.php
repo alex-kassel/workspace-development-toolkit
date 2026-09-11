@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use Illuminate\Console\Command;
 
@@ -39,14 +40,13 @@ class WorkspaceDefaultCommand extends Command
             return self::FAILURE;
         }
 
-        if (! Workspace::setDefault($path)) {
-            $available = array_keys(Workspace::all());
-            $availableStr = empty($available) ? 'none' : implode(', ', $available);
-
-            $this->error("Workspace [{$path}] is not registered. Available workspaces: [{$availableStr}].");
-            $this->line('  <comment>How to fix:</comment> Register the workspace first:');
-            $this->line("  <info>php artisan workspace:add {$path}</info>");
-            $this->line('  Or select one from the list: <info>php artisan workspace:list</info>');
+        try {
+            Workspace::setDefault($path);
+        } catch (WorkspaceException $e) {
+            $this->error($e->getMessage());
+            if ($e->getSolution()) {
+                $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
+            }
 
             return self::FAILURE;
         }

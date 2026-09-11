@@ -2,6 +2,11 @@
     "name": "alex-kassel/workspace-development-toolkit",
     "type": "library",
     "version": "0.0.1",
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/console": "^11.0|^12.0|^13.0"
+    },
     "autoload": {
         "psr-4": {
             "AlexKassel\\WorkspaceDevelopmentToolkit\\": "src/"

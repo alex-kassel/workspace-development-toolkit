@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use Illuminate\Console\Command;
 
@@ -39,25 +40,23 @@ class WorkspaceRemoveCommand extends Command
             return self::FAILURE;
         }
 
-        $workspaces = Workspace::all();
-        if (! array_key_exists($path, $workspaces)) {
-            $available = array_keys($workspaces);
-            $availableStr = empty($available) ? 'none' : implode(', ', $available);
-
-            $this->error("Workspace [{$path}] is not registered. Available workspaces: [{$availableStr}].");
-            $this->line('  <comment>How to fix:</comment> Check registered workspaces with:');
-            $this->line('  <info>php artisan workspace:list</info>');
+        try {
+            Workspace::remove($path);
+        } catch (WorkspaceException $e) {
+            $this->error($e->getMessage());
+            if ($e->getSolution()) {
+                $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
+            }
 
             return self::FAILURE;
         }
-
-        Workspace::remove($path);
 
         $this->info("Workspace [{$path}] removed from configuration (composer.json and workspace.json).");
 
         $this->newLine();
         $this->line('  <comment>Hint:</comment> Workspace removal only unregisters the repository.');
-        $this->line("  1. The physical directory [{$path}/] was preserved. To completely delete it, remove it manually from disk.");
+        $this->line("  1. The physical directory [{$path}/] was preserved.");
+        $this->line("     <fg=yellow;options=bold>CAUTION:</> Before deleting it manually, verify that git working trees inside [{$path}/] are clean and all commits have been pushed!");
         $this->line("  2. If you no longer need git ignore rules for it, remove [/{$path}] from your .gitignore file.");
 
         return self::SUCCESS;

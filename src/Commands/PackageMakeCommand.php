@@ -72,28 +72,32 @@ class PackageMakeCommand extends Command
         $rawName = (string) $this->argument('name');
         $normalizedInput = str_replace('\\', '/', trim($rawName));
 
+        // Composer name segment pattern: lowercase alphanumeric, dashes, dots, underscores
+        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
+
         if ($workspaceVendor !== null) {
             // Flat 1-level workspace: vendor is fixed
             if (str_contains($normalizedInput, '/')) {
                 [$providedVendor, $providedPackage] = explode('/', $normalizedInput, 2);
-                $cleanProvidedVendor = Str::slug($providedVendor);
-                $package = Str::slug($providedPackage);
+                $cleanProvidedVendor = strtolower(trim($providedVendor));
+                $package = strtolower(trim($providedPackage));
 
                 if ($cleanProvidedVendor !== $workspaceVendor) {
                     $this->error("Workspace [{$workspace}] has a fixed vendor [{$workspaceVendor}], but [{$providedVendor}] was provided.");
-                    $this->line('  <comment>How to fix:</comment> Omit the vendor prefix or use the workspace vendor:');
+                    $this->line('  <comment>How to fix:</comment> Omit the vendor prefix or match the workspace vendor:');
                     $this->line("  <info>php artisan package:make {$package} --workspace={$workspace}</info>");
 
                     return self::FAILURE;
                 }
             } else {
-                $package = Str::slug($normalizedInput);
+                $package = strtolower(trim($normalizedInput));
             }
 
-            if ($package === '') {
-                $this->error("Invalid package name [{$rawName}]. Package name cannot be empty.");
-                $this->line('  <comment>How to fix:</comment> Provide a valid package name:');
-                $this->line("  <info>php artisan package:make my-package --workspace={$workspace}</info>");
+            if (! preg_match($segmentPattern, $package)) {
+                $suggested = Str::slug($package);
+                $this->error("Invalid package name [{$rawName}]. Composer package names must contain only lowercase letters, numbers, dashes, underscores, and dots.");
+                $this->line('  <comment>How to fix:</comment> Use a valid package name. Did you mean:');
+                $this->line("  <info>php artisan package:make {$suggested} --workspace={$workspace}</info>");
 
                 return self::FAILURE;
             }
@@ -113,13 +117,15 @@ class PackageMakeCommand extends Command
             }
 
             [$rawVendor, $rawPackage] = explode('/', $normalizedInput, 2);
-            $vendor = Str::slug($rawVendor);
-            $package = Str::slug($rawPackage);
+            $vendor = strtolower(trim($rawVendor));
+            $package = strtolower(trim($rawPackage));
 
-            if ($vendor === '' || $package === '') {
-                $this->error("Invalid package name [{$rawName}]. Vendor and package names cannot be empty after sanitization.");
-                $this->line('  <comment>How to fix:</comment> Use valid alphanumeric characters:');
-                $this->line('  <info>php artisan package:make my-vendor/my-package</info>');
+            if (! preg_match($segmentPattern, $vendor) || ! preg_match($segmentPattern, $package)) {
+                $suggestedVendor = Str::slug($vendor);
+                $suggestedPackage = Str::slug($package);
+                $this->error("Invalid package name [{$rawName}]. Composer vendor and package names must contain only lowercase letters, numbers, dashes, underscores, and dots.");
+                $this->line('  <comment>How to fix:</comment> Use a valid vendor/package name. Did you mean:');
+                $this->line("  <info>php artisan package:make {$suggestedVendor}/{$suggestedPackage} --workspace={$workspace}</info>");
 
                 return self::FAILURE;
             }
@@ -127,10 +133,6 @@ class PackageMakeCommand extends Command
             $name = "{$vendor}/{$package}";
             $shortName = $name;
             $packagePath = base_path("{$workspace}/{$vendor}/{$package}");
-        }
-
-        if ($rawName !== $shortName && $rawName !== $name) {
-            $this->line("  <comment>Notice:</comment> Converted package name [{$rawName}] to canonical Composer format [{$name}].");
         }
 
         if (File::isDirectory($packagePath)) {
@@ -141,8 +143,8 @@ class PackageMakeCommand extends Command
             return self::FAILURE;
         }
 
-        $vendorNamespace = Str::studly($vendor);
-        $packageNamespace = Str::studly($package);
+        $vendorNamespace = Str::studly(str_replace(['.', '-'], '_', $vendor));
+        $packageNamespace = Str::studly(str_replace(['.', '-'], '_', $package));
         $providerClass = "{$packageNamespace}ServiceProvider";
 
         File::makeDirectory("{$packagePath}/src", 0755, true, true);
@@ -151,6 +153,10 @@ class PackageMakeCommand extends Command
             'name' => $name,
             'type' => 'library',
             'version' => '0.0.1',
+            'require' => [
+                'php' => '^8.2',
+                'illuminate/support' => '^11.0|^12.0|^13.0',
+            ],
             'autoload' => [
                 'psr-4' => [
                     "{$vendorNamespace}\\{$packageNamespace}\\" => 'src/',
@@ -207,6 +213,12 @@ PHP;
             ]);
 
             if ($exitCode !== self::SUCCESS) {
+                $this->newLine();
+                $this->warn('Notice: Package scaffolding completed, but automatic Composer installation failed.');
+                $this->line("  Physical files remain intact in [{$displayPath}].");
+                $this->line('  <comment>How to fix:</comment> Resolve the Composer error shown above, then link the package manually:');
+                $this->line("  <info>php artisan package:install {$shortName}".($dev ? ' --dev' : '').'</info>');
+
                 return $exitCode;
             }
         } else {

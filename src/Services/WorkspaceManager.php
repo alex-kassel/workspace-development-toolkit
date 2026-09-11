@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use JsonException;
@@ -167,7 +169,25 @@ class WorkspaceManager
     }
 
     /**
+     * Get the default workspace path or throw exception if none configured.
+     *
+     * @throws DefaultWorkspaceNotConfiguredException
+     */
+    public function getRequiredDefault(): string
+    {
+        $default = $this->getDefault();
+
+        if ($default === null || $default === '') {
+            throw new DefaultWorkspaceNotConfiguredException;
+        }
+
+        return $default;
+    }
+
+    /**
      * Set the default workspace.
+     *
+     * @throws WorkspaceNotFoundException
      */
     public function setDefault(string $path): bool
     {
@@ -175,7 +195,7 @@ class WorkspaceManager
         $data = $this->load();
 
         if (! array_key_exists($path, $data['workspaces'])) {
-            return false;
+            throw new WorkspaceNotFoundException($path, array_keys($data['workspaces']));
         }
 
         $data['default'] = $path;
@@ -214,13 +234,20 @@ class WorkspaceManager
 
     /**
      * Remove a workspace from composer.json and workspace.json (directory preserved).
+     *
+     * @throws WorkspaceNotFoundException
      */
     public function remove(string $path): bool
     {
         $path = trim(preg_replace('#[/\\\\]+#', '/', $path) ?? '', '/');
+        $data = $this->load();
+
+        if (! array_key_exists($path, $data['workspaces'])) {
+            throw new WorkspaceNotFoundException($path, array_keys($data['workspaces']));
+        }
+
         $this->removeFromComposer($path);
 
-        $data = $this->load();
         unset($data['workspaces'][$path]);
 
         if ($data['default'] === $path) {

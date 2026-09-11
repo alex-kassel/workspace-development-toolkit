@@ -47,8 +47,20 @@ class PackageDeleteCommand extends Command
         }
 
         [$rawVendor, $rawPackage] = explode('/', $canonicalName, 2);
-        $vendor = Str::slug($rawVendor);
-        $package = Str::slug($rawPackage);
+        $vendor = strtolower(trim($rawVendor));
+        $package = strtolower(trim($rawPackage));
+
+        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
+        if (! preg_match($segmentPattern, $vendor) || ! preg_match($segmentPattern, $package)) {
+            $suggestedVendor = Str::slug($vendor);
+            $suggestedPackage = Str::slug($package);
+            $this->error("Invalid package name [{$rawName}]. Composer names may only contain lowercase letters, numbers, dashes, underscores, and dots.");
+            $this->line('  <comment>How to fix:</comment> Did you mean:');
+            $this->line("  <info>php artisan package:delete {$suggestedVendor}/{$suggestedPackage}".($force ? ' --force' : '').'</info>');
+
+            return self::FAILURE;
+        }
+
         $name = "{$vendor}/{$package}";
 
         if ($name !== $rawName) {
@@ -68,6 +80,14 @@ class PackageDeleteCommand extends Command
         }
 
         $fullPath = base_path($packagePath);
+        $realFullPath = realpath($fullPath);
+        $realBasePath = realpath(base_path());
+
+        if (! $realFullPath || ! $realBasePath || ! str_starts_with($realFullPath, $realBasePath.DIRECTORY_SEPARATOR)) {
+            $this->error("Security violation: Package path [{$fullPath}] resolves outside the application root.");
+
+            return self::FAILURE;
+        }
 
         if (! $force && ! $this->confirm("Are you sure you want to permanently delete [{$packagePath}] from disk?", false)) {
             $this->info('Deletion canceled.');
@@ -98,7 +118,7 @@ class PackageDeleteCommand extends Command
             }
         }
 
-        File::deleteDirectory($fullPath);
+        File::deleteDirectory($realFullPath);
 
         Workspace::sync();
 

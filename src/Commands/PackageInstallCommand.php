@@ -46,8 +46,20 @@ class PackageInstallCommand extends Command
         }
 
         [$rawVendor, $rawPackage] = explode('/', $canonicalName, 2);
-        $vendor = Str::slug($rawVendor);
-        $package = Str::slug($rawPackage);
+        $vendor = strtolower(trim($rawVendor));
+        $package = strtolower(trim($rawPackage));
+
+        $segmentPattern = '/^[a-z0-9]([_.-]?[a-z0-9]+)*$/';
+        if (! preg_match($segmentPattern, $vendor) || ! preg_match($segmentPattern, $package)) {
+            $suggestedVendor = Str::slug($vendor);
+            $suggestedPackage = Str::slug($package);
+            $this->error("Invalid package name [{$rawName}]. Composer names may only contain lowercase letters, numbers, dashes, underscores, and dots.");
+            $this->line('  <comment>How to fix:</comment> Did you mean:');
+            $this->line("  <info>php artisan package:install {$suggestedVendor}/{$suggestedPackage}".($isDev ? ' --dev' : '').'</info>');
+
+            return self::FAILURE;
+        }
+
         $name = "{$vendor}/{$package}";
 
         if ($name !== $rawName) {
