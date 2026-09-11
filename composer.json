@@ -1,9 +1,9 @@
 {
     "name": "alex-kassel/workspace-development-toolkit",
-    "description": "Flexible multi-workspace local package development toolkit for Laravel.",
+    "description": "Multi-workspace local package development toolkit for Laravel: manage, symlink, and develop isolated packages with ease.",
     "license": "MIT",
     "type": "library",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "keywords": [
         "laravel",
         "workspace",
