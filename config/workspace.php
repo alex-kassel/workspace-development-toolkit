@@ -27,4 +27,19 @@ return [
     |
     */
     'process_timeout' => 300,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Quality Checks Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for package:check command and verifier suite.
+    |
+    */
+    'quality_checks' => [
+        'composer_validate' => true,
+        'pint' => true,
+        'phpstan' => ['enabled' => true, 'level' => 8],
+        'tests' => true,
+    ],
 ];

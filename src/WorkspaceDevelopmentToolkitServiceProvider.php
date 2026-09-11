@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAliasCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDeleteCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageMakeCommand;
@@ -19,6 +20,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\ServiceProvider;
 
@@ -36,6 +38,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(ComposerManager::class);
         $this->app->singleton(PackageResolver::class);
         $this->app->singleton(WorkspaceManager::class);
+        $this->app->singleton(PackageVerifier::class);
     }
 
     /**
@@ -54,6 +57,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
 
             $this->commands([
                 PackageMakeCommand::class,
+                PackageCheckCommand::class,
                 PackageInstallCommand::class,
                 PackageUninstallCommand::class,
                 PackageDeleteCommand::class,

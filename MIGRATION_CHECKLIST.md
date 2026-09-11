@@ -80,20 +80,20 @@
 
 ### Step 2.1 — Сервис `PackageVerifier`
 
-- [ ] Создать `src/Services/PackageVerifier.php` с методами:
+- [x] Создать `src/Services/PackageVerifier.php` с методами:
   - `checkComposer(string $packagePath): CheckResult` — `composer validate --strict`
   - `checkPint(string $packagePath, bool $fix = false): CheckResult` — `vendor/bin/pint --test` (или `vendor/bin/pint` при `$fix`)
   - `checkPhpstan(string $packagePath): CheckResult` — `vendor/bin/phpstan analyse` (использует `phpstan.neon` пакета)
   - `checkTests(string $packagePath): CheckResult` — `vendor/bin/phpunit` (или `vendor/bin/pest`)
   - `checkAll(string $packagePath, array $only = [], bool $fix = false): array<CheckResult>`
-- [ ] Бинарники резолвить из `base_path('vendor/bin/')`. Если бинарник не найден — `CheckResult` со статусом `skipped` и actionable message.
-- [ ] На Windows проверять `.bat` варианты бинарников.
+- [x] Бинарники резолвить из `base_path('vendor/bin/')`. Если бинарник не найден — `CheckResult` со статусом `skipped` и actionable message.
+- [x] На Windows проверять `.bat` варианты бинарников.
 
 **Референс:** `storage/reference/dev-kit/src/Services/PackageVerifier.php`
 
 ### Step 2.2 — DTO `CheckResult`
 
-- [ ] Создать `src/DTOs/CheckResult.php`:
+- [x] Создать `src/DTOs/CheckResult.php`:
   ```php
   final readonly class CheckResult
   {
@@ -109,17 +109,17 @@
 
 ### Step 2.3 — Команда `PackageCheckCommand`
 
-- [ ] Создать `src/Commands/PackageCheckCommand.php`:
+- [x] Создать `src/Commands/PackageCheckCommand.php`:
   - Signature: `package:check {name?} {--all} {--fix} {--only=} {--isolated}`
   - Без аргумента `name` при наличии `--all` — проверяет все пакеты.
   - `--only=pint,phpstan` — подмножество проверок.
   - `--fix` — Pint в режиме автоисправления.
   - `--isolated` — делегирует в `IsolatedPackageVerifier` (Step 3).
-- [ ] Зарегистрировать в `ServiceProvider`.
+- [x] Зарегистрировать в `ServiceProvider`.
 
 ### Step 2.4 — Конфигурация проверок
 
-- [ ] Расширить `config/workspace.php`:
+- [x] Расширить `config/workspace.php`:
   ```php
   'quality_checks' => [
       'composer_validate' => true,
@@ -131,16 +131,16 @@
 
 ### Step 2.5 — Параллельная проверка всех пакетов
 
-- [ ] В `PackageVerifier` добавить метод `checkAllPackages(array $packagePaths, ...): array` с `Process::pool()`.
-- [ ] `Process::pool()` только для read-only проверок (Pint `--test`, PHPStan, PHPUnit).
+- [x] В `PackageVerifier` добавить метод `checkAllPackages(array $packagePaths, ...): array` с `Process::pool()`.
+- [x] `Process::pool()` только для read-only проверок (Pint `--test`, PHPStan, PHPUnit).
 
 ### Step 2.6 — Тесты для `package:check`
 
-- [ ] Тест: `package:check vendor/pkg` запускает все 4 проверки.
-- [ ] Тест: `package:check --only=pint` запускает только Pint.
-- [ ] Тест: `package:check --fix` запускает Pint в режиме fix.
-- [ ] Тест: проверка пакета с отсутствующим бинарником → `skipped`.
-- [ ] Тест: `package:check --all` обнаруживает все пакеты.
+- [x] Тест: `package:check vendor/pkg` запускает все 4 проверки.
+- [x] Тест: `package:check --only=pint` запускает только Pint.
+- [x] Тест: `package:check --fix` запускает Pint в режиме fix.
+- [x] Тест: проверка пакета с отсутствующим бинарником → `skipped`.
+- [x] Тест: `package:check --all` обнаруживает все пакеты.
 
 ---
 
