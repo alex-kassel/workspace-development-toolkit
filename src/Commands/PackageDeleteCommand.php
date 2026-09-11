@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
@@ -85,6 +86,33 @@ class PackageDeleteCommand extends Command
             $this->error("Security violation: Package path [{$fullPath}] resolves outside the application root.");
 
             return self::FAILURE;
+        }
+
+        $gitInspector = app(GitInspector::class);
+        if (! $force && $gitInspector->hasGitRepository($realFullPath)) {
+            if (! $gitInspector->isClean($realFullPath)) {
+                $this->error("Cannot delete package [{$name}]: package working tree has uncommitted or untracked changes.");
+                $this->line('  <comment>How to fix:</comment> Commit, stash, or discard changes before deleting, or use --force:');
+                $this->line("  <info>php artisan package:delete {$name} --force</info>");
+
+                return self::FAILURE;
+            }
+
+            if ($gitInspector->hasUnpushedCommits($realFullPath)) {
+                $this->error("Cannot delete package [{$name}]: package has unpushed commits.");
+                $this->line('  <comment>How to fix:</comment> Push your commits to remote, or bypass check with --force:');
+                $this->line("  <info>php artisan package:delete {$name} --force</info>");
+
+                return self::FAILURE;
+            }
+
+            if ($gitInspector->hasStashes($realFullPath)) {
+                $this->error("Cannot delete package [{$name}]: package has stashed changes.");
+                $this->line('  <comment>How to fix:</comment> Drop or apply your stashes, or bypass check with --force:');
+                $this->line("  <info>php artisan package:delete {$name} --force</info>");
+
+                return self::FAILURE;
+            }
         }
 
         if (! $force && ! $this->confirm("Are you sure you want to permanently delete [{$packagePath}] from disk?", false)) {

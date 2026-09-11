@@ -42,4 +42,22 @@ return [
         'phpstan' => ['enabled' => true, 'level' => 8],
         'tests' => true,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | README Compliance Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for package:readme command and ReadmeValidator.
+    |
+    */
+    'readme' => [
+        'required_sections' => [
+            'Requirements',
+            'Installation',
+            'Usage',
+            'Testing',
+            'License',
+        ],
+    ],
 ];

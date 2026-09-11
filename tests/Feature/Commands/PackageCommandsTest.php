@@ -481,6 +481,57 @@ class PackageCommandsTest extends TestCase
         $this->assertDirectoryExists(base_path('packages'));
     }
 
+    public function test_package_delete_blocks_dirty_git_repo_without_force(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/dirty-pkg', 'acme/dirty-pkg');
+        File::ensureDirectoryExists(base_path('packages/acme/dirty-pkg/.git'));
+        Workspace::sync();
+
+        Process::fake(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+            if (str_contains($cmd, 'status')) {
+                return Process::result("M dirty.php\n");
+            }
+
+            return Process::result('OK');
+        });
+
+        $this->artisan('package:delete', [
+            'name' => 'acme/dirty-pkg',
+        ])
+            ->expectsOutputToContain('package working tree has uncommitted or untracked changes')
+            ->assertFailed();
+
+        $this->assertDirectoryExists(base_path('packages/acme/dirty-pkg'));
+    }
+
+    public function test_package_delete_bypasses_git_safety_with_force(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/dirty-pkg', 'acme/dirty-pkg');
+        File::ensureDirectoryExists(base_path('packages/acme/dirty-pkg/.git'));
+        Workspace::sync();
+
+        Process::fake(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+            if (str_contains($cmd, 'status')) {
+                return Process::result("M dirty.php\n");
+            }
+
+            return Process::result('OK');
+        });
+
+        $this->artisan('package:delete', [
+            'name' => 'acme/dirty-pkg',
+            '--force' => true,
+        ])
+            ->expectsOutputToContain('permanently deleted')
+            ->assertSuccessful();
+
+        $this->assertDirectoryDoesNotExist(base_path('packages/acme/dirty-pkg'));
+    }
+
     public function test_package_alias_renames_directory_and_updates_manifest(): void
     {
         Workspace::add('app/Cores', 'alex-kassel', true);

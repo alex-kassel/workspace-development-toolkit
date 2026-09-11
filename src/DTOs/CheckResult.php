@@ -11,6 +11,6 @@ final readonly class CheckResult
         public string $package,         // 'vendor/package'
         public string $status,          // 'passed', 'failed', 'skipped'
         public string $output,
-        public float $durationSeconds,
+        public float $durationSeconds = 0.0,
     ) {}
 }

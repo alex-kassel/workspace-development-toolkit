@@ -180,7 +180,7 @@
 
 ### Step 4.1 — Сервис `GitInspector`
 
-- [ ] Создать `src/Services/GitInspector.php`:
+- [x] Создать `src/Services/GitInspector.php`:
   ```php
   class GitInspector
   {
@@ -194,35 +194,35 @@
       public function hasGitRepository(string $path): bool;
   }
   ```
-- [ ] Зарегистрировать как singleton в `ServiceProvider`.
+- [x] Зарегистрировать как singleton в `ServiceProvider`.
 
 ### Step 4.2 — Git Safety в `PackageDeleteCommand`
 
-- [ ] Перед удалением проверять: clean working tree, no unpushed commits, no stashes.
-- [ ] `--force` обходит все проверки.
-- [ ] Actionable errors в стиле пакета.
+- [x] Перед удалением проверять: clean working tree, no unpushed commits, no stashes.
+- [x] `--force` обходит все проверки.
+- [x] Actionable errors в стиле пакета.
 
 ### Step 4.3 — README Validator
 
-- [ ] Создать `src/Services/ReadmeValidator.php`.
-- [ ] Правила (конфигурируемые):
+- [x] Создать `src/Services/ReadmeValidator.php`.
+- [x] Правила (конфигурируемые):
   - Файл `README.md` существует.
   - Содержит заголовок `# ...`.
   - Содержит секции из конфига (default: `Requirements`, `Installation`, `Usage`, `Testing`, `License`).
   - Нет unfilled placeholder'ов (`<vendor>/<package>`, `Vendor\Package`).
-- [ ] Каждая проверка → `{rule: string, passed: bool, message: string}`.
+- [x] Каждая проверка → `{rule: string, passed: bool, message: string}`.
 
 **Референс:** `storage/reference/dev-kit/src/Services/ReadmeValidator.php` — но **НЕ** копировать жёсткий badge palette (#10b981 и т.д.). Сделать проверки конфигурируемыми.
 
 ### Step 4.4 — Команда `PackageReadmeCommand`
 
-- [ ] Создать `src/Commands/PackageReadmeCommand.php`:
+- [x] Создать `src/Commands/PackageReadmeCommand.php`:
   - Signature: `package:readme {name}`
   - Резолвит пакет, запускает `ReadmeValidator`, выводит результат.
 
 ### Step 4.5 — Конфигурация README
 
-- [ ] Расширить `config/workspace.php`:
+- [x] Расширить `config/workspace.php`:
   ```php
   'readme' => [
       'required_sections' => ['Requirements', 'Installation', 'Usage', 'Testing', 'License'],
@@ -231,26 +231,26 @@
 
 ### Step 4.6 — Release Pre-flight
 
-- [ ] Создать `src/Services/ReleaseChecker.php` с гейтами:
+- [x] Создать `src/Services/ReleaseChecker.php` с гейтами:
   1. Git cleanliness (через `GitInspector`).
   2. Export-ignore (парсить `.gitattributes`).
   3. Code quality (делегировать `PackageVerifier`).
   4. README compliance (делегировать `ReadmeValidator`).
-- [ ] Вердикт: `READY`, `ACTION_REQUIRED`, `BLOCKED`.
+- [x] Вердикт: `READY`, `ACTION_REQUIRED`, `BLOCKED`.
 
 ### Step 4.7 — Команда `PackageReleaseCheckCommand`
 
-- [ ] Создать `src/Commands/PackageReleaseCheckCommand.php`:
+- [x] Создать `src/Commands/PackageReleaseCheckCommand.php`:
   - Signature: `package:release-check {name} {--fast}`
   - `--fast` пропускает isolated verification.
 
 ### Step 4.8 — Тесты для Фазы 4
 
-- [ ] Тесты: `GitInspector` — clean/dirty/unpushed/stashes.
-- [ ] Тесты: `PackageDeleteCommand` блокирует удаление dirty пакета.
-- [ ] Тесты: `ReadmeValidator` — missing file, missing sections, placeholders.
-- [ ] Тесты: `ReleaseChecker` — READY/ACTION_REQUIRED/BLOCKED.
-- [ ] Тесты: `package:release-check` — fast vs full.
+- [x] Тесты: `GitInspector` — clean/dirty/unpushed/stashes.
+- [x] Тесты: `PackageDeleteCommand` блокирует удаление dirty пакета.
+- [x] Тесты: `ReadmeValidator` — missing file, missing sections, placeholders.
+- [x] Тесты: `ReleaseChecker` — READY/ACTION_REQUIRED/BLOCKED.
+- [x] Тесты: `package:release-check` — fast vs full.
 
 ---
 
