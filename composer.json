@@ -3,7 +3,6 @@
     "description": "Multi-workspace local package development toolkit for Laravel: manage, symlink, and develop isolated packages with ease.",
     "license": "MIT",
     "type": "library",
-    "version": "0.1.0",
     "keywords": [
         "laravel",
         "workspace",
