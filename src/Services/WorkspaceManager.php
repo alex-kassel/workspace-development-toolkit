@@ -16,6 +16,21 @@ use JsonException;
 class WorkspaceManager
 {
     /**
+     * In-memory cache for workspace configuration.
+     *
+     * @var array{default: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string>}>}|null
+     */
+    protected ?array $cache = null;
+
+    /**
+     * Clear in-memory cache.
+     */
+    public function clearCache(): void
+    {
+        $this->cache = null;
+    }
+
+    /**
      * Get the path to workspace.json.
      */
     public function workspaceJsonPath(): string
@@ -38,6 +53,10 @@ class WorkspaceManager
      */
     public function load(): array
     {
+        if ($this->cache !== null) {
+            return $this->cache;
+        }
+
         $path = $this->workspaceJsonPath();
 
         if (! File::exists($path)) {
@@ -66,7 +85,7 @@ class WorkspaceManager
             }
         }
 
-        return [
+        return $this->cache = [
             'default' => $data['default'] ?? null,
             'workspaces' => $normalizedWorkspaces,
         ];
@@ -423,6 +442,7 @@ class WorkspaceManager
     public function save(array $data): void
     {
         ksort($data['workspaces']);
+        $this->cache = $data;
         File::put($this->workspaceJsonPath(), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
     }
 
@@ -461,15 +481,23 @@ class WorkspaceManager
         $flatUrl = "{$path}/*";
         $nestedUrl = "{$path}/*/*";
 
-        Process::path(base_path())->run([
+        $result = Process::path(base_path())->run([
             'composer', 'config', '--unset', "repositories.{$repoKey}",
         ]);
 
+        if (! $result->successful() && ! str_contains(strtolower($result->errorOutput()), 'not found') && ! str_contains(strtolower($result->errorOutput()), 'does not exist')) {
+            throw new ComposerProcessException("composer config --unset repositories.{$repoKey}", $result->errorOutput());
+        }
+
         // Also try unsanitized key in case it was stored directly
         if ($safePath !== $path) {
-            Process::path(base_path())->run([
+            $fallbackResult = Process::path(base_path())->run([
                 'composer', 'config', '--unset', "repositories.workspace-{$path}",
             ]);
+
+            if (! $fallbackResult->successful() && ! str_contains(strtolower($fallbackResult->errorOutput()), 'not found') && ! str_contains(strtolower($fallbackResult->errorOutput()), 'does not exist')) {
+                throw new ComposerProcessException("composer config --unset repositories.workspace-{$path}", $fallbackResult->errorOutput());
+            }
         }
 
         $composer = $this->readJsonFile($this->composerJsonPath());

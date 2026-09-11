@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static void add(string $path, ?string $vendor = null, bool $isDefault = false)
  * @method static bool remove(string $path)
  * @method static array sync()
+ * @method static void clearCache()
  * @method static array scanPackages(string $workspace, ?string $vendor = null)
  * @method static void save(array $data)
  *

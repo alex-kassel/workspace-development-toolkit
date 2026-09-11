@@ -144,4 +144,25 @@ class WorkspaceManagerTest extends TestCase
         $this->assertContains('correct-flat-pkg', $packages);
         $this->assertNotContains('nested-pkg', $packages);
     }
+
+    public function test_load_uses_in_memory_cache_and_clear_cache_invalidates_it(): void
+    {
+        Workspace::add('packages');
+        $initial = Workspace::load();
+
+        // Mutate workspace.json directly on disk behind the manager's back
+        $raw = json_decode(File::get(base_path('workspace.json')), true);
+        $raw['default'] = 'manipulated-on-disk';
+        File::put(base_path('workspace.json'), json_encode($raw));
+
+        // load() should return cached data, ignoring disk changes until cache is cleared
+        $cached = Workspace::load();
+        $this->assertSame($initial['default'], $cached['default']);
+        $this->assertNotSame('manipulated-on-disk', $cached['default']);
+
+        // clearCache() should force reload from disk
+        Workspace::clearCache();
+        $reloaded = Workspace::load();
+        $this->assertSame('manipulated-on-disk', $reloaded['default']);
+    }
 }

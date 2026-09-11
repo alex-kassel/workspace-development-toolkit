@@ -82,6 +82,28 @@ class WorkspaceCommandsTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_workspace_list_is_read_only_by_default_and_syncs_with_flag(): void
+    {
+        Workspace::add('packages');
+        // Manually create a package folder with composer.json on disk without registering in workspace.json
+        $this->createDummyPackage('packages/acme/unregistered-pkg', 'acme/unregistered-pkg');
+
+        // Without --sync, workspace:list uses load() and does not alter packages list on disk
+        $this->artisan('workspace:list')
+            ->assertSuccessful();
+
+        $loaded = Workspace::load();
+        $this->assertNotContains('acme/unregistered-pkg', $loaded['workspaces']['packages']['packages']);
+
+        // With --sync, it rescans and persists newly detected packages
+        $this->artisan('workspace:list', ['--sync' => true])
+            ->assertSuccessful();
+
+        Workspace::clearCache();
+        $synced = Workspace::load();
+        $this->assertContains('acme/unregistered-pkg', $synced['workspaces']['packages']['packages']);
+    }
+
     public function test_workspace_default_switches_default(): void
     {
         Workspace::add('packages');

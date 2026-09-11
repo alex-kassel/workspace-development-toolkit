@@ -31,6 +31,8 @@ class PackageCommandsTest extends TestCase
         $this->assertSame('acme/billing-module', $composerContent['name']);
         $this->assertArrayHasKey('php', $composerContent['require']);
         $this->assertArrayHasKey('illuminate/support', $composerContent['require']);
+        $this->assertStringContainsString('^11.0', $composerContent['require']['illuminate/support']);
+        $this->assertStringContainsString('^13.0', $composerContent['require']['illuminate/support']);
     }
 
     public function test_package_make_scaffolds_flat_fixed_vendor_package(): void

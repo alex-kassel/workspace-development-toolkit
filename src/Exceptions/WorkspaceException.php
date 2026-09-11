@@ -15,11 +15,14 @@ class WorkspaceException extends RuntimeException
         int $code = 0,
         ?Throwable $previous = null,
     ) {
-        $formatted = $solution
-            ? "{$message}\nHow to fix: {$solution}"
-            : $message;
+        parent::__construct($message, $code, $previous);
+    }
 
-        parent::__construct($formatted, $code, $previous);
+    public function getFormattedMessage(): string
+    {
+        return $this->solution
+            ? "{$this->getMessage()}\nHow to fix: {$this->solution}"
+            : $this->getMessage();
     }
 
     public function getSolution(): ?string

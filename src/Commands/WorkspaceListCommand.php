@@ -14,7 +14,7 @@ class WorkspaceListCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'workspace:list';
+    protected $signature = 'workspace:list {--sync : Rescan physical workspace directories and synchronize workspace.json}';
 
     /**
      * The console command description.
@@ -28,7 +28,7 @@ class WorkspaceListCommand extends Command
      */
     public function handle(): int
     {
-        $data = Workspace::sync();
+        $data = $this->option('sync') ? Workspace::sync() : Workspace::load();
         $workspaces = $data['workspaces'];
         $default = $data['default'];
 

@@ -149,13 +149,25 @@ class PackageMakeCommand extends Command
 
         File::makeDirectory("{$packagePath}/src", 0755, true, true);
 
+        // Determine dynamic illuminate/support version constraint based on current Laravel environment
+        $frameworkVersion = $this->getApplication()->getVersion();
+        $currentMajor = 11;
+        if (preg_match('/^(\d+)/', $frameworkVersion, $matches)) {
+            $currentMajor = max(11, (int) $matches[1]);
+        }
+        $supportedMajors = [];
+        for ($v = 11; $v <= $currentMajor; $v++) {
+            $supportedMajors[] = "^{$v}.0";
+        }
+        $illuminateConstraint = implode('|', $supportedMajors);
+
         $composerJson = json_encode([
             'name' => $name,
             'type' => 'library',
             'version' => '0.0.1',
             'require' => [
                 'php' => '^8.2',
-                'illuminate/support' => '^11.0|^12.0|^13.0',
+                'illuminate/support' => $illuminateConstraint,
             ],
             'autoload' => [
                 'psr-4' => [
