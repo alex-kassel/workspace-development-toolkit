@@ -46,7 +46,7 @@ class WorkspaceCloneCommand extends Command
 
         if ($isSelf) {
             // Determine our own repository URL and install mode
-            $repoUrl = $this->resolveSelfRepositoryUrl($useSsh);
+            $repoUrl = Workspace::resolveSelfRepositoryUrl($useSsh);
             // Self-cloned toolkit is naturally a dev dependency by default
             $install = true;
             $dev = true;
@@ -61,7 +61,7 @@ class WorkspaceCloneCommand extends Command
                 return self::FAILURE;
             }
 
-            $repoUrl = $this->normalizeRepositoryUrl($rawRepo, $useSsh);
+            $repoUrl = Workspace::normalizeRepositoryUrl($rawRepo, $useSsh);
         }
 
         if ($dev && ! $install) {
@@ -117,7 +117,7 @@ class WorkspaceCloneCommand extends Command
         }
 
         // Pre-parse vendor and package hints from URL (e.g. vendor/package)
-        [$inferredVendor, $inferredPackage] = $this->parseRepoVendorAndPackage($repoUrl);
+        [$inferredVendor, $inferredPackage] = Workspace::parseRepoVendorAndPackage($repoUrl);
 
         if ($workspaceVendor !== null) {
             // Fixed-vendor workspace (flat): labs/{package} or labs/{alias}
@@ -161,8 +161,10 @@ class WorkspaceCloneCommand extends Command
         // Ensure parent directory exists
         File::ensureDirectoryExists(dirname($fullTargetPath));
 
+        $timeout = (int) config('workspace.process_timeout', 300);
+
         // Execute git clone
-        $cloneResult = Process::timeout(300)->run(['git', 'clone', $repoUrl, $fullTargetPath]);
+        $cloneResult = Process::timeout($timeout)->run(['git', 'clone', $repoUrl, $fullTargetPath]);
 
         if (! $cloneResult->successful()) {
             $this->error("Failed to clone repository [{$repoUrl}].");
@@ -236,7 +238,7 @@ class WorkspaceCloneCommand extends Command
                 $requireArgs[] = '--dev';
             }
 
-            $installResult = Process::path(base_path())->timeout(300)->run($requireArgs);
+            $installResult = Process::path(base_path())->timeout($timeout)->run($requireArgs);
 
             if (! $installResult->successful()) {
                 $this->error("Failed to install package [{$canonicalComposerName}] via Composer.");
@@ -259,115 +261,5 @@ class WorkspaceCloneCommand extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Resolve the git repository URL of the workspace toolkit itself.
-     */
-    protected function resolveSelfRepositoryUrl(bool $useSsh): string
-    {
-        $packageDir = dirname(__DIR__, 2);
-
-        // 1. Try reading from git config inside package directory
-        if (File::isDirectory("{$packageDir}/.git")) {
-            $gitRemote = Process::path($packageDir)->run(['git', 'config', '--get', 'remote.origin.url']);
-            if ($gitRemote->successful() && trim($gitRemote->output()) !== '') {
-                $url = trim($gitRemote->output());
-
-                return $this->formatUrlProtocol($url, $useSsh);
-            }
-        }
-
-        // 2. Try composer installed.json in root
-        $installedJsonPath = base_path('vendor/composer/installed.json');
-        if (File::exists($installedJsonPath)) {
-            $installed = json_decode(File::get($installedJsonPath), true);
-            $packages = $installed['packages'] ?? $installed;
-            foreach ($packages as $pkg) {
-                if (($pkg['name'] ?? '') === 'alex-kassel/workspace-development-toolkit') {
-                    $sourceUrl = $pkg['source']['url'] ?? null;
-                    if ($sourceUrl) {
-                        return $this->formatUrlProtocol($sourceUrl, $useSsh);
-                    }
-                }
-            }
-        }
-
-        // 3. Fallback to package's own composer.json name on GitHub
-        $composerJsonPath = "{$packageDir}/composer.json";
-        $pkgName = 'alex-kassel/workspace-development-toolkit';
-        if (File::exists($composerJsonPath)) {
-            $data = json_decode(File::get($composerJsonPath), true);
-            $pkgName = $data['name'] ?? $pkgName;
-        }
-
-        return $useSsh
-            ? "git@github.com:{$pkgName}.git"
-            : "https://github.com/{$pkgName}.git";
-    }
-
-    /**
-     * Normalize repository string (e.g. "vendor/package" shorthand -> GitHub URL).
-     */
-    protected function normalizeRepositoryUrl(string $repo, bool $useSsh): string
-    {
-        $repo = trim($repo);
-
-        // Standard Git or SSH URL
-        if (str_starts_with($repo, 'git@') || str_starts_with($repo, 'http://') || str_starts_with($repo, 'https://') || str_starts_with($repo, 'ssh://')) {
-            return $this->formatUrlProtocol($repo, $useSsh);
-        }
-
-        // Shorthand vendor/package: resolve via repository_template
-        if (preg_match('#^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$#', $repo)) {
-            $url = Workspace::resolvePackageCloneUrl($repo);
-
-            return $this->formatUrlProtocol($url, $useSsh);
-        }
-
-        return $repo;
-    }
-
-    /**
-     * Format URL according to preferred protocol (SSH vs HTTPS).
-     */
-    protected function formatUrlProtocol(string $url, bool $useSsh): string
-    {
-        if ($useSsh) {
-            // If https://github.com/vendor/package.git -> git@github.com:vendor/package.git
-            if (preg_match('#^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
-                return "git@github.com:{$matches[1]}/{$matches[2]}.git";
-            }
-        } else {
-            // If git@github.com:vendor/package.git -> https://github.com/vendor/package.git
-            if (preg_match('#^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
-                return "https://github.com/{$matches[1]}/{$matches[2]}.git";
-            }
-        }
-
-        return $url;
-    }
-
-    /**
-     * Parse vendor and package names from repository URL or shorthand.
-     *
-     * @return array{0: ?string, 1: ?string}
-     */
-    protected function parseRepoVendorAndPackage(string $url): array
-    {
-        // git@github.com:vendor/package.git or https://github.com/vendor/package.git
-        if (preg_match('#[:/]([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+?)(?:\.git)?$#', $url, $matches)) {
-            return [$matches[1], $matches[2]];
-        }
-
-        return [null, null];
-    }
-
-    /**
-     * Check if an option was explicitly provided by the user.
-     */
-    protected function hasExplicitOption(string $name): bool
-    {
-        return $this->hasOption($name) && $this->input->hasParameterOption("--{$name}");
     }
 }

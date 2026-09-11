@@ -69,7 +69,9 @@ class PackageAliasCommand extends Command
         $canonicalName = $result['canonical_name'];
 
         // Refresh Composer autoloader to account for directory rename
-        $dumpResult = Process::path(base_path())->run(['composer', 'dump-autoload']);
+        $dumpResult = Process::path(base_path())
+            ->timeout((int) config('workspace.process_timeout', 300))
+            ->run(['composer', 'dump-autoload']);
         if (! $dumpResult->successful()) {
             $this->warn('Notice: Composer dump-autoload encountered warnings or errors:');
             $this->line('  '.trim($dumpResult->errorOutput() ?: $dumpResult->output()));

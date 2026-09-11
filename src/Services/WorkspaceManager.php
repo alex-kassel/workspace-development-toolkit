@@ -257,6 +257,40 @@ class WorkspaceManager
     }
 
     /**
+     * Normalize repository string (e.g. shorthand or custom URL).
+     */
+    public function normalizeRepositoryUrl(string $repo, bool $useSsh): string
+    {
+        return $this->resolver->normalizeRepositoryUrl($repo, $useSsh);
+    }
+
+    /**
+     * Resolve git repository URL of the workspace toolkit itself.
+     */
+    public function resolveSelfRepositoryUrl(bool $useSsh): string
+    {
+        return $this->resolver->resolveSelfRepositoryUrl($useSsh);
+    }
+
+    /**
+     * Format URL according to preferred protocol (SSH vs HTTPS).
+     */
+    public function formatUrlProtocol(string $url, bool $useSsh): string
+    {
+        return $this->resolver->formatUrlProtocol($url, $useSsh);
+    }
+
+    /**
+     * Parse vendor and package names from repository URL or shorthand.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    public function parseRepoVendorAndPackage(string $url): array
+    {
+        return $this->resolver->parseRepoVendorAndPackage($url);
+    }
+
+    /**
      * Ensure Composer hooks.
      */
     public function ensureComposerHooks(): void

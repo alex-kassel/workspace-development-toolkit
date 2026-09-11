@@ -219,8 +219,9 @@ class ComposerManager
      *
      * @throws ComposerProcessException
      */
-    public function runComposer(array $args, int $timeout = 300): ProcessResult
+    public function runComposer(array $args, ?int $timeout = null): ProcessResult
     {
+        $timeout ??= (int) config('workspace.process_timeout', 300);
         $command = array_merge(['composer'], $args);
         $result = Process::timeout($timeout)->path(base_path())->run($command);
 

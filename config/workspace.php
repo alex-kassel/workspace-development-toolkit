@@ -16,4 +16,15 @@ return [
     |
     */
     'repository_template' => 'git@github.com:{package}.git',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Process Timeout
+    |--------------------------------------------------------------------------
+    |
+    | The default timeout in seconds for background processes such as Git clone
+    | or Composer require / install / dump-autoload operations.
+    |
+    */
+    'process_timeout' => 300,
 ];

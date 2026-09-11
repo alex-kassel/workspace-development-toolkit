@@ -14,6 +14,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 
 class WorkspaceManagerTest extends TestCase
 {
@@ -418,5 +419,44 @@ class WorkspaceManagerTest extends TestCase
         $this->assertFalse($saved['repositories']['packagist.org']);
         $this->assertArrayHasKey('custom-repo', $saved['repositories']);
         $this->assertArrayHasKey('workspace-packages', $saved['repositories']);
+    }
+
+    public function test_package_resolver_url_helpers_and_protocols(): void
+    {
+        // HTTPS to SSH
+        $ssh = Workspace::formatUrlProtocol('https://github.com/vendor/package.git', true);
+        $this->assertSame('git@github.com:vendor/package.git', $ssh);
+
+        // SSH to HTTPS
+        $https = Workspace::formatUrlProtocol('git@github.com:vendor/package.git', false);
+        $this->assertSame('https://github.com/vendor/package.git', $https);
+
+        // Parse vendor and package
+        [$v, $p] = Workspace::parseRepoVendorAndPackage('https://github.com/my-org/cool-pkg.git');
+        $this->assertSame('my-org', $v);
+        $this->assertSame('cool-pkg', $p);
+
+        // Normalize shorthand
+        $normalizedSsh = Workspace::normalizeRepositoryUrl('foo/bar', true);
+        $this->assertSame('git@github.com:foo/bar.git', $normalizedSsh);
+
+        $normalizedHttps = Workspace::normalizeRepositoryUrl('foo/bar', false);
+        $this->assertSame('https://github.com/foo/bar.git', $normalizedHttps);
+    }
+
+    public function test_composer_manager_uses_configured_process_timeout(): void
+    {
+        config(['workspace.process_timeout' => 450]);
+
+        Process::fake([
+            '*' => Process::result(output: 'dumped'),
+        ]);
+
+        $composer = app(ComposerManager::class);
+        $composer->runComposer(['dump-autoload']);
+
+        Process::assertRan(function ($process) {
+            return $process->timeout === 450;
+        });
     }
 }

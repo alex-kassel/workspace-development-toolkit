@@ -89,7 +89,7 @@ class PackageUninstallCommand extends Command
         $this->info("Uninstalling [{$name}] via Composer...");
 
         $result = Process::path(base_path())
-            ->timeout(180)
+            ->timeout((int) config('workspace.process_timeout', 300))
             ->run($args);
 
         if (! $result->successful()) {

@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\AmbiguousPackageException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 use JsonException;
 use Throwable;
 
@@ -346,5 +347,108 @@ class PackageResolver
         $this->packagesPathCache = $index;
 
         return $this->packagesPathCache;
+    }
+
+    /**
+     * Format URL according to preferred protocol (SSH vs HTTPS).
+     */
+    public function formatUrlProtocol(string $url, bool $useSsh): string
+    {
+        if ($useSsh) {
+            // If https://github.com/vendor/package.git -> git@github.com:vendor/package.git
+            if (preg_match('#^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
+                return "git@github.com:{$matches[1]}/{$matches[2]}.git";
+            }
+        } else {
+            // If git@github.com:vendor/package.git -> https://github.com/vendor/package.git
+            if (preg_match('#^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
+                return "https://github.com/{$matches[1]}/{$matches[2]}.git";
+            }
+        }
+
+        return $url;
+    }
+
+    /**
+     * Parse vendor and package names from repository URL or shorthand.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    public function parseRepoVendorAndPackage(string $url): array
+    {
+        // git@github.com:vendor/package.git or https://github.com/vendor/package.git
+        if (preg_match('#[:/]([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+?)(?:\.git)?$#', $url, $matches)) {
+            return [$matches[1], $matches[2]];
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Normalize repository string (e.g. "vendor/package" shorthand -> GitHub URL).
+     */
+    public function normalizeRepositoryUrl(string $repo, bool $useSsh): string
+    {
+        $repo = trim($repo);
+
+        // Standard Git or SSH URL
+        if (str_starts_with($repo, 'git@') || str_starts_with($repo, 'http://') || str_starts_with($repo, 'https://') || str_starts_with($repo, 'ssh://')) {
+            return $this->formatUrlProtocol($repo, $useSsh);
+        }
+
+        // Shorthand vendor/package: resolve via repository_template
+        if (preg_match('#^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$#', $repo)) {
+            $template = $this->manifest->getRepositoryTemplate();
+            $url = str_replace('{package}', $repo, $template);
+
+            return $this->formatUrlProtocol($url, $useSsh);
+        }
+
+        return $repo;
+    }
+
+    /**
+     * Resolve the git repository URL of the workspace toolkit itself.
+     */
+    public function resolveSelfRepositoryUrl(bool $useSsh): string
+    {
+        $packageDir = dirname(__DIR__, 2);
+
+        // 1. Try reading from git config inside package directory
+        if (File::isDirectory("{$packageDir}/.git")) {
+            $gitRemote = Process::path($packageDir)->run(['git', 'config', '--get', 'remote.origin.url']);
+            if ($gitRemote->successful() && trim($gitRemote->output()) !== '') {
+                $url = trim($gitRemote->output());
+
+                return $this->formatUrlProtocol($url, $useSsh);
+            }
+        }
+
+        // 2. Try composer installed.json in root
+        $installedJsonPath = base_path('vendor/composer/installed.json');
+        if (File::exists($installedJsonPath)) {
+            $installed = json_decode(File::get($installedJsonPath), true);
+            $packages = $installed['packages'] ?? $installed;
+            foreach ($packages as $pkg) {
+                if (($pkg['name'] ?? '') === 'alex-kassel/workspace-development-toolkit') {
+                    $sourceUrl = $pkg['source']['url'] ?? null;
+                    if ($sourceUrl) {
+                        return $this->formatUrlProtocol($sourceUrl, $useSsh);
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback to package's own composer.json name on GitHub
+        $composerJsonPath = "{$packageDir}/composer.json";
+        $pkgName = 'alex-kassel/workspace-development-toolkit';
+        if (File::exists($composerJsonPath)) {
+            $data = json_decode(File::get($composerJsonPath), true);
+            $pkgName = $data['name'] ?? $pkgName;
+        }
+
+        return $useSsh
+            ? "git@github.com:{$pkgName}.git"
+            : "https://github.com/{$pkgName}.git";
     }
 }
