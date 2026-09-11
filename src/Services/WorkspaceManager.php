@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -93,6 +94,37 @@ class WorkspaceManager
     }
 
     /**
+     * Validate that workspace relative path is clean and does not escape base_path.
+     *
+     * @throws InvalidWorkspacePathException
+     */
+    public function validateWorkspacePath(string $path): string
+    {
+        $normalized = trim(preg_replace('#[/\\\\]+#', '/', $path) ?? '', '/');
+
+        if ($normalized === '') {
+            throw new InvalidWorkspacePathException($path, 'Workspace path cannot be empty');
+        }
+
+        // Prohibit absolute paths, drive letters, and parent traversal segments
+        if (str_starts_with($path, '/') || str_starts_with($path, '\\') || preg_match('/^[a-zA-Z]:/', $path)) {
+            throw new InvalidWorkspacePathException($path, 'Absolute paths are not allowed');
+        }
+
+        $segments = explode('/', $normalized);
+        foreach ($segments as $segment) {
+            if ($segment === '..' || $segment === '.') {
+                throw new InvalidWorkspacePathException($path, 'Path traversal ("..") is not allowed');
+            }
+            if (! preg_match('/^[a-zA-Z0-9_.-]+$/', $segment)) {
+                throw new InvalidWorkspacePathException($path, "Invalid path segment [{$segment}]");
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
      * Find relative directory path for a given package name.
      * Supports both short name (if belonging to fixed vendor workspace) and canonical vendor/package name.
      */
@@ -110,10 +142,10 @@ class WorkspaceManager
                 $targetCanonicalName = "{$vendor}/{$packageName}";
             }
 
-            $files = array_merge(
-                File::glob(base_path("{$workspace}/*/*/composer.json")) ?: [],
-                File::glob(base_path("{$workspace}/*/composer.json")) ?: []
-            );
+            // Fixed vendor workspace is strictly flat (1-level), multi-vendor is strictly nested (2-level)
+            $files = $vendor !== null
+                ? (File::glob(base_path("{$workspace}/*/composer.json")) ?: [])
+                : (File::glob(base_path("{$workspace}/*/*/composer.json")) ?: []);
 
             foreach ($files as $file) {
                 try {
@@ -218,10 +250,18 @@ class WorkspaceManager
      */
     public function add(string $path, ?string $vendor = null, bool $isDefault = false): void
     {
-        $path = trim(preg_replace('#[/\\\\]+#', '/', $path) ?? '', '/');
+        $path = $this->validateWorkspacePath($path);
         $vendor = $vendor ? trim($vendor) : null;
 
-        File::ensureDirectoryExists(base_path($path));
+        $targetFullPath = base_path($path);
+        File::ensureDirectoryExists($targetFullPath);
+
+        $realTarget = realpath($targetFullPath);
+        $realBase = realpath(base_path());
+
+        if (! $realTarget || ! $realBase || ! str_starts_with(strtolower(rtrim(str_replace('\\', '/', $realTarget), '/')), strtolower(rtrim(str_replace('\\', '/', $realBase), '/')).'/')) {
+            throw new InvalidWorkspacePathException($path, 'Path resolves outside the application root');
+        }
 
         $this->addToGitignore($path);
         $this->registerInComposer($path, $vendor !== null);
@@ -278,13 +318,20 @@ class WorkspaceManager
         $composer = $this->readJsonFile($this->composerJsonPath());
         $registered = [];
 
-        foreach ($composer['repositories'] ?? [] as $repo) {
+        foreach ($composer['repositories'] ?? [] as $key => $repo) {
             if (($repo['type'] ?? '') === 'path' && isset($repo['url'])) {
+                // Only consider repositories managed by this toolkit (workspace- prefix or already tracked)
+                $isToolkitRepo = is_string($key) && str_starts_with($key, 'workspace-');
+                if (! $isToolkitRepo && isset($repo['name']) && is_string($repo['name'])) {
+                    $isToolkitRepo = str_starts_with($repo['name'], 'workspace-');
+                }
+
                 $trimmedUrl = trim($repo['url'], '/\\');
                 $parts = explode('/', $trimmedUrl);
                 // Strip wildcards
                 $dir = implode('/', array_filter($parts, fn ($p) => $p !== '*'));
-                if ($dir !== '') {
+
+                if ($dir !== '' && $isToolkitRepo) {
                     $registered[$dir] = true;
                     $this->addToGitignore($dir);
                 }
@@ -338,10 +385,9 @@ class WorkspaceManager
     public function scanPackages(string $workspace, ?string $vendor = null): array
     {
         $packages = [];
-        $files = array_merge(
-            File::glob(base_path("{$workspace}/*/*/composer.json")) ?: [],
-            File::glob(base_path("{$workspace}/*/composer.json")) ?: []
-        );
+        $files = $vendor !== null
+            ? (File::glob(base_path("{$workspace}/*/composer.json")) ?: [])
+            : (File::glob(base_path("{$workspace}/*/*/composer.json")) ?: []);
 
         foreach ($files as $file) {
             try {
@@ -412,6 +458,8 @@ class WorkspaceManager
     {
         $safePath = str_replace('/', '-', $path);
         $repoKey = "workspace-{$safePath}";
+        $flatUrl = "{$path}/*";
+        $nestedUrl = "{$path}/*/*";
 
         Process::path(base_path())->run([
             'composer', 'config', '--unset', "repositories.{$repoKey}",
@@ -428,7 +476,18 @@ class WorkspaceManager
         if (! empty($composer['repositories'])) {
             $filtered = array_values(array_filter(
                 $composer['repositories'],
-                fn ($repo) => ! (($repo['type'] ?? '') === 'path' && (str_starts_with($repo['url'] ?? '', "{$path}/") || ($repo['name'] ?? '') === $repoKey))
+                function ($repo, $key) use ($repoKey, $flatUrl, $nestedUrl) {
+                    if (($repo['type'] ?? '') !== 'path') {
+                        return true;
+                    }
+                    $url = $repo['url'] ?? '';
+                    $name = $repo['name'] ?? (is_string($key) ? $key : '');
+                    // Delete only if it matches our exact repo key or our exact workspace url
+                    $isOurRepo = ($name === $repoKey || $url === $flatUrl || $url === $nestedUrl);
+
+                    return ! $isOurRepo;
+                },
+                ARRAY_FILTER_USE_BOTH
             ));
 
             if (count($filtered) !== count($composer['repositories'])) {

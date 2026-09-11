@@ -64,6 +64,13 @@ class WorkspaceCommandsTest extends TestCase
             ->assertFailed();
     }
 
+    public function test_workspace_add_rejects_path_traversal(): void
+    {
+        $this->artisan('workspace:add', ['path' => '../external'])
+            ->expectsOutputToContain('Path traversal ("..") is not allowed')
+            ->assertFailed();
+    }
+
     public function test_workspace_list_renders_table(): void
     {
         Workspace::add('packages');

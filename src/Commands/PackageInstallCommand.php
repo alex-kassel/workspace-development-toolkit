@@ -16,7 +16,7 @@ class PackageInstallCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'package:install {name : Package name (vendor/package or short name for fixed-vendor workspace)} {--dev : Install package into require-dev}';
+    protected $signature = 'package:install {name : Package name (vendor/package or short name for fixed-vendor workspace)} {--dev : Install package into require-dev} {--remote : Allow installing non-local package from Composer remote repositories}';
 
     /**
      * The console command description.
@@ -32,6 +32,7 @@ class PackageInstallCommand extends Command
     {
         $rawName = (string) $this->argument('name');
         $isDev = (bool) $this->option('dev');
+        $allowRemote = (bool) $this->option('remote');
         $normalizedInput = str_replace('\\', '/', trim($rawName));
 
         $canonicalName = Workspace::resolveCanonicalPackageName($normalizedInput);
@@ -69,7 +70,19 @@ class PackageInstallCommand extends Command
         $packagePath = Workspace::findPackagePath($name);
 
         if (! $packagePath) {
-            $this->warn("Notice: Package [{$name}] was not found in any local workspace. Composer will attempt to resolve it from remote repositories.");
+            if (! $allowRemote) {
+                $this->error("Package [{$name}] was not found in any registered workspace.");
+                $this->line('  <comment>How to fix:</comment> Verify that the package exists in one of your workspaces:');
+                $this->line('  <info>php artisan workspace:list</info>');
+                $this->line('  Or create the package first:');
+                $this->line("  <info>php artisan package:make {$name}</info>");
+                $this->line('  If you intentionally wish to install a remote Composer package, re-run with --remote:');
+                $this->line("  <info>php artisan package:install {$name}".($isDev ? ' --dev' : '').' --remote</info>');
+
+                return self::FAILURE;
+            }
+
+            $this->warn("Notice: Package [{$name}] was not found locally. Installing from remote Composer repositories via [--remote].");
         }
 
         $args = ['composer', 'require', $name];

@@ -120,6 +120,31 @@ class PackageCommandsTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_package_install_fails_closed_when_package_not_in_workspace(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $this->artisan('package:install', ['name' => 'acme/non-existent'])
+            ->expectsOutputToContain('was not found in any registered workspace')
+            ->assertFailed();
+    }
+
+    public function test_package_install_allows_remote_flag(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result(output: 'Installed remote'),
+        ]);
+
+        $this->artisan('package:install', [
+            'name' => 'acme/remote-package',
+            '--remote' => true,
+        ])
+            ->expectsOutputToContain('Installing from remote Composer repositories')
+            ->assertSuccessful();
+    }
+
     public function test_package_uninstall_removes_from_root_composer(): void
     {
         Workspace::add('packages', null, true);

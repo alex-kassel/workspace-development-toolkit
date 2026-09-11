@@ -11,6 +11,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 
 require_once dirname(__DIR__).'/TestCase.php';
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 
@@ -118,5 +119,29 @@ class WorkspaceManagerTest extends TestCase
 
         $resolved = Workspace::resolveCanonicalPackageName('short-name');
         $this->assertSame('short-name', $resolved);
+    }
+
+    public function test_add_rejects_parent_directory_traversal(): void
+    {
+        $this->expectException(InvalidWorkspacePathException::class);
+        Workspace::add('../external-dir');
+    }
+
+    public function test_add_rejects_absolute_paths(): void
+    {
+        $this->expectException(InvalidWorkspacePathException::class);
+        Workspace::add('/var/workspaces');
+    }
+
+    public function test_scan_packages_strictly_obeys_workspace_paradigm(): void
+    {
+        // Fixed-vendor (flat): should only find 1-level packages, NOT 2-level
+        Workspace::add('labs', 'alex-kassel-labs');
+        $this->createDummyPackage('labs/correct-flat-pkg', 'alex-kassel-labs/correct-flat-pkg');
+        $this->createDummyPackage('labs/wrong/nested-pkg', 'alex-kassel-labs/nested-pkg');
+
+        $packages = Workspace::scanPackages('labs', 'alex-kassel-labs');
+        $this->assertContains('correct-flat-pkg', $packages);
+        $this->assertNotContains('nested-pkg', $packages);
     }
 }
