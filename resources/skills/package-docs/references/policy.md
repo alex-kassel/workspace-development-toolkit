@@ -1,4 +1,4 @@
-﻿# Documentation Policy (v1.1)
+# Documentation Policy (v1.1)
 
 This policy establishes canonical documentation standards for PHP and Laravel packages maintained within the development workspace and ecosystem.
 
@@ -175,6 +175,11 @@ Any pull request or code change that touches the following components MUST inclu
 - Adding or removing a public API method on a published service/facade.
 - Bumping minimum PHP or framework requirements in `composer.json`.
 - Modifying behavior of published stubs or migrations.
+
+### 7.2 Audit & Certification Cadence (Stable vs Patch Releases)
+- **Routine patches do NOT mandate full cryptographic re-auditing**: Routine bugfixes, minor documentation edits, or cosmetic patch releases (e.g. `1.2.0` -> `1.2.1`) do NOT require running a full certification cycle and re-issuing `AUDIT.json`.
+- **Inherited Certification Invariant**: It is completely valid for a patch release to display or inherit the cryptographic audit certificate of its parent stable milestone (e.g. `1.2.0`).
+- **Certification Triggers**: Full package audits and cryptographic re-certification are reserved for **designated stable milestones** (e.g. `1.0.0`, `1.5.0`, `2.0.0`) or significant architectural refactorings.
 
 ---
 
