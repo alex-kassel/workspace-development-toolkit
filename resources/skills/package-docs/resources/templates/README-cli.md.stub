@@ -1,0 +1,72 @@
+﻿# {{ Tool Name }}
+
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/{{ vendor }}/{{ package }}.svg?style=flat-square)](https://packagist.org/packages/{{ vendor }}/{{ package }})
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE.md)
+
+{{ High-impact developer tooling summary. }}
+
+---
+
+## Why This Exists
+
+{{ Concrete explanation of developer workflow bottlenecks eliminated by this tool. }}
+
+---
+
+## Requirements
+
+- **PHP**: `{{ php_version }}`
+- **Laravel**: `{{ laravel_version }}`
+
+---
+
+## Installation
+
+Install as a development dependency:
+
+```bash
+composer require --dev {{ vendor }}/{{ package }}
+```
+
+---
+
+## Quickstart
+
+Run the tool against your project or package:
+
+```bash
+php artisan {{ command:name }}
+```
+
+---
+
+## CLI Reference
+
+### `{{ command:name }}`
+
+```bash
+php artisan {{ command:name }} [target] [options]
+```
+
+#### Arguments
+- `target`: Path or identifier (default: current directory).
+
+#### Options
+| Option | Shortcut | Type | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `--dry-run` | `-d` | bool | `false` | Run without writing changes |
+| `--json` | | bool | `false` | Output machine-readable JSON |
+
+---
+
+## Testing
+
+```bash
+composer test
+```
+
+---
+
+## License
+
+The MIT License (MIT). Please see [License File](LICENSE.md) for more information.

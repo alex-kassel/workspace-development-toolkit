@@ -1,0 +1,88 @@
+﻿# {{ Package Name }}
+
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/{{ vendor }}/{{ package }}.svg?style=flat-square)](https://packagist.org/packages/{{ vendor }}/{{ package }})
+[![Total Downloads](https://img.shields.io/packagist/dt/{{ vendor }}/{{ package }}.svg?style=flat-square)](https://packagist.org/packages/{{ vendor }}/{{ package }})
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE.md)
+
+{{ One-line clear, authoritative statement of what the package does. }}
+
+---
+
+## Why This Exists
+
+{{ Concrete problem statement explaining the developer pain point and architectural motivation. }}
+
+---
+
+## Requirements
+
+- **PHP**: `{{ php_version }}`
+- **Laravel**: `{{ laravel_version }}` (if applicable)
+
+---
+
+## Installation
+
+Install the package via Composer:
+
+```bash
+composer require {{ vendor }}/{{ package }}
+```
+
+{{ If config publish is supported: }}
+Publish the configuration file:
+
+```bash
+php artisan vendor:publish --tag="{{ package }}-config"
+```
+
+---
+
+## Quickstart
+
+{{ Minimal, copy-paste ready code snippet demonstrating immediate value in under 60 seconds. }}
+
+```php
+use {{ Namespace }}\{{ Class }};
+
+// Execute primary capability
+$result = {{ Class }}::run();
+```
+
+---
+
+## Usage & Recipes
+
+### {{ Common Scenario 1 }}
+
+{{ Description and practical copy-paste ready example. }}
+
+```php
+// Code snippet
+```
+
+---
+
+## Reference
+
+### Configuration
+
+| Key | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `{{ key }}` | `string` | `'{{ default }}'` | {{ Explanation }} |
+
+---
+
+## Testing
+
+Run the automated test suite:
+
+```bash
+composer test
+```
+
+---
+
+## License
+
+The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
