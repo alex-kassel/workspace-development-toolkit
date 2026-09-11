@@ -138,6 +138,17 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertContains('acme/unregistered-pkg', $synced['workspaces']['packages']['packages']);
     }
 
+    public function test_workspace_list_displays_installed_and_version_information(): void
+    {
+        Workspace::add('packages');
+        $this->createDummyPackage('packages/acme/uninstalled-pkg', 'acme/uninstalled-pkg');
+        Workspace::sync();
+
+        $this->artisan('workspace:list')
+            ->expectsOutputToContain('acme/uninstalled-pkg [not installed]')
+            ->assertSuccessful();
+    }
+
     public function test_workspace_default_switches_default(): void
     {
         Workspace::add('packages');
@@ -598,5 +609,63 @@ class WorkspaceCommandsTest extends TestCase
         ])
             ->expectsOutputToContain('Invalid alias [../../outside]')
             ->assertFailed();
+    }
+
+    public function test_workspace_clone_recursive_clones_trusted_dependencies(): void
+    {
+        Workspace::add('packages', null, true);
+        config(['workspace.trusted_organizations' => ['acme']]);
+
+        Process::fake([
+            '*' => function ($process) {
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+                if (str_contains($cmd, 'acme/main-package')) {
+                    $targetPath = base_path('packages/acme/main-package');
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'acme/main-package',
+                        'require' => [
+                            'acme/sub-package' => '^1.0',
+                            'untrusted/other-package' => '^2.0',
+                        ],
+                    ]));
+
+                    return Process::result(output: 'Cloned main-package');
+                }
+
+                if (str_contains($cmd, 'acme/sub-package')) {
+                    $targetPath = base_path('packages/acme/sub-package');
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'acme/sub-package',
+                        'require' => [
+                            'acme/main-package' => '^1.0', // Circular reference back to main
+                        ],
+                    ]));
+
+                    return Process::result(output: 'Cloned sub-package');
+                }
+
+                return Process::result(output: 'OK');
+            },
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'acme/main-package',
+            '--recursive' => true,
+        ])
+            ->expectsOutputToContain('Repository successfully cloned to [packages/acme/main-package]')
+            ->expectsOutputToContain('Recursively cloning dependency [acme/sub-package]')
+            ->doesntExpectOutputToContain('Recursively cloning dependency [untrusted/other-package]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists(base_path('packages/acme/main-package'));
+        $this->assertDirectoryExists(base_path('packages/acme/sub-package'));
+        $this->assertDirectoryDoesNotExist(base_path('packages/untrusted/other-package'));
+
+        $workspaceData = $this->getSandboxWorkspace();
+        $this->assertContains('acme/main-package', $workspaceData['workspaces']['packages']['packages']);
+        $this->assertContains('acme/sub-package', $workspaceData['workspaces']['packages']['packages']);
     }
 }

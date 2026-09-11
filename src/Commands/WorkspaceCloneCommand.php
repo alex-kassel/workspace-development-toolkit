@@ -24,7 +24,8 @@ class WorkspaceCloneCommand extends Command
         {--alias= : Optional directory alias (flat workspaces only)}
         {--ssh : Prefer SSH clone format (git@github.com:vendor/package.git) for GitHub shorthands}
         {--install : Register and symlink the cloned package into Composer immediately}
-        {--dev : When installing, require as a development dependency (--dev)}';
+        {--dev : When installing, require as a development dependency (--dev)}
+        {--recursive : Recursively clone dependencies from trusted organizations}';
 
     /**
      * The console command description.
@@ -43,6 +44,7 @@ class WorkspaceCloneCommand extends Command
         $useSsh = (bool) $this->option('ssh');
         $install = (bool) $this->option('install');
         $dev = (bool) $this->option('dev');
+        $recursive = (bool) $this->option('recursive');
 
         if ($isSelf) {
             // Determine our own repository URL and install mode
@@ -258,6 +260,12 @@ class WorkspaceCloneCommand extends Command
             $this->info("Package [{$canonicalComposerName}] is now symlinked to [{$relativeTargetPath}]!");
         }
 
+        // Recursive cloning of dependencies from trusted organizations
+        if ($recursive && File::exists($clonedComposerPath)) {
+            $visited = [$canonicalComposerName ?? $packageName => true];
+            $this->cloneDependenciesRecursively($clonedComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited);
+        }
+
         $this->newLine();
         $this->line('  <comment>Next steps:</comment>');
         $this->line('  • Check registered packages: <info>php artisan workspace:list</info>');
@@ -267,5 +275,120 @@ class WorkspaceCloneCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Recursively clone dependencies from trusted organizations.
+     *
+     * @param  array<string, bool>  $visited
+     */
+    protected function cloneDependenciesRecursively(
+        string $composerPath,
+        string $workspace,
+        bool $useSsh,
+        bool $install,
+        bool $dev,
+        int $timeout,
+        array &$visited
+    ): void {
+        $trustedOrgs = (array) config('workspace.trusted_organizations', []);
+        if (empty($trustedOrgs) || ! File::exists($composerPath)) {
+            return;
+        }
+
+        $content = json_decode(File::get($composerPath), true);
+        if (! is_array($content)) {
+            return;
+        }
+
+        $dependencies = array_merge(
+            array_keys($content['require'] ?? []),
+            array_keys($content['require-dev'] ?? [])
+        );
+
+        $workspaceVendor = Workspace::getWorkspaceVendor($workspace);
+
+        foreach ($dependencies as $dep) {
+            if (! is_string($dep) || ! str_contains($dep, '/')) {
+                continue;
+            }
+
+            [$depVendor, $depPackage] = explode('/', $dep, 2);
+
+            // Only process dependencies belonging to trusted organizations
+            if (! in_array($depVendor, $trustedOrgs, true)) {
+                continue;
+            }
+
+            // Cycle detection
+            if (isset($visited[$dep])) {
+                continue;
+            }
+
+            $visited[$dep] = true;
+
+            // Determine target path in workspace
+            if ($workspaceVendor !== null) {
+                if (strtolower($depVendor) !== strtolower($workspaceVendor)) {
+                    // Cannot clone a dependency from a different vendor into a fixed-vendor workspace
+                    $this->warn("Skipping recursive dependency [{$dep}]: vendor [{$depVendor}] does not match fixed workspace vendor [{$workspaceVendor}].");
+
+                    continue;
+                }
+                $relTarget = "{$workspace}/{$depPackage}";
+            } else {
+                $relTarget = "{$workspace}/{$depVendor}/{$depPackage}";
+            }
+
+            $fullTarget = base_path($relTarget);
+            if (File::exists($fullTarget)) {
+                $this->line("Dependency [{$dep}] already exists at [{$relTarget}], inspecting nested dependencies...");
+                $depComposerPath = "{$fullTarget}/composer.json";
+                if (File::exists($depComposerPath)) {
+                    $this->cloneDependenciesRecursively($depComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited);
+                }
+
+                continue;
+            }
+
+            $depRepoUrl = Workspace::normalizeRepositoryUrl($dep, $useSsh);
+            $this->info("Recursively cloning dependency [{$dep}] into [{$relTarget}]...");
+
+            File::ensureDirectoryExists(dirname($fullTarget));
+            $cloneResult = Process::timeout($timeout)->run(['git', 'clone', $depRepoUrl, $fullTarget]);
+
+            if (! $cloneResult->successful()) {
+                $this->warn("Failed to clone dependency [{$dep}] from [{$depRepoUrl}].");
+
+                if (File::isDirectory($fullTarget)) {
+                    File::deleteDirectory($fullTarget);
+                }
+
+                continue;
+            }
+
+            // Sync and record
+            Workspace::sync();
+            $recorded = $workspaceVendor !== null ? $depPackage : $dep;
+            Workspace::recordPackage($workspace, $recorded, null, null);
+
+            $depComposerPath = "{$fullTarget}/composer.json";
+            if ($install) {
+                $this->info("Registering and symlinking dependency [{$dep}] into root application...");
+                $requireArgs = ['require', "{$dep}:@dev"];
+                if ($dev) {
+                    $requireArgs[] = '--dev';
+                }
+                try {
+                    Workspace::runComposer($requireArgs, $timeout);
+                } catch (\Throwable $e) {
+                    $this->warn("Failed to install dependency [{$dep}]: {$e->getMessage()}");
+                }
+            }
+
+            if (File::exists($depComposerPath)) {
+                $this->cloneDependenciesRecursively($depComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited);
+            }
+        }
     }
 }

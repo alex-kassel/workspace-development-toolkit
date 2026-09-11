@@ -258,13 +258,13 @@
 
 ### Step 5.1 — Расширение `workspace:list`
 
-- [ ] Добавить столбцы: `Installed` (yes/no), `Version`.
-- [ ] Использовать `Composer\InstalledVersions::isInstalled()` и `::getVersion()`.
-- [ ] Symlink detection: `is_link(base_path("vendor/{$name}"))`.
+- [x] Добавить столбцы: `Installed` (yes/no), `Version`.
+- [x] Использовать `Composer\InstalledVersions::isInstalled()` и `::getVersion()`.
+- [x] Symlink detection: `is_link(base_path("vendor/{$name}"))`.
 
 ### Step 5.2 — Тесты
 
-- [ ] Тест: `workspace:list` отображает installed/version информацию.
+- [x] Тест: `workspace:list` отображает installed/version информацию.
 
 ---
 
@@ -272,22 +272,22 @@
 
 ### Step 6.1 — Конфигурация
 
-- [ ] Добавить в `config/workspace.php`:
+- [x] Добавить в `config/workspace.php`:
   ```php
   'trusted_organizations' => [],
   ```
 
 ### Step 6.2 — Флаг `--recursive` для `workspace:clone`
 
-- [ ] После клонирования: парсить `composer.json` пакета, найти зависимости с vendor из `trusted_organizations`, рекурсивно клонировать.
-- [ ] Visited-set для предотвращения циклов.
-- [ ] Последовательный (не параллельный) клонирование.
+- [x] После клонирования: парсить `composer.json` пакета, найти зависимости с vendor из `trusted_organizations`, рекурсивно клонировать.
+- [x] Visited-set для предотвращения циклов.
+- [x] Последовательный (не параллельный) клонирование.
 
 ### Step 6.3 — Тесты
 
-- [ ] Тест: `--recursive` клонирует зависимости.
-- [ ] Тест: циклические зависимости не вызывают бесконечный цикл.
-- [ ] Тест: зависимости вне trusted organizations игнорируются.
+- [x] Тест: `--recursive` клонирует зависимости.
+- [x] Тест: циклические зависимости не вызывают бесконечный цикл.
+- [x] Тест: зависимости вне trusted organizations игнорируются.
 
 ---
 
@@ -295,10 +295,10 @@
 
 ### Step F.1 — Финальный прогон
 
-- [ ] `vendor/bin/pint --dirty --format agent`
-- [ ] `php artisan test --compact` — все тесты проходят.
-- [ ] Обновить `README.md` пакета с новыми командами.
-- [ ] Обновить `composer.json` версию если нужно.
+- [x] `vendor/bin/pint --dirty --format agent`
+- [x] `php artisan test --compact` — все тесты проходят.
+- [x] Обновить `README.md` пакета с новыми командами.
+- [x] Обновить `composer.json` версию если нужно.
 
 ---
 

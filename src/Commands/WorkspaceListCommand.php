@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use Composer\InstalledVersions;
 use Illuminate\Console\Command;
 
 class WorkspaceListCommand extends Command
@@ -45,15 +46,43 @@ class WorkspaceListCommand extends Command
             $vendor = $config['vendor'] ?? null;
             $packages = $config['packages'] ?? [];
 
-            $formattedPackages = array_map(function ($pkg) {
-                if (is_array($pkg)) {
-                    $name = $pkg['name'] ?? '';
-                    $alias = $pkg['alias'] ?? null;
+            $formattedPackages = array_map(function ($pkg) use ($workspace) {
+                $rawName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
+                $alias = is_array($pkg) ? ($pkg['alias'] ?? null) : null;
 
-                    return $alias ? "{$name} (as: {$alias})" : $name;
+                $canonical = Workspace::resolveCanonicalPackageName($rawName, $workspace);
+
+                $installed = class_exists(InstalledVersions::class)
+                    && InstalledVersions::isInstalled($canonical);
+
+                $version = null;
+                if ($installed) {
+                    try {
+                        $version = InstalledVersions::getPrettyVersion($canonical);
+                    } catch (\Throwable) {
+                        $version = null;
+                    }
                 }
 
-                return (string) $pkg;
+                $vendorSymlinkPath = base_path("vendor/{$canonical}");
+                $isLinked = is_link($vendorSymlinkPath);
+
+                $statusParts = [];
+                if ($alias) {
+                    $statusParts[] = "as: {$alias}";
+                }
+
+                if ($installed) {
+                    $symlinkInfo = $isLinked ? 'linked' : 'not linked';
+                    $versionInfo = $version ? "v: {$version}" : 'installed';
+                    $statusParts[] = "installed ({$versionInfo}, {$symlinkInfo})";
+                } else {
+                    $statusParts[] = 'not installed';
+                }
+
+                $suffix = ! empty($statusParts) ? ' ['.implode('; ', $statusParts).']' : '';
+
+                return $rawName.$suffix;
             }, $packages);
 
             $rows[] = [

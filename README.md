@@ -23,6 +23,9 @@
    - [`package:install`](#packageinstall)
    - [`package:uninstall`](#packageuninstall)
    - [`package:delete`](#packagedelete)
+   - [`package:check`](#packagecheck)
+   - [`package:readme`](#packagereadme)
+   - [`package:release-check`](#packagerelease-check)
 7. [Smart Developer Experience (DX)](#smart-developer-experience-dx)
 8. [Under the Hood: Architecture & Manifest](#under-the-hood-architecture--manifest)
 9. [Real-World Recipes & Patterns](#real-world-recipes--patterns)
@@ -217,6 +220,9 @@ php artisan workspace:clone git@github.com:vendor/package.git
 # Clone and immediately symlink as development dependency:
 php artisan workspace:clone vendor/package --install --dev
 
+# Recursively clone internal dependencies from trusted organizations:
+php artisan workspace:clone vendor/package --recursive
+
 # Clone the toolkit itself into a local workspace for active contribution:
 php artisan workspace:clone --self
 ```
@@ -308,6 +314,52 @@ php artisan package:delete ai-assistant
 
 # Force deletion without prompt:
 php artisan package:delete ai-assistant --force
+```
+> [!NOTE]
+> `package:delete` includes built-in Git safety checks (via `GitInspector`) preventing accidental removal of dirty trees, unpushed commits, or stashed changes unless `--force` is provided.
+
+---
+
+### `package:check`
+Runs automated quality gates across local packages (Composer validation, Pint, PHPStan, PHPUnit/Pest).
+
+```bash
+# Check a single package:
+php artisan package:check my-package
+
+# Run specific checks only:
+php artisan package:check my-package --only=pint,phpstan
+
+# Automatically fix code style with Pint:
+php artisan package:check my-package --fix
+
+# Run tests in an isolated temporary Laravel environment:
+php artisan package:check my-package --isolated
+
+# Check all registered packages across workspaces:
+php artisan package:check --all
+```
+
+---
+
+### `package:readme`
+Validates that a package's `README.md` adheres to compliance standards (required sections, heading, absence of placeholder tokens).
+
+```bash
+php artisan package:readme my-package
+```
+
+---
+
+### `package:release-check`
+Runs pre-flight verification before releasing or tagging a package (checks git cleanliness, `.gitattributes` export-ignore, code quality, and README compliance).
+
+```bash
+# Full release pre-flight (includes isolated environment test):
+php artisan package:release-check my-package
+
+# Fast release pre-flight:
+php artisan package:release-check my-package --fast
 ```
 
 ---
