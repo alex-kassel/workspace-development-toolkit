@@ -257,7 +257,7 @@ PHP;
 
         $scaffoldSkills = $this->option('no-skills')
             ? false
-            : ($this->option('skills') || config('workspace.scaffold_agent_skills', true));
+            : ($this->option('skills') || config('workspace.scaffold_agent_skills', false));
 
         if ($scaffoldSkills) {
             $skillSlug = (string) $this->option('skill-name');
