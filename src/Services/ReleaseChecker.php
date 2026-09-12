@@ -105,55 +105,118 @@ class ReleaseChecker
         $releaseGateFile = $fullPath.DIRECTORY_SEPARATOR.'RELEASE-GATE.md';
         $certificateFile = null;
         $certifiedCommit = null;
+        $auditFailed = false;
 
         if (File::exists($auditJsonFile)) {
             $certificateFile = 'AUDIT.json';
-            $auditData = json_decode(File::get($auditJsonFile), true);
-            if (is_array($auditData) && ! empty($auditData['audit']['commit'])) {
-                $certifiedCommit = strtolower((string) $auditData['audit']['commit']);
+            try {
+                $auditData = json_decode(File::get($auditJsonFile), true, 512, JSON_THROW_ON_ERROR);
+            } catch (\Throwable) {
+                $auditData = null;
+            }
+
+            if (is_array($auditData)) {
+                $verdictCandidate = strtoupper((string) ($auditData['verdict'] ?? $auditData['status'] ?? $auditData['audit']['verdict'] ?? ''));
+                if (! in_array($verdictCandidate, ['PASSED', 'PASS', 'SUCCESS', 'READY'], true)) {
+                    $auditFailed = true;
+                    $reason = $verdictCandidate !== '' ? "indicates verdict: {$verdictCandidate}" : 'missing explicit successful verdict';
+                    $checks['audit_freshness'] = [
+                        'name' => 'Audit Freshness Gate',
+                        'status' => 'action_required',
+                        'message' => "Audit certificate in {$certificateFile} {$reason}.",
+                    ];
+                }
+
+                if (! $auditFailed && isset($auditData['checks']) && is_array($auditData['checks'])) {
+                    foreach ($auditData['checks'] as $c) {
+                        if (isset($c['status']) && in_array(strtolower((string) $c['status']), ['failed', 'action_required'], true)) {
+                            $auditFailed = true;
+                            $checks['audit_freshness'] = [
+                                'name' => 'Audit Freshness Gate',
+                                'status' => 'action_required',
+                                'message' => "Audit certificate in {$certificateFile} contains failed checks.",
+                            ];
+                            break;
+                        }
+                    }
+                }
+
+                if (! empty($auditData['audit']['commit'])) {
+                    $certifiedCommit = strtolower((string) $auditData['audit']['commit']);
+                } elseif (! empty($auditData['commit'])) {
+                    $certifiedCommit = strtolower((string) $auditData['commit']);
+                }
+            } else {
+                $auditFailed = true;
+                $checks['audit_freshness'] = [
+                    'name' => 'Audit Freshness Gate',
+                    'status' => 'action_required',
+                    'message' => "Audit certificate in {$certificateFile} is malformed or invalid JSON.",
+                ];
             }
         } elseif (File::exists($releaseGateFile)) {
             $certificateFile = 'RELEASE-GATE.md';
-            $certifiedCommit = $this->extractCertifiedCommit(File::get($releaseGateFile));
+            $content = File::get($releaseGateFile);
+            if (preg_match('/(?:Status|Verdict)\s*:\s*([A-Za-z_-]+)/i', $content, $m)) {
+                $mdVerdict = strtoupper($m[1]);
+                if (! in_array($mdVerdict, ['PASSED', 'PASS', 'SUCCESS', 'READY'], true)) {
+                    $auditFailed = true;
+                    $checks['audit_freshness'] = [
+                        'name' => 'Audit Freshness Gate',
+                        'status' => 'action_required',
+                        'message' => "Audit certificate in {$certificateFile} indicates verdict: {$mdVerdict}.",
+                    ];
+                }
+            } else {
+                $auditFailed = true;
+                $checks['audit_freshness'] = [
+                    'name' => 'Audit Freshness Gate',
+                    'status' => 'action_required',
+                    'message' => "Audit certificate in {$certificateFile} missing explicit successful verdict.",
+                ];
+            }
+            $certifiedCommit = $this->extractCertifiedCommit($content);
         }
 
         if ($certificateFile !== null) {
-            if ($certifiedCommit !== null && $this->gitInspector->hasGitRepository($fullPath)) {
-                $delta = Process::path($fullPath)->run(['git', 'rev-list', '--count', "{$certifiedCommit}..HEAD", '--', 'src/', 'config/', 'composer.json']);
-                if ($delta->successful()) {
-                    $count = (int) trim($delta->output());
-                    if ($count === 0) {
-                        $checks['audit_freshness'] = [
-                            'name' => 'Audit Freshness Gate',
-                            'status' => 'passed',
-                            'message' => "Audit certificate is up to date (0 source commits since {$certifiedCommit}).",
-                        ];
+            if (! $auditFailed) {
+                if ($certifiedCommit !== null && $this->gitInspector->hasGitRepository($fullPath)) {
+                    $delta = Process::path($fullPath)->run(['git', 'rev-list', '--count', "{$certifiedCommit}..HEAD", '--', 'src/', 'config/', 'composer.json']);
+                    if ($delta->successful()) {
+                        $count = (int) trim($delta->output());
+                        if ($count === 0) {
+                            $checks['audit_freshness'] = [
+                                'name' => 'Audit Freshness Gate',
+                                'status' => 'passed',
+                                'message' => "Audit certificate is up to date (0 source commits since {$certifiedCommit}).",
+                            ];
+                        } else {
+                            $checks['audit_freshness'] = [
+                                'name' => 'Audit Freshness Gate',
+                                'status' => 'action_required',
+                                'message' => "Source code drift detected: {$count} commit(s) since certificate at {$certifiedCommit}.",
+                            ];
+                        }
                     } else {
                         $checks['audit_freshness'] = [
                             'name' => 'Audit Freshness Gate',
                             'status' => 'action_required',
-                            'message' => "Source code drift detected: {$count} commit(s) since certificate at {$certifiedCommit}.",
+                            'message' => "Certified commit {$certifiedCommit} not reachable in git history.",
                         ];
                     }
+                } elseif ($certifiedCommit === null) {
+                    $checks['audit_freshness'] = [
+                        'name' => 'Audit Freshness Gate',
+                        'status' => 'action_required',
+                        'message' => "{$certificateFile} present but missing a certified commit hash.",
+                    ];
                 } else {
                     $checks['audit_freshness'] = [
                         'name' => 'Audit Freshness Gate',
                         'status' => 'action_required',
-                        'message' => "Certified commit {$certifiedCommit} not reachable in git history.",
+                        'message' => "{$certificateFile} present but package lacks a git repository to verify freshness.",
                     ];
                 }
-            } elseif ($certifiedCommit === null) {
-                $checks['audit_freshness'] = [
-                    'name' => 'Audit Freshness Gate',
-                    'status' => 'action_required',
-                    'message' => "{$certificateFile} present but missing a certified commit hash.",
-                ];
-            } else {
-                $checks['audit_freshness'] = [
-                    'name' => 'Audit Freshness Gate',
-                    'status' => 'passed',
-                    'message' => "{$certificateFile} present with certified commit {$certifiedCommit}.",
-                ];
             }
         } else {
             $checks['audit_freshness'] = [
@@ -225,7 +288,7 @@ class ReleaseChecker
         foreach ($checks as $check) {
             if ($check['status'] === 'failed') {
                 $hasHardFailures = true;
-            } elseif ($check['status'] === 'action_required') {
+            } elseif ($check['status'] === 'action_required' || $check['status'] === 'not_configured') {
                 $hasActionRequired = true;
             }
         }

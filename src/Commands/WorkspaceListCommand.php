@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use Composer\InstalledVersions;
 use Illuminate\Console\Command;
 
@@ -65,11 +66,15 @@ class WorkspaceListCommand extends Command
                 }
 
                 $vendorSymlinkPath = base_path("vendor/{$canonical}");
-                $isLinked = is_link($vendorSymlinkPath);
+                $isLinked = app(FilesystemHelper::class)->isLinkOrJunction($vendorSymlinkPath);
 
                 $statusParts = [];
                 if ($alias) {
                     $statusParts[] = "as: {$alias}";
+                }
+
+                if (Workspace::isPackageCorrupted($rawName, $workspace)) {
+                    $statusParts[] = 'corrupted manifest';
                 }
 
                 if ($installed) {

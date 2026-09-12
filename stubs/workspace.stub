@@ -97,6 +97,12 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
                 continue;
             }
 
+            if (str_starts_with($cloneUrl, '-')) {
+                fwrite(STDERR, "  \033[31m[INVALID URL]\033[0m Rejected suspicious URL: {$cloneUrl}\n");
+                $errors++;
+                continue;
+            }
+
             echo "  [\033[33mCLONING\033[0m] {$canonicalName} from {$cloneUrl} into {$targetRelative}...\n";
 
             // Ensure parent directory exists
@@ -105,7 +111,7 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
                 mkdir($parentDir, 0777, true);
             }
 
-            $cmd = sprintf('git clone %s %s', escapeshellarg($cloneUrl), escapeshellarg($fullTarget));
+            $cmd = sprintf('git clone -- %s %s', escapeshellarg($cloneUrl), escapeshellarg($fullTarget));
             passthru($cmd, $returnCode);
 
             if ($returnCode === 0) {

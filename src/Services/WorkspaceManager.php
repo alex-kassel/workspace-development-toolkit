@@ -222,6 +222,17 @@ class WorkspaceManager
     }
 
     /**
+     * Completely remove a package entry from workspace.json.
+     */
+    public function forgetPackage(string $workspace, string $packageName): bool
+    {
+        $result = $this->manifest->forgetPackage($workspace, $packageName);
+        $this->resolver->clearCache();
+
+        return $result;
+    }
+
+    /**
      * Scan workspace directory for packages.
      *
      * @return array<int, string|array{name: string, alias: string}>
@@ -249,6 +260,14 @@ class WorkspaceManager
     public function resolveCanonicalPackageName(string $packageName, ?string $workspace = null): string
     {
         return $this->resolver->resolveCanonicalPackageName($packageName, $workspace);
+    }
+
+    /**
+     * Determine if a package has a corrupted composer.json.
+     */
+    public function isPackageCorrupted(string $packageName, ?string $workspace = null): bool
+    {
+        return $this->resolver->isPackageCorrupted($packageName, $workspace);
     }
 
     /**
@@ -436,23 +455,159 @@ class WorkspaceManager
         $oldFullPath = $context['old_full_path'];
         $currentDir = $context['current_dir'];
 
+        $vendorLink = base_path("vendor/{$canonicalName}");
+        $vendorLinkIsLinkOrJunction = $this->filesystem->isLinkOrJunction($vendorLink);
+        $vendorLinkExisted = file_exists($vendorLink) || $vendorLinkIsLinkOrJunction;
+        $vendorFileContent = (! $vendorLinkIsLinkOrJunction && is_file($vendorLink)) ? File::get($vendorLink) : null;
+        $vendorLinkTarget = null;
+        if ($vendorLinkIsLinkOrJunction) {
+            $rawTarget = @readlink($vendorLink);
+            if ($rawTarget === false) {
+                // If readlink failed on Windows junction or symlink, try realpath
+                $rawTarget = @realpath($vendorLink);
+            }
+            $vendorLinkTarget = ($rawTarget !== false && $rawTarget !== '') ? $rawTarget : $oldFullPath;
+        }
+
+        $trackedFiles = [
+            base_path('composer.lock'),
+            base_path('vendor/composer/installed.json'),
+            base_path('vendor/composer/installed.php'),
+            base_path('workspace.json'),
+        ];
+        $fileSnapshots = [];
+        foreach ($trackedFiles as $file) {
+            $fileSnapshots[$file] = File::exists($file) ? File::get($file) : null;
+        }
+
+        $rollback = function (\Throwable $e) use (
+            $oldFullPath,
+            $targetFullPath,
+            $packagePath,
+            $targetRelativePath,
+            $vendorLink,
+            $vendorLinkExisted,
+            $vendorFileContent,
+            $vendorLinkTarget,
+            $fileSnapshots
+        ): never {
+            $renameBackSuccess = @rename($targetFullPath, $oldFullPath);
+            if (! $renameBackSuccess && ! File::exists($oldFullPath)) {
+                try {
+                    $renameBackSuccess = File::move($targetFullPath, $oldFullPath);
+                } catch (\Throwable) {
+                    $renameBackSuccess = false;
+                }
+            }
+            clearstatcache();
+            $directoryRestored = $renameBackSuccess && File::isDirectory($oldFullPath) && ! File::isDirectory($targetFullPath);
+
+            foreach ($fileSnapshots as $file => $content) {
+                if ($content === null) {
+                    if (File::exists($file)) {
+                        @unlink($file);
+                    }
+                } else {
+                    File::put($file, $content);
+                }
+            }
+
+            $vendorRestoreError = null;
+            if ($vendorLinkExisted) {
+                if ($vendorFileContent !== null) {
+                    try {
+                        File::ensureDirectoryExists(dirname($vendorLink));
+                        File::put($vendorLink, $vendorFileContent);
+                    } catch (\Throwable $ve) {
+                        $vendorRestoreError = $ve;
+                    }
+                } else {
+                    try {
+                        $restoreTarget = $vendorLinkTarget ?: $oldFullPath;
+                        $this->filesystem->updateSymlinkOrJunction($vendorLink, $restoreTarget);
+                    } catch (\Throwable $ve) {
+                        $vendorRestoreError = $ve;
+                    }
+                }
+            } else {
+                if (file_exists($vendorLink) || $this->filesystem->isLinkOrJunction($vendorLink)) {
+                    if (PHP_OS_FAMILY === 'Windows') {
+                        @rmdir($vendorLink);
+                    }
+                    @unlink($vendorLink);
+                }
+            }
+
+            $this->resolver->clearCache();
+
+            if (! $directoryRestored) {
+                throw new WorkspaceException(
+                    "Failed to update references after renaming [{$targetRelativePath}]: {$e->getMessage()}. Rollback failed: directory could not be restored to [{$packagePath}].",
+                    "Inspect directory [{$targetRelativePath}] and restore [{$packagePath}] manually.",
+                    0,
+                    $e
+                );
+            }
+
+            if ($vendorRestoreError !== null) {
+                throw new WorkspaceException(
+                    "Failed to update references after renaming [{$targetRelativePath}]: {$e->getMessage()}. Rollback was incomplete: vendor link could not be restored to [{$vendorLink}]: {$vendorRestoreError->getMessage()}.",
+                    "Inspect vendor link [{$vendorLink}] and restore it manually.",
+                    0,
+                    $e
+                );
+            }
+
+            throw new WorkspaceException(
+                "Failed to update references after renaming [{$targetRelativePath}]: {$e->getMessage()}",
+                'The directory rename was rolled back.',
+                0,
+                $e
+            );
+        };
+
         $moved = false;
         if (strcasecmp($currentDir, $alias) !== 0) {
-            $this->movePackageDirectory($oldFullPath, $targetFullPath, $packagePath, $targetRelativePath, $canonicalName);
+            $moveSuccess = @rename($oldFullPath, $targetFullPath);
+            if (! $moveSuccess) {
+                try {
+                    $moveSuccess = File::move($oldFullPath, $targetFullPath);
+                } catch (\Throwable $e) {
+                    throw new WorkspaceException(
+                        "Failed to rename directory [{$packagePath}] to [{$targetRelativePath}]: {$e->getMessage()}",
+                        'Check directory permissions or close any programs holding files open in this directory.'
+                    );
+                }
+            }
+
+            if (! $moveSuccess || ! File::isDirectory($targetFullPath)) {
+                throw new WorkspaceException(
+                    "Failed to rename directory [{$packagePath}] to [{$targetRelativePath}].",
+                    'Check directory permissions or close any programs holding files open in this directory.'
+                );
+            }
+
             $moved = true;
+
+            try {
+                $this->updateComposerPathReferences($canonicalName, $packagePath, $targetRelativePath);
+                $this->updateVendorSymlink($canonicalName, $targetFullPath);
+            } catch (\Throwable $e) {
+                $rollback($e);
+            }
         }
 
         try {
             $this->registerPackageAlias($workspace, $baseShortName, $alias);
         } catch (\Throwable $e) {
             if ($moved) {
-                @rename($targetFullPath, $oldFullPath);
-                $this->updateComposerPathReferences($canonicalName, $targetRelativePath, $packagePath);
-                $this->updateVendorSymlink($canonicalName, $oldFullPath);
+                $rollback($e);
             }
             throw new WorkspaceException(
                 "Failed to update workspace manifest: {$e->getMessage()}",
-                'The directory rename was rolled back.'
+                'Choose a different alias or rename the conflicting package first.',
+                0,
+                $e
             );
         }
 
@@ -560,49 +715,6 @@ class WorkspaceManager
             'target_full_path' => $targetFullPath,
             'old_full_path' => base_path($packagePath),
         ];
-    }
-
-    /**
-     * Move package directory and update Composer references and symlinks with rollback on failure.
-     *
-     * @throws WorkspaceException
-     */
-    protected function movePackageDirectory(
-        string $oldFullPath,
-        string $targetFullPath,
-        string $packagePath,
-        string $targetRelativePath,
-        string $canonicalName
-    ): void {
-        $moveSuccess = @rename($oldFullPath, $targetFullPath);
-        if (! $moveSuccess) {
-            try {
-                $moveSuccess = File::move($oldFullPath, $targetFullPath);
-            } catch (\Throwable $e) {
-                throw new WorkspaceException(
-                    "Failed to rename directory [{$packagePath}] to [{$targetRelativePath}]: {$e->getMessage()}",
-                    'Check directory permissions or close any programs holding files open in this directory.'
-                );
-            }
-        }
-
-        if (! $moveSuccess || ! File::isDirectory($targetFullPath)) {
-            throw new WorkspaceException(
-                "Failed to rename directory [{$packagePath}] to [{$targetRelativePath}].",
-                'Check directory permissions or close any programs holding files open in this directory.'
-            );
-        }
-
-        try {
-            $this->updateComposerPathReferences($canonicalName, $packagePath, $targetRelativePath);
-            $this->updateVendorSymlink($canonicalName, $targetFullPath);
-        } catch (\Throwable $e) {
-            @rename($targetFullPath, $oldFullPath);
-            throw new WorkspaceException(
-                "Failed to update references after renaming [{$targetRelativePath}]: {$e->getMessage()}",
-                'The directory rename was rolled back.'
-            );
-        }
     }
 
     /**

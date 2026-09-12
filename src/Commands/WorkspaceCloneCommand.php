@@ -63,6 +63,12 @@ class WorkspaceCloneCommand extends Command
                 return self::FAILURE;
             }
 
+            if (str_starts_with($rawRepo, '-')) {
+                $this->error("Invalid repository URL [{$rawRepo}]: option-like arguments are not permitted.");
+
+                return self::FAILURE;
+            }
+
             $repoUrl = Workspace::normalizeRepositoryUrl($rawRepo, $useSsh);
         }
 
@@ -166,7 +172,7 @@ class WorkspaceCloneCommand extends Command
         $timeout = (int) config('workspace.process_timeout', 300);
 
         // Execute git clone
-        $cloneResult = Process::timeout($timeout)->run(['git', 'clone', $repoUrl, $fullTargetPath]);
+        $cloneResult = Process::timeout($timeout)->run(['git', 'clone', '--', $repoUrl, $fullTargetPath]);
 
         if (! $cloneResult->successful()) {
             $this->error("Failed to clone repository [{$repoUrl}].");
@@ -208,10 +214,6 @@ class WorkspaceCloneCommand extends Command
 
         // Store package entry with optional custom URL and optional alias in workspace.json
         Workspace::recordPackage($workspace, $recordedName, $alias !== '' ? $alias : null, $customUrl);
-
-        if ($alias !== '') {
-            Workspace::aliasPackage($canonicalComposerName ?: $packageName, $alias);
-        }
 
         $this->info("Repository successfully cloned to [{$relativeTargetPath}].");
 

@@ -193,17 +193,7 @@ class SkillInstaller
             return false;
         }
 
-        @copy($sourceSkillMd, $targetSkillMd);
-
-        $referencesDir = $sourceSkillDir.DIRECTORY_SEPARATOR.'references';
-        if (is_dir($referencesDir)) {
-            $this->copyDirectory($referencesDir, $targetDir.DIRECTORY_SEPARATOR.'references');
-        }
-
-        $resourcesDir = $sourceSkillDir.DIRECTORY_SEPARATOR.'resources';
-        if (is_dir($resourcesDir)) {
-            $this->copyDirectory($resourcesDir, $targetDir.DIRECTORY_SEPARATOR.'resources');
-        }
+        $this->copyDirectory($sourceSkillDir, $targetDir);
 
         return file_exists($targetSkillMd);
     }
@@ -246,7 +236,12 @@ class SkillInstaller
 
         /** @var SplFileInfo $item */
         foreach ($iterator as $item) {
-            $target = $destination.DIRECTORY_SEPARATOR.$iterator->getSubPathname();
+            $subPath = $iterator->getSubPathname();
+            if (str_starts_with($subPath, '.git') || str_contains($subPath, DIRECTORY_SEPARATOR.'.git')) {
+                continue;
+            }
+
+            $target = $destination.DIRECTORY_SEPARATOR.$subPath;
             if ($item->isDir()) {
                 if (! is_dir($target)) {
                     @mkdir($target, 0755, true);

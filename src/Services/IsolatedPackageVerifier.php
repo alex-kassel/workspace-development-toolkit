@@ -58,12 +58,9 @@ class IsolatedPackageVerifier
             }
 
             $environment = [
-                'COMPOSER' => 'false',
                 'COMPOSER_HOME' => $temporary.DIRECTORY_SEPARATOR.'composer-home',
                 'COMPOSER_VENDOR_DIR' => $project.DIRECTORY_SEPARATOR.'vendor',
                 'COMPOSER_BIN_DIR' => $project.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'bin',
-                'COMPOSER_ROOT_VERSION' => 'false',
-                'COMPOSER_NO_DEV' => 'false',
                 'APP_ENV' => 'testing',
                 'CACHE_STORE' => 'array',
                 'CACHE_DRIVER' => 'array',

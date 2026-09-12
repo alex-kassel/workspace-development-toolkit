@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use Illuminate\Support\Facades\File;
 use JsonException;
@@ -254,18 +255,57 @@ class ManifestRepository
         $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
         $newPackages = [];
 
+        $existingSkills = null;
+        $existingUrl = null;
+
+        foreach ($wsPackages as $item) {
+            $existingName = is_array($item) ? $item['name'] : (string) $item;
+            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
+
+            if ($existingName === $packageName) {
+                continue;
+            }
+
+            if (strcasecmp($existingName, $alias) === 0) {
+                throw new WorkspaceException(
+                    "Cannot use alias [{$alias}]: it conflicts with the name of existing package [{$existingName}].",
+                    "Choose a different alias or rename the existing package [{$alias}] first."
+                );
+            }
+
+            if ($existingAlias !== null && strcasecmp($existingAlias, $alias) === 0) {
+                throw new WorkspaceException(
+                    "Cannot use alias [{$alias}]: it conflicts with the alias of existing package [{$existingName}].",
+                    "Choose a different alias or rename the existing package [{$existingName}] first."
+                );
+            }
+        }
+
         foreach ($wsPackages as $item) {
             $existingName = is_array($item) ? $item['name'] : (string) $item;
             if ($existingName === $packageName || $existingName === $alias) {
+                if (is_array($item)) {
+                    $existingSkills = $item['skills'] ?? null;
+                    $existingUrl = $item['url'] ?? null;
+                }
+
                 continue;
             }
             $newPackages[] = $item;
         }
 
-        $newPackages[] = [
+        $entry = [
             'name' => $packageName,
             'alias' => $alias,
         ];
+        if ($existingUrl !== null) {
+            $entry['url'] = $existingUrl;
+        }
+        if (! empty($existingSkills)) {
+            $entry['skills'] = $existingSkills;
+        }
+
+        $newPackages[] = $entry;
 
         usort($newPackages, function ($a, $b) {
             $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
@@ -276,6 +316,45 @@ class ManifestRepository
 
         $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
         $this->save($data);
+    }
+
+    /**
+     * Completely remove a package entry from workspace.json.
+     *
+     * @throws WorkspaceNotFoundException
+     */
+    public function forgetPackage(string $workspace, string $packageName): bool
+    {
+        $cleanWorkspace = $this->normalizeWorkspacePath($workspace);
+        $data = $this->load();
+
+        if (! isset($data['workspaces'][$cleanWorkspace])) {
+            throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
+        }
+
+        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
+        $newPackages = [];
+        $found = false;
+
+        foreach ($wsPackages as $item) {
+            $existingName = is_array($item) ? $item['name'] : (string) $item;
+            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
+
+            if ($existingName === $packageName || $existingAlias === $packageName) {
+                $found = true;
+
+                continue;
+            }
+
+            $newPackages[] = $item;
+        }
+
+        if ($found) {
+            $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
+            $this->save($data);
+        }
+
+        return $found;
     }
 
     /**
@@ -293,22 +372,62 @@ class ManifestRepository
         $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
         $newPackages = [];
 
+        // F-03: Pre-mutation validation for unified namespace
+        foreach ($wsPackages as $item) {
+            $existingName = is_array($item) ? $item['name'] : (string) $item;
+            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
+
+            if ($existingName !== $packageName) {
+                if ($existingAlias !== null && strcasecmp($existingAlias, $packageName) === 0) {
+                    throw new WorkspaceException(
+                        "Cannot record package [{$packageName}]: it conflicts with the alias of existing package [{$existingName}].",
+                        'Choose a different package name or update the existing package alias first.'
+                    );
+                }
+
+                if ($alias !== null) {
+                    if (strcasecmp($existingName, $alias) === 0) {
+                        throw new WorkspaceException(
+                            "Cannot use alias [{$alias}]: it conflicts with the name of existing package [{$existingName}].",
+                            "Choose a different alias or rename the existing package [{$alias}] first."
+                        );
+                    }
+
+                    if ($existingAlias !== null && strcasecmp($existingAlias, $alias) === 0) {
+                        throw new WorkspaceException(
+                            "Cannot use alias [{$alias}]: it conflicts with the alias of existing package [{$existingName}].",
+                            'Choose a different alias or update the existing package alias first.'
+                        );
+                    }
+                }
+            }
+        }
+
+        $existingSkills = null;
+
         foreach ($wsPackages as $item) {
             $existingName = is_array($item) ? $item['name'] : (string) $item;
             $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
             if ($existingName === $packageName || ($alias !== null && $existingAlias === $alias)) {
+                if (is_array($item)) {
+                    $existingSkills = $item['skills'] ?? null;
+                }
+
                 continue;
             }
             $newPackages[] = $item;
         }
 
-        if ($alias !== null || $url !== null) {
+        if ($alias !== null || $url !== null || ! empty($existingSkills)) {
             $entry = ['name' => $packageName];
             if ($alias !== null) {
                 $entry['alias'] = $alias;
             }
             if ($url !== null) {
                 $entry['url'] = $url;
+            }
+            if (! empty($existingSkills)) {
+                $entry['skills'] = $existingSkills;
             }
             $newPackages[] = $entry;
         } else {

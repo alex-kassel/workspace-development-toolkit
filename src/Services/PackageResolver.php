@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\AmbiguousPackageException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use JsonException;
@@ -81,6 +81,7 @@ class PackageResolver
                         $existing = $configuredPackages[$baseShort] ?? $configuredPackages[$dirName] ?? null;
                         $existingAlias = is_array($existing) ? ($existing['alias'] ?? null) : null;
                         $existingUrl = is_array($existing) ? ($existing['url'] ?? null) : null;
+                        $existingSkills = is_array($existing) ? ($existing['skills'] ?? null) : null;
 
                         $discoveredNames[$baseShort] = true;
                         if ($existingAlias !== null) {
@@ -89,13 +90,16 @@ class PackageResolver
 
                         $effectiveAlias = (strcasecmp($dirName, $baseShort) !== 0) ? $dirName : $existingAlias;
 
-                        if ($effectiveAlias !== null || $existingUrl !== null) {
+                        if ($effectiveAlias !== null || $existingUrl !== null || ! empty($existingSkills)) {
                             $entry = ['name' => $baseShort];
                             if ($effectiveAlias !== null) {
                                 $entry['alias'] = $effectiveAlias;
                             }
                             if ($existingUrl !== null) {
                                 $entry['url'] = $existingUrl;
+                            }
+                            if (! empty($existingSkills)) {
+                                $entry['skills'] = $existingSkills;
                             }
                             $packages[] = $entry;
                         } else {
@@ -104,21 +108,28 @@ class PackageResolver
                     } else {
                         $existing = $configuredPackages[$name] ?? null;
                         $existingUrl = is_array($existing) ? ($existing['url'] ?? null) : null;
+                        $existingSkills = is_array($existing) ? ($existing['skills'] ?? null) : null;
 
                         $discoveredNames[$name] = true;
 
-                        if ($existingUrl !== null) {
-                            $packages[] = [
-                                'name' => $name,
-                                'url' => $existingUrl,
-                            ];
+                        if ($existingUrl !== null || ! empty($existingSkills)) {
+                            $entry = ['name' => $name];
+                            if ($existingUrl !== null) {
+                                $entry['url'] = $existingUrl;
+                            }
+                            if (! empty($existingSkills)) {
+                                $entry['skills'] = $existingSkills;
+                            }
+                            $packages[] = $entry;
                         } else {
                             $packages[] = $name;
                         }
                     }
                 }
             } catch (JsonException $e) {
-                throw new InvalidJsonException($file, "Corrupted package manifest: {$e->getMessage()}", $e);
+                Log::warning("WDT: Skipping corrupted composer.json [{$file}]: {$e->getMessage()}");
+
+                continue; // Skip this file, proceed with remaining packages
             }
         }
 
@@ -265,6 +276,26 @@ class PackageResolver
     }
 
     /**
+     * Determine if a package directory has a corrupted composer.json manifest.
+     */
+    public function isPackageCorrupted(string $packageName, ?string $workspace = null): bool
+    {
+        $path = $this->findPackagePath($packageName, $workspace);
+        if ($path === null) {
+            return false;
+        }
+
+        $allPackages = $this->getPackageIndex();
+        foreach ($allPackages as $wsPackages) {
+            if (isset($wsPackages[$path])) {
+                return ! empty($wsPackages[$path]['corrupted']);
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Find any other packages matching a given alias/name across workspaces.
      *
      * @return array<int, string>
@@ -340,7 +371,28 @@ class PackageResolver
                         'alias' => strcasecmp($dirName, $shortName) !== 0 ? $dirName : null,
                     ];
                 } catch (JsonException $e) {
-                    throw new InvalidJsonException($file, "Corrupted package manifest: {$e->getMessage()}", $e);
+                    Log::warning(
+                        "WDT: Skipping corrupted composer.json [{$file}]: {$e->getMessage()}"
+                    );
+
+                    $dirName = basename(dirname($file));
+                    $relPath = trim(str_replace([base_path(), '\\'], ['', '/'], dirname($file)), '/');
+                    $vendorPrefix = $vendor ?? (dirname(dirname($file)) !== base_path($ws) ? basename(dirname(dirname($file))) : null);
+                    $canonicalName = $vendorPrefix !== null ? "{$vendorPrefix}/{$dirName}" : $dirName;
+                    $shortName = $dirName;
+
+                    $index[$ws][$relPath] = [
+                        'relPath' => $relPath,
+                        'canonicalName' => $canonicalName,
+                        'shortName' => $shortName,
+                        'dirName' => $dirName,
+                        'vendor' => $vendor,
+                        'workspace' => $ws,
+                        'alias' => null,
+                        'corrupted' => true,
+                    ];
+
+                    continue;
                 }
             }
         }

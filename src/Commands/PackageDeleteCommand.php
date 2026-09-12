@@ -89,6 +89,27 @@ class PackageDeleteCommand extends Command
             return self::FAILURE;
         }
 
+        // F-01: Canonical root protection guard before any destructive action
+        $targetCanonical = $this->canonicalPath($realFullPath);
+        $protectedRoots = [$this->canonicalPath(base_path())];
+        foreach (array_keys(Workspace::all()) as $wsKey) {
+            $protectedRoots[] = $this->canonicalPath(base_path($wsKey));
+        }
+
+        if (in_array($targetCanonical, $protectedRoots, true)) {
+            $this->error("Security violation: Target directory [{$packagePath}] is a protected workspace or application root.");
+
+            return self::FAILURE;
+        }
+
+        foreach ($protectedRoots as $protectedRoot) {
+            if ($protectedRoot !== $targetCanonical && str_starts_with($protectedRoot.'/', $targetCanonical.'/')) {
+                $this->error("Security violation: Target directory [{$packagePath}] contains a registered child workspace root.");
+
+                return self::FAILURE;
+            }
+        }
+
         $gitInspector = app(GitInspector::class);
         if (! $force && $gitInspector->hasGitRepository($realFullPath)) {
             if (! $gitInspector->isClean($realFullPath)) {
@@ -156,12 +177,66 @@ class PackageDeleteCommand extends Command
             }
         }
 
-        Workspace::deleteDirectoryRecursively($realFullPath);
+        $deleted = false;
+        try {
+            $deleted = Workspace::deleteDirectoryRecursively($realFullPath);
+        } catch (\Throwable $e) {
+            $this->error("Failed to delete package directory [{$packagePath}]: {$e->getMessage()}");
+
+            return self::FAILURE;
+        }
+
+        if (! $deleted || File::isDirectory($realFullPath)) {
+            $this->error("Failed to delete package directory [{$packagePath}].");
+
+            return self::FAILURE;
+        }
+
+        // Find which workspace this package belongs to and remove from workspace manifest
+        $matchedWorkspace = null;
+        foreach (Workspace::all() as $ws => $config) {
+            if ($packagePath === $ws || str_starts_with($packagePath, "{$ws}/")) {
+                $matchedWorkspace = $ws;
+                break;
+            }
+        }
+
+        if ($matchedWorkspace !== null) {
+            Workspace::forgetPackage($matchedWorkspace, $name);
+            if (str_contains($name, '/')) {
+                [, $shortName] = explode('/', $name, 2);
+                Workspace::forgetPackage($matchedWorkspace, $shortName);
+            }
+            if ($rawName !== $name && $rawName !== '') {
+                Workspace::forgetPackage($matchedWorkspace, $rawName);
+            }
+        }
 
         // If in a multi-vendor (nested) workspace, clean up parent vendor directory if left empty
         $vendorDir = dirname($realFullPath);
-        $workspaceDir = dirname($vendorDir);
-        if (File::isDirectory($vendorDir) && $vendorDir !== $workspaceDir && count(File::allFiles($vendorDir)) === 0 && count(File::directories($vendorDir)) === 0) {
+
+        $vendorCanonical = $this->canonicalPath($vendorDir);
+        $isProtectedVendorDir = in_array($vendorCanonical, $protectedRoots, true);
+        if (! $isProtectedVendorDir) {
+            foreach ($protectedRoots as $protectedRoot) {
+                if ($protectedRoot === $vendorCanonical || str_starts_with($protectedRoot.'/', $vendorCanonical.'/')) {
+                    $isProtectedVendorDir = true;
+                    break;
+                }
+            }
+        }
+
+        $isEmpty = true;
+        if (File::isDirectory($vendorDir)) {
+            try {
+                $it = new \FilesystemIterator($vendorDir, \FilesystemIterator::KEY_AS_PATHNAME | \FilesystemIterator::CURRENT_AS_FILEINFO | \FilesystemIterator::SKIP_DOTS);
+                $isEmpty = ! $it->valid();
+            } catch (\Throwable) {
+                $isEmpty = false;
+            }
+        }
+
+        if (File::isDirectory($vendorDir) && ! $isProtectedVendorDir && $isEmpty) {
             Workspace::deleteDirectoryRecursively($vendorDir);
         }
 
@@ -174,5 +249,36 @@ class PackageDeleteCommand extends Command
         $this->line('  <info>php artisan workspace:list</info>');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Compute canonical path resolving ., .., separators, symlinks, and case insensitivity.
+     */
+    protected function canonicalPath(string $path): string
+    {
+        $real = @realpath($path);
+        if ($real !== false) {
+            $path = $real;
+        } else {
+            $normalized = str_replace('\\', '/', $path);
+            $segments = explode('/', $normalized);
+            $resolved = [];
+            foreach ($segments as $segment) {
+                if ($segment === '' || $segment === '.') {
+                    continue;
+                }
+                if ($segment === '..') {
+                    array_pop($resolved);
+                } else {
+                    $resolved[] = $segment;
+                }
+            }
+            $prefix = str_starts_with($normalized, '/') ? '/' : '';
+            $path = $prefix.implode('/', $resolved);
+        }
+
+        $path = rtrim(str_replace('\\', '/', $path), '/');
+
+        return PHP_OS_FAMILY === 'Windows' ? strtolower($path) : $path;
     }
 }
