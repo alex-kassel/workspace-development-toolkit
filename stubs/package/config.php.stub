@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Agent Skills Target Path
+    |--------------------------------------------------------------------------
+    |
+    | Relative path(s) from base_path() where agent skills should be published.
+    | Supports a single string path or an array of multiple paths.
+    |
+    */
+    'skills_path' => '.agents/skills',
+];

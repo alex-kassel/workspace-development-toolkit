@@ -54,6 +54,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(SkillInstaller::class, function () {
             return new SkillInstaller;
         });
+        $this->app->singleton(PackageScaffolder::class);
     }
 
     /**
@@ -70,9 +71,23 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 __DIR__.'/../stubs/package' => base_path('stubs/workspace'),
             ], 'workspace-stubs');
 
-            $this->publishes([
-                __DIR__.'/../resources/skills/package-docs' => base_path('.agents/skills/package-docs'),
-            ], 'workspace-skills');
+            /** @var SkillInstaller $installer */
+            $installer = $this->app->make(SkillInstaller::class);
+            $skillsSource = $installer->getDefaultSourcePath();
+            $discoveredSkills = $installer->discoverSkillsInPath($skillsSource);
+            $skillsPublishMap = [];
+            $targetSkillsBase = $installer->detectSkillsDirectory();
+
+            foreach ($discoveredSkills as $slug => $sourceDir) {
+                $skillMd = $sourceDir.DIRECTORY_SEPARATOR.'SKILL.md';
+                if ($installer->isPublished($skillMd)) {
+                    $skillsPublishMap[$sourceDir] = $targetSkillsBase.DIRECTORY_SEPARATOR.$slug;
+                }
+            }
+
+            if (! empty($skillsPublishMap)) {
+                $this->publishes($skillsPublishMap, 'workspace-skills');
+            }
 
             $this->commands([
                 PackageMakeCommand::class,

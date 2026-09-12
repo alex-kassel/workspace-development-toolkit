@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider;
 use Illuminate\Support\Facades\File;
@@ -20,16 +21,32 @@ class ServiceProviderTest extends TestCase
         $configSrc = $providerDir.'/../config/workspace.php';
         $stubsSrc = $providerDir.'/../stubs/package';
 
-        ServiceProvider::$publishes[WorkspaceDevelopmentToolkitServiceProvider::class] = [
+        /** @var SkillInstaller $installer */
+        $installer = $this->app->make(SkillInstaller::class);
+        $skillsSource = $installer->getDefaultSourcePath();
+        $discoveredSkills = $installer->discoverSkillsInPath($skillsSource);
+        $skillsPublishMap = [];
+        $targetSkillsBase = $installer->detectSkillsDirectory();
+
+        foreach ($discoveredSkills as $slug => $sourceDir) {
+            $skillMd = $sourceDir.DIRECTORY_SEPARATOR.'SKILL.md';
+            if ($installer->isPublished($skillMd)) {
+                $skillsPublishMap[$sourceDir] = $targetSkillsBase.DIRECTORY_SEPARATOR.$slug;
+            }
+        }
+
+        ServiceProvider::$publishes[WorkspaceDevelopmentToolkitServiceProvider::class] = array_merge([
             $configSrc => config_path('workspace.php'),
             $stubsSrc => base_path('stubs/workspace'),
-        ];
+        ], $skillsPublishMap);
+
         ServiceProvider::$publishGroups['workspace-config'] = [
             $configSrc => config_path('workspace.php'),
         ];
         ServiceProvider::$publishGroups['workspace-stubs'] = [
             $stubsSrc => base_path('stubs/workspace'),
         ];
+        ServiceProvider::$publishGroups['workspace-skills'] = $skillsPublishMap;
     }
 
     public function test_it_publishes_workspace_stubs(): void
@@ -51,6 +68,11 @@ class ServiceProviderTest extends TestCase
         $this->assertFileExists($targetDir.'/gitignore.stub');
         $this->assertFileExists($targetDir.'/TestCase.php.stub');
         $this->assertFileExists($targetDir.'/bootstrap.php.stub');
+        $this->assertFileExists($targetDir.'/LICENSE.stub');
+        $this->assertFileExists($targetDir.'/composer.json.stub');
+        $this->assertFileExists($targetDir.'/ServiceProvider.php.stub');
+        $this->assertFileExists($targetDir.'/config.php.stub');
+        $this->assertFileExists($targetDir.'/ExampleTest.php.stub');
     }
 
     public function test_it_publishes_workspace_config(): void
@@ -64,5 +86,16 @@ class ServiceProviderTest extends TestCase
             ->assertSuccessful();
 
         $this->assertFileExists($targetFile);
+    }
+
+    public function test_it_publishes_workspace_skills(): void
+    {
+        $this->artisan('vendor:publish', ['--tag' => 'workspace-skills'])
+            ->assertSuccessful();
+
+        $this->assertFileExists(base_path('.agents/skills/package-docs/SKILL.md'));
+        $this->assertFileExists(base_path('.agents/skills/package-release/SKILL.md'));
+        $this->assertFileExists(base_path('.agents/skills/package-scaffolding/SKILL.md'));
+        $this->assertFileExists(base_path('.agents/skills/package-verification/SKILL.md'));
     }
 }

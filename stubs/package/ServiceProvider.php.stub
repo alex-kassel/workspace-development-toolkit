@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ vendorNamespace }}\{{ packageNamespace }};
+
+use Illuminate\Support\ServiceProvider;
+
+class {{ providerClass }} extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__.'/../config/{{ package }}.php',
+            '{{ package }}'
+        );
+    }
+
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__.'/../config/{{ package }}.php' => config_path('{{ package }}.php'),
+            ], '{{ package }}-config');
+
+            $skillsSource = __DIR__.'/../resources/skills';
+            if (is_dir($skillsSource)) {
+                $targetPaths = (array) config('{{ package }}.skills_path', ['.agents/skills']);
+                $publishes = [];
+
+                foreach ($targetPaths as $targetPath) {
+                    $publishes[$skillsSource] = base_path($targetPath);
+                }
+
+                $this->publishes($publishes, '{{ package }}-skills');
+            }
+        }
+    }
+}
