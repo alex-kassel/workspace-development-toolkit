@@ -13,6 +13,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -521,5 +522,107 @@ class WorkspaceManagerTest extends TestCase
         $contentAfterBeta = File::get($gitignorePath);
         $this->assertStringNotContainsString('/packages/beta', $contentAfterBeta);
         $this->assertStringContainsString('.env', $contentAfterBeta);
+    }
+
+    public function test_corrupted_package_json_does_not_block_other_packages(): void
+    {
+        Workspace::add('packages');
+        $this->createDummyPackage('packages/acme/good-pkg', 'acme/good-pkg');
+
+        // Создаём сломанный composer.json
+        File::ensureDirectoryExists(base_path('packages/acme/broken-pkg'));
+        File::put(base_path('packages/acme/broken-pkg/composer.json'), '{ invalid json ...');
+
+        Workspace::sync();
+
+        // workspace:list должен работать несмотря на broken-pkg
+        $this->artisan('workspace:list')->assertSuccessful();
+
+        // good-pkg должен резолвиться
+        $path = Workspace::findPackagePath('acme/good-pkg');
+        $this->assertNotNull($path);
+        $this->assertSame('packages/acme/good-pkg', $path);
+    }
+
+    public function test_register_alias_throws_when_alias_conflicts_with_existing_package_name(): void
+    {
+        Workspace::add('labs', 'alex-kassel', true);
+        $this->createDummyPackage('labs/pkg-one', 'alex-kassel/pkg-one');
+        $this->createDummyPackage('labs/pkg-two', 'alex-kassel/pkg-two');
+        Workspace::sync();
+
+        $this->expectException(WorkspaceException::class);
+        $this->expectExceptionMessageMatches('/conflicts with/i');
+
+        Workspace::registerPackageAlias('labs', 'pkg-two', 'pkg-one');
+    }
+
+    public function test_existing_packages_preserved_after_failed_alias_collision(): void
+    {
+        Workspace::add('labs', 'alex-kassel', true);
+        $this->createDummyPackage('labs/pkg-one', 'alex-kassel/pkg-one');
+        $this->createDummyPackage('labs/pkg-two', 'alex-kassel/pkg-two');
+        Workspace::sync();
+
+        try {
+            Workspace::registerPackageAlias('labs', 'pkg-two', 'pkg-one');
+        } catch (\Throwable) {
+        }
+
+        $manifest = Workspace::load();
+        $names = array_map(
+            fn ($p) => is_array($p) ? $p['name'] : $p,
+            $manifest['workspaces']['labs']['packages']
+        );
+        $this->assertContains('pkg-one', $names, 'pkg-one was silently dropped!');
+        $this->assertContains('pkg-two', $names);
+    }
+
+    public function test_update_symlink_throws_when_mklink_fails(): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $this->markTestSkipped('Windows-only');
+        }
+
+        Process::fake(['cmd /c mklink*' => Process::result('', 'Access denied', 1)]);
+
+        $helper = app(FilesystemHelper::class);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/Failed to create directory junction/');
+
+        $helper->updateSymlinkOrJunction(
+            base_path('vendor/acme/pkg'),
+            base_path('packages/acme/pkg')
+        );
+    }
+
+    public function test_move_package_rollback_restores_composer_lock_reference(): void
+    {
+        $this->mock(FilesystemHelper::class, function ($mock) {
+            $mock->shouldReceive('updateSymlinkOrJunction')->andThrow(new \RuntimeException('Mock failure'));
+            $mock->shouldReceive('deleteDirectoryRecursively')->andReturn(true);
+        });
+        Workspace::clearResolvedInstances();
+
+        Workspace::add('app/Cores', 'alex-kassel', true);
+        $this->createDummyPackage('app/Cores/scraper', 'alex-kassel/scraper');
+        Workspace::sync();
+
+        $lockData = ['packages' => [[
+            'name' => 'alex-kassel/scraper',
+            'dist' => ['type' => 'path', 'url' => 'app/Cores/scraper'],
+        ]]];
+        File::put(base_path('composer.lock'), json_encode($lockData));
+
+        try {
+            Workspace::aliasPackage('scraper', 'SuperScraper');
+        } catch (\Throwable) {
+        }
+
+        $lock = json_decode(File::get(base_path('composer.lock')), true);
+        $url = $lock['packages'][0]['dist']['url'] ?? '';
+        $this->assertSame('app/Cores/scraper', $url,
+            'composer.lock must reference original path after rollback');
     }
 }

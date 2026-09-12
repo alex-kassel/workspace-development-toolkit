@@ -47,6 +47,7 @@ class ReleaseCheckerTest extends TestCase
         File::ensureDirectoryExists($dir.'/.git');
         File::put($dir.'/composer.json', json_encode(['name' => 'acme/perfect-pkg']));
         File::put($dir.'/.gitattributes', "/tests export-ignore\n");
+        File::put($dir.'/RELEASE-GATE.md', "Status: PASSED\naudit commit 1234567\n");
         File::put($dir.'/README.md', "# Perfect Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
 
         // Mock PackageVerifier so it does not fail
@@ -70,6 +71,9 @@ class ReleaseCheckerTest extends TestCase
             if (str_contains($cmd, 'tag')) {
                 return Process::result("v1.0.0\n");
             }
+            if (str_contains($cmd, 'rev-list') && str_contains($cmd, '--count')) {
+                return Process::result("0\n");
+            }
 
             return Process::result('OK');
         });
@@ -78,5 +82,43 @@ class ReleaseCheckerTest extends TestCase
 
         $this->assertSame('READY', $result['verdict']);
         $this->assertSame('v1.0.0', $result['latest_tag']);
+    }
+
+    public function test_release_checker_returns_action_required_when_no_audit_file_exists(): void
+    {
+        Workspace::add('packages');
+        $dir = $this->tempDir.'/packages/acme/my-pkg';
+        File::ensureDirectoryExists($dir.'/.git');
+        File::put($dir.'/composer.json', json_encode(['name' => 'acme/my-pkg']));
+        File::put($dir.'/.gitattributes', "/tests export-ignore\n");
+        File::put($dir.'/README.md', "# Perfect Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
+        Workspace::sync();
+
+        $this->app->bind(PackageVerifier::class, function () {
+            $mock = $this->createMock(PackageVerifier::class);
+            $mock->method('checkAll')->willReturn([
+                new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'),
+            ]);
+
+            return $mock;
+        });
+
+        Process::fake(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+            if (str_contains($cmd, 'status')) {
+                return Process::result('');
+            }
+            if (str_contains($cmd, 'tag')) {
+                return Process::result("v1.0.0\n");
+            }
+
+            return Process::result('OK');
+        });
+
+        $checker = app(ReleaseChecker::class);
+        $result = $checker->check('packages/acme/my-pkg', fast: true);
+
+        $this->assertNotSame('READY', $result['verdict']);
+        $this->assertSame('ACTION_REQUIRED', $result['verdict']);
     }
 }

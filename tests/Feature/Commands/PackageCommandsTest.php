@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -207,6 +209,7 @@ class PackageCommandsTest extends TestCase
         Workspace::add('packages', null, true);
 
         Process::fake([
+            '*git*' => Process::result(output: 'ok'),
             '*' => Process::result(exitCode: 1, errorOutput: 'Dependency conflict'),
         ]);
 
@@ -539,7 +542,7 @@ class PackageCommandsTest extends TestCase
         Workspace::sync();
 
         Process::fake([
-            '*' => Process::result(output: 'dumped'),
+            'composer*' => Process::result(output: 'dumped'),
         ]);
 
         $this->artisan('package:alias', [
@@ -564,7 +567,7 @@ class PackageCommandsTest extends TestCase
         Workspace::sync();
 
         Process::fake([
-            '*' => Process::result(output: 'dumped'),
+            'composer*' => Process::result(output: 'dumped'),
         ]);
 
         $this->artisan('package:alias', [
@@ -596,7 +599,7 @@ class PackageCommandsTest extends TestCase
         Workspace::sync();
 
         Process::fake([
-            '*' => Process::result(output: 'dumped'),
+            'composer*' => Process::result(output: 'dumped'),
         ]);
 
         $this->artisan('package:alias', [
@@ -690,7 +693,7 @@ class PackageCommandsTest extends TestCase
         $this->assertSame("# Custom Header for custom-stub-pkg\nBy acme.\n", $readme);
     }
 
-    public function test_package_make_git_option_initializes_git_repo_and_creates_commit(): void
+    public function test_package_make_initializes_git_repo_and_creates_commit_and_tag(): void
     {
         Workspace::add('packages', null, true);
 
@@ -700,9 +703,8 @@ class PackageCommandsTest extends TestCase
 
         $this->artisan('package:make', [
             'name' => 'acme/git-pkg',
-            '--git' => true,
         ])
-            ->expectsOutputToContain('Git repository initialized with initial commit.')
+            ->expectsOutputToContain('Git repository initialized with initial commit and tag v0.0.1.')
             ->assertSuccessful();
 
         Process::assertRan(function ($process) {
@@ -716,5 +718,69 @@ class PackageCommandsTest extends TestCase
 
             return str_contains($cmd, 'git commit') && str_contains($cmd, 'acme/git-pkg');
         });
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'git tag') && str_contains($cmd, 'v0.0.1');
+        });
+    }
+
+    public function test_deleting_last_package_in_flat_workspace_preserves_workspace_directory(): void
+    {
+        Workspace::add('labs', 'alex-kassel', true);
+        $this->createDummyPackage('labs/my-pkg', 'alex-kassel/my-pkg');
+        Workspace::sync();
+
+        $this->artisan('package:delete', ['name' => 'my-pkg', '--force' => true])
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists(base_path('labs'));
+    }
+
+    public function test_deleting_package_in_nested_workspace_cleans_empty_vendor_dir(): void
+    {
+        Workspace::add('packages');
+        $this->createDummyPackage('packages/acme/lone-pkg', 'acme/lone-pkg');
+        Workspace::sync();
+
+        $this->artisan('package:delete', ['name' => 'acme/lone-pkg', '--force' => true])
+            ->assertSuccessful();
+
+        $this->assertDirectoryDoesNotExist(base_path('packages/acme'));
+        $this->assertDirectoryExists(base_path('packages'));
+    }
+
+    public function test_scaffold_rolls_back_directory_when_git_init_fails(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+            if (str_contains($cmd, 'git init')) {
+                return Process::result('', 'fatal: cannot create', 128);
+            }
+
+            return Process::result('ok');
+        });
+
+        $scaffolder = app(PackageScaffolder::class);
+
+        try {
+            $scaffolder->scaffold('packages', 'acme/broken-pkg');
+            $this->fail('Expected exception');
+        } catch (WorkspaceException $e) {
+        }
+
+        $this->assertDirectoryDoesNotExist(base_path('packages/acme/broken-pkg'),
+            'Directory must be cleaned up after failed git init');
+
+        $manifest = Workspace::load();
+        $names = array_map(
+            fn ($p) => is_array($p) ? $p['name'] : $p,
+            $manifest['workspaces']['packages']['packages'] ?? []
+        );
+        $this->assertNotContains('acme/broken-pkg', $names,
+            'Package must not remain in manifest after rollback');
     }
 }

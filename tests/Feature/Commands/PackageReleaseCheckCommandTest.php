@@ -20,6 +20,7 @@ class PackageReleaseCheckCommandTest extends TestCase
         File::ensureDirectoryExists($dir.'/.git');
         File::put($dir.'/composer.json', json_encode(['name' => 'acme/release-pkg']));
         File::put($dir.'/.gitattributes', "/tests export-ignore\n");
+        File::put($dir.'/RELEASE-GATE.md', "Status: PASSED\naudit commit 1234567\n");
         File::put($dir.'/README.md', "# Release Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
 
         $this->app->bind(PackageVerifier::class, function () {
@@ -38,6 +39,9 @@ class PackageReleaseCheckCommandTest extends TestCase
             }
             if (str_contains($cmd, 'tag')) {
                 return Process::result("v1.0.0\n");
+            }
+            if (str_contains($cmd, 'rev-list') && str_contains($cmd, '--count')) {
+                return Process::result("0\n");
             }
 
             return Process::result('OK');
