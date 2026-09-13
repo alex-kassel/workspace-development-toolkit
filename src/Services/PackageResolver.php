@@ -332,7 +332,7 @@ class PackageResolver
     /**
      * Build or return cached in-memory index of all packages across all workspaces.
      *
-     * @return array<string, array<string, array{relPath: string, canonicalName: string, shortName: string, dirName: string, vendor: ?string, workspace: string, alias: ?string}>>
+     * @return array<string, array<string, array{relPath: string, canonicalName: string, shortName: string, dirName: string, vendor: ?string, workspace: string, alias: ?string, corrupted?: bool}>>
      */
     protected function getPackageIndex(): array
     {

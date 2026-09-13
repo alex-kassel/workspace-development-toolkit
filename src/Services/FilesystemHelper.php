@@ -129,7 +129,7 @@ class FilesystemHelper
 
             clearstatcache(true, $linkPath);
 
-            if (! file_exists($linkPath) && @readlink($linkPath) === false && ! is_link($linkPath)) {
+            if (! file_exists($linkPath) && ! $this->isLinkOrJunction($linkPath)) {
                 throw new \RuntimeException(
                     "Failed to create directory junction [{$winLink}] -> [{$winTarget}]: link path was not created."
                 );

@@ -184,7 +184,7 @@ class PackageScaffolder
             $this->gitInspector->initializeRepository($packagePath, $name, 'v0.0.1');
         } catch (\Throwable $e) {
             $cleanupSuccess = true;
-            if (File::isDirectory($packagePath) || is_dir($packagePath) || file_exists($packagePath)) {
+            if (File::exists($packagePath)) {
                 $cleanupSuccess = app(FilesystemHelper::class)->deleteDirectoryRecursively($packagePath);
                 clearstatcache(true, $packagePath);
                 if (file_exists($packagePath) || is_dir($packagePath)) {
@@ -257,7 +257,7 @@ class PackageScaffolder
      */
     protected function resolveIlluminateConstraint(): string
     {
-        $frameworkVersion = app()->version() ?? '11.0.0';
+        $frameworkVersion = app()->version();
         $currentMajor = 11;
         if (preg_match('/^(\d+)/', $frameworkVersion, $matches)) {
             $currentMajor = max(11, (int) $matches[1]);

@@ -243,7 +243,7 @@ class PackageCheckCommandTest extends TestCase
         });
     }
 
-    public function test_package_check_with_fix_flag_runs_pint_without_test_flag(): void
+    public function test_package_check_runs_pint_without_test_flag_by_default(): void
     {
         Workspace::add('packages', null, true);
         $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
@@ -256,7 +256,6 @@ class PackageCheckCommandTest extends TestCase
         $this->artisan('package:check', [
             'name' => 'acme/my-pkg',
             '--only' => 'pint',
-            '--fix' => true,
         ])->assertSuccessful();
 
         Process::assertRan(function ($process) {
@@ -266,7 +265,30 @@ class PackageCheckCommandTest extends TestCase
         });
     }
 
-    public function test_package_check_missing_binary_marks_check_as_skipped(): void
+    public function test_package_check_with_dry_run_flag_runs_pint_with_test_flag(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => Process::result(output: 'OK'),
+        ]);
+
+        $this->artisan('package:check', [
+            'name' => 'acme/my-pkg',
+            '--only' => 'pint',
+            '--dry-run' => true,
+        ])->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'pint') && str_contains($cmd, '--test');
+        });
+    }
+
+    public function test_package_check_missing_binary_marks_check_as_failed(): void
     {
         Workspace::add('packages', null, true);
         $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
@@ -277,8 +299,9 @@ class PackageCheckCommandTest extends TestCase
         ]);
 
         $this->artisan('package:check', ['name' => 'acme/my-pkg'])
-            ->expectsOutputToContain('SKIP')
-            ->assertSuccessful();
+            ->expectsOutputToContain('FAIL')
+            ->expectsOutputToContain('not found in vendor/bin')
+            ->assertFailed();
     }
 
     public function test_package_check_all_discovers_all_packages(): void

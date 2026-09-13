@@ -466,7 +466,7 @@ class WorkspaceManager
                 // If readlink failed on Windows junction or symlink, try realpath
                 $rawTarget = @realpath($vendorLink);
             }
-            $vendorLinkTarget = ($rawTarget !== false && $rawTarget !== '') ? $rawTarget : $oldFullPath;
+            $vendorLinkTarget = ($rawTarget !== false) ? $rawTarget : $oldFullPath;
         }
 
         $trackedFiles = [

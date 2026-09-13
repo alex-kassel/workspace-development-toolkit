@@ -195,8 +195,9 @@ class PackageDeleteCommand extends Command
         // Find which workspace this package belongs to and remove from workspace manifest
         $matchedWorkspace = null;
         foreach (Workspace::all() as $ws => $config) {
-            if ($packagePath === $ws || str_starts_with($packagePath, "{$ws}/")) {
-                $matchedWorkspace = $ws;
+            $wsStr = (string) $ws;
+            if ($packagePath === $wsStr || str_starts_with($packagePath, "{$wsStr}/")) {
+                $matchedWorkspace = $wsStr;
                 break;
             }
         }

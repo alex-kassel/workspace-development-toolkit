@@ -21,7 +21,8 @@ class PackageCheckCommand extends Command
         {name? : Package name or alias}
         {--all : Verify all packages across workspaces}
         {--quick : Run only quick checks (Composer validate and Pint)}
-        {--fix : Automatically fix code style issues with Pint}
+        {--dry-run : Only check code style without applying automatic fixes (recommended for CI)}
+        {--fix : Automatically fix code style issues with Pint (default; kept for backwards compatibility)}
         {--only= : Comma-separated list of checks to run (composer,pint,phpstan,tests)}
         {--isolated : Install and test an independent temporary package copy (Phase 3)}';
 
@@ -46,7 +47,10 @@ class PackageCheckCommand extends Command
         $rawName = (string) $this->argument('name');
         $all = (bool) $this->option('all');
         $quick = (bool) $this->option('quick');
-        $fix = (bool) $this->option('fix');
+        $dryRun = (bool) $this->option('dry-run')
+            || (getenv('CI') === 'true')
+            || (getenv('GITHUB_ACTIONS') !== false);
+        $fix = ! $dryRun;
         $isolated = (bool) $this->option('isolated');
         $tier = $quick ? 'quick' : 'deep';
 

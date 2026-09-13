@@ -25,6 +25,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\IsolatedPackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReadmeValidator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReleaseChecker;

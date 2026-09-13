@@ -12,6 +12,8 @@ use InvalidArgumentException;
 
 class PackageVerifier
 {
+    public const DEFAULT_PHPSTAN_LEVEL = 8;
+
     public function __construct(
         protected ?IsolatedPackageVerifier $isolatedVerifier = null
     ) {}
@@ -91,7 +93,7 @@ class PackageVerifier
             return new CheckResult(
                 check: 'composer',
                 package: $packageName,
-                status: 'skipped',
+                status: 'failed',
                 output: 'composer.json not found in package directory.',
                 durationSeconds: 0.0,
             );
@@ -110,7 +112,7 @@ class PackageVerifier
     /**
      * Run Pint code style check.
      */
-    public function checkPint(string $packagePath, ?string $packageName = null, bool $fix = false): CheckResult
+    public function checkPint(string $packagePath, ?string $packageName = null, bool $fix = true): CheckResult
     {
         $absPackagePath = $this->normalizePath($packagePath);
         $packageName ??= $this->resolvePackageName($absPackagePath);
@@ -120,7 +122,7 @@ class PackageVerifier
             return new CheckResult(
                 check: 'pint',
                 package: $packageName,
-                status: 'skipped',
+                status: 'failed',
                 output: 'Pint binary not found in vendor/bin. Run "composer require --dev laravel/pint" on the host.',
                 durationSeconds: 0.0,
             );
@@ -153,7 +155,7 @@ class PackageVerifier
             return new CheckResult(
                 check: 'phpstan',
                 package: $packageName,
-                status: 'skipped',
+                status: 'failed',
                 output: 'PHPStan binary not found in vendor/bin. Run "composer require --dev phpstan/phpstan" on the host.',
                 durationSeconds: 0.0,
             );
@@ -182,9 +184,8 @@ class PackageVerifier
         if ($neonConfig !== null) {
             $command[] = '--configuration='.$neonConfig;
         } else {
-            $level = (string) config('workspace.quality_checks.phpstan.level', 8);
             $command[] = $relPath.'/src';
-            $command[] = '--level='.$level;
+            $command[] = '--level='.self::DEFAULT_PHPSTAN_LEVEL;
         }
         $command[] = '--memory-limit=1G';
 
@@ -241,8 +242,8 @@ class PackageVerifier
                 return new CheckResult(
                     check: 'tests',
                     package: $packageName,
-                    status: 'skipped',
-                    output: 'No test runner (phpunit or pest) found in vendor/bin.',
+                    status: 'failed',
+                    output: 'No test runner (phpunit or pest) found in vendor/bin. Run "composer require --dev phpunit/phpunit" on the host.',
                     durationSeconds: 0.0,
                 );
             }
@@ -278,7 +279,7 @@ class PackageVerifier
         string|array|null $packageName = null,
         string|array $tier = 'deep',
         array $only = [],
-        bool $fix = false,
+        bool $fix = true,
         bool $isolated = false
     ): array {
         if ($packageName === 'quick' || $packageName === 'deep') {
@@ -363,7 +364,7 @@ class PackageVerifier
         array $packagePaths,
         string|array $tier = 'deep',
         array $only = [],
-        bool $fix = false,
+        bool $fix = true,
         bool $isolated = false
     ): array {
         if (is_array($tier)) {
@@ -411,7 +412,15 @@ class PackageVerifier
                 $task = $this->buildCheckTask($absPackagePath, $packageName, $check);
                 $taskId = $packageName.':'.$check;
 
-                if ($task['skipped']) {
+                if (! empty($task['failed'])) {
+                    $checkResults[$path][] = new CheckResult(
+                        check: $check,
+                        package: $packageName,
+                        status: 'failed',
+                        output: $task['output'],
+                        durationSeconds: 0.0,
+                    );
+                } elseif (! empty($task['skipped'])) {
                     $checkResults[$path][] = new CheckResult(
                         check: $check,
                         package: $packageName,
@@ -468,12 +477,13 @@ class PackageVerifier
     /**
      * Build check execution parameters or detect skipped state.
      *
-     * @return array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
+     * @return array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
      */
     protected function buildCheckTask(string $absPackagePath, string $packageName, string $check): array
     {
         $default = [
             'skipped' => false,
+            'failed' => false,
             'output' => '',
             'command' => [],
             'cwd' => base_path(),
@@ -491,15 +501,15 @@ class PackageVerifier
     }
 
     /**
-     * @param  array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
-     * @return array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
+     * @param  array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
+     * @return array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
      */
     protected function buildComposerTask(string $absPackagePath, string $packageName, array $task): array
     {
         $composerPath = $absPackagePath.DIRECTORY_SEPARATOR.'composer.json';
         if (! File::exists($composerPath)) {
             return array_merge($task, [
-                'skipped' => true,
+                'failed' => true,
                 'output' => 'composer.json not found in package directory.',
             ]);
         }
@@ -512,15 +522,15 @@ class PackageVerifier
     }
 
     /**
-     * @param  array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
-     * @return array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
+     * @param  array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
+     * @return array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
      */
     protected function buildPintTask(string $absPackagePath, string $packageName, array $task): array
     {
         $pintBin = $this->resolveBinary('pint');
         if ($pintBin === null) {
             return array_merge($task, [
-                'skipped' => true,
+                'failed' => true,
                 'output' => 'Pint binary not found in vendor/bin. Run "composer require --dev laravel/pint" on the host.',
             ]);
         }
@@ -533,15 +543,15 @@ class PackageVerifier
     }
 
     /**
-     * @param  array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
-     * @return array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
+     * @param  array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
+     * @return array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
      */
     protected function buildPhpstanTask(string $absPackagePath, string $packageName, array $task): array
     {
         $phpstanBin = $this->resolveBinary('phpstan');
         if ($phpstanBin === null) {
             return array_merge($task, [
-                'skipped' => true,
+                'failed' => true,
                 'output' => 'PHPStan binary not found in vendor/bin. Run "composer require --dev phpstan/phpstan" on the host.',
             ]);
         }
@@ -566,9 +576,8 @@ class PackageVerifier
         if ($neonConfig !== null) {
             $command[] = '--configuration='.$neonConfig;
         } else {
-            $level = (string) config('workspace.quality_checks.phpstan.level', 8);
             $command[] = $relPath.'/src';
-            $command[] = '--level='.$level;
+            $command[] = '--level='.self::DEFAULT_PHPSTAN_LEVEL;
         }
         $command[] = '--memory-limit=1G';
 
@@ -578,8 +587,8 @@ class PackageVerifier
     }
 
     /**
-     * @param  array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
-     * @return array{skipped: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
+     * @param  array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}  $task
+     * @return array{skipped: bool, failed?: bool, output: string, command: array<int, string>, cwd: string, timeout: int, env: array<string, string>}
      */
     protected function buildTestsTask(string $absPackagePath, string $packageName, array $task): array
     {
@@ -615,8 +624,8 @@ class PackageVerifier
                 $command = [PHP_BINARY, 'artisan', 'test', '-c', $xmlRel];
             } else {
                 return array_merge($task, [
-                    'skipped' => true,
-                    'output' => 'No test runner (phpunit or pest) found in vendor/bin.',
+                    'failed' => true,
+                    'output' => 'No test runner (phpunit or pest) found in vendor/bin. Run "composer require --dev phpunit/phpunit" on the host.',
                 ]);
             }
         }

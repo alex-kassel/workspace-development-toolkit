@@ -51,14 +51,12 @@ class ReleaseCheckerTest extends TestCase
         File::put($dir.'/README.md', "# Perfect Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
 
         // Mock PackageVerifier so it does not fail
-        $this->app->bind(PackageVerifier::class, function () {
-            $mock = $this->createMock(PackageVerifier::class);
-            $mock->method('checkAll')->willReturn([
-                new CheckResult('composer', 'acme/perfect-pkg', 'passed', 'OK'),
-            ]);
-
-            return $mock;
-        });
+        $mock = $this->createMock(PackageVerifier::class);
+        $mock->method('checkAll')->willReturn([
+            new CheckResult('composer', 'acme/perfect-pkg', 'passed', 'OK'),
+        ]);
+        $this->app->instance(PackageVerifier::class, $mock);
+        $this->app->forgetInstance(ReleaseChecker::class);
 
         // Re-resolve checker with mock
         $this->checker = $this->app->make(ReleaseChecker::class);
@@ -94,14 +92,12 @@ class ReleaseCheckerTest extends TestCase
         File::put($dir.'/README.md', "# Perfect Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
         Workspace::sync();
 
-        $this->app->bind(PackageVerifier::class, function () {
-            $mock = $this->createMock(PackageVerifier::class);
-            $mock->method('checkAll')->willReturn([
-                new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'),
-            ]);
-
-            return $mock;
-        });
+        $mock = $this->createMock(PackageVerifier::class);
+        $mock->method('checkAll')->willReturn([
+            new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'),
+        ]);
+        $this->app->instance(PackageVerifier::class, $mock);
+        $this->app->forgetInstance(ReleaseChecker::class);
 
         Process::fake(function ($process) {
             $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
