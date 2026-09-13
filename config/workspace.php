@@ -60,13 +60,38 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Skills Configuration
+    | Agent Skills Target Path
     |--------------------------------------------------------------------------
     |
-    | Target directory and auto-publishing settings for workspace agent skills.
+    | Relative path from the project root (base_path) where AI agent skills
+    | should be installed, materialized, or linked.
     |
     */
-    'skills_path' => null,
+    'skills_path' => '.agents/skills',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto-Publish Toolkit Skills
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, the toolkit automatically materializes its bundled agent
+    | skills (e.g., package-scaffolding, package-audit) into your `skills_path`
+    | upon application boot in console mode, ensuring AI coding agents always
+    | have access to the latest workspace tools.
+    |
+    */
     'auto_publish_skill' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scaffold Agent Skills for New Packages
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, `php artisan package:make` will automatically scaffold a
+    | standardized agent skill skeleton (`resources/skills/<package>/SKILL.md`)
+    | inside each newly created package. Can be overridden using `--skills` or
+    | `--no-skills` command options.
+    |
+    */
     'scaffold_agent_skills' => true,
 ];
