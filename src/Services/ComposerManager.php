@@ -14,14 +14,15 @@ class ComposerManager
 {
     /**
      * Synchronize path repositories in root composer.json with registered workspaces.
+     * Returns true if composer.json was modified, false if already up-to-date.
      *
      * @param  array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>  $workspaces
      */
-    public function syncRepositories(array $workspaces): void
+    public function syncRepositories(array $workspaces): bool
     {
         $composerPath = base_path('composer.json');
         if (! File::exists($composerPath)) {
-            return;
+            return false;
         }
 
         $content = File::get($composerPath);
@@ -83,8 +84,28 @@ class ComposerManager
             }
         }
 
-        $composer['repositories'] = empty($newRepos) ? (object) [] : $newRepos;
+        $targetRepositories = empty($newRepos) ? (object) [] : $newRepos;
+
+        if ($this->areRepositoriesEquivalent($existingRepos, $newRepos)) {
+            return false;
+        }
+
+        $composer['repositories'] = $targetRepositories;
         File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n", true);
+
+        return true;
+    }
+
+    /**
+     * Determine if existing and computed repositories are equivalent.
+     */
+    protected function areRepositoriesEquivalent(mixed $existing, mixed $new): bool
+    {
+        if (! is_array($existing) && ! is_array($new)) {
+            return $existing === $new;
+        }
+
+        return json_encode($existing) === json_encode($new);
     }
 
     /**
