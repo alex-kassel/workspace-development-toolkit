@@ -51,14 +51,14 @@ class ReleaseCheckerTest extends TestCase
         File::put($dir.'/README.md', "# Perfect Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
 
         // Stub PackageVerifier so it does not fail
-        $mock = $this->createStub(PackageVerifier::class);
-        $mock->method('checkAll')->willReturn([
+        $stub = $this->createStub(PackageVerifier::class);
+        $stub->method('checkAll')->willReturn([
             new CheckResult('composer', 'acme/perfect-pkg', 'passed', 'OK'),
         ]);
-        $this->app->instance(PackageVerifier::class, $mock);
+        $this->app->instance(PackageVerifier::class, $stub);
         $this->app->forgetInstance(ReleaseChecker::class);
 
-        // Re-resolve checker with mock
+        // Re-resolve checker with stub
         $this->checker = $this->app->make(ReleaseChecker::class);
 
         Process::fake(function ($process) {
@@ -92,11 +92,11 @@ class ReleaseCheckerTest extends TestCase
         File::put($dir.'/README.md', "# Perfect Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
         Workspace::sync();
 
-        $mock = $this->createStub(PackageVerifier::class);
-        $mock->method('checkAll')->willReturn([
+        $stub = $this->createStub(PackageVerifier::class);
+        $stub->method('checkAll')->willReturn([
             new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'),
         ]);
-        $this->app->instance(PackageVerifier::class, $mock);
+        $this->app->instance(PackageVerifier::class, $stub);
         $this->app->forgetInstance(ReleaseChecker::class);
 
         Process::fake(function ($process) {

@@ -24,12 +24,12 @@ class PackageReleaseCheckCommandTest extends TestCase
         File::put($dir.'/README.md', "# Release Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
 
         $this->app->bind(PackageVerifier::class, function () {
-            $mock = $this->createStub(PackageVerifier::class);
-            $mock->method('checkAll')->willReturn([
+            $stub = $this->createStub(PackageVerifier::class);
+            $stub->method('checkAll')->willReturn([
                 new CheckResult('composer', 'acme/release-pkg', 'passed', 'OK'),
             ]);
 
-            return $mock;
+            return $stub;
         });
 
         Process::fake(function ($process) {

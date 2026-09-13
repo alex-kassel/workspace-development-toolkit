@@ -48,14 +48,14 @@ class PackageAuditCommandTest extends TestCase
         $this->scaffoldPackage('packages/acme/my-pkg', 'acme/my-pkg');
 
         // Stub PackageVerifier so checks return passed
-        $mock = $this->createStub(PackageVerifier::class);
-        $mock->method('checkComposer')->willReturn(new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkPint')->willReturn(new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkPhpstan')->willReturn(new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkTests')->willReturn(new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkIsolated')->willReturn(new CheckResult('isolated', 'acme/my-pkg', 'passed', 'OK'));
+        $stub = $this->createStub(PackageVerifier::class);
+        $stub->method('checkComposer')->willReturn(new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkPint')->willReturn(new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkPhpstan')->willReturn(new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkTests')->willReturn(new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkIsolated')->willReturn(new CheckResult('isolated', 'acme/my-pkg', 'passed', 'OK'));
 
-        $this->app->instance(PackageVerifier::class, $mock);
+        $this->app->instance(PackageVerifier::class, $stub);
         $this->app->forgetInstance(PackageAuditor::class);
 
         Process::fake(function ($process) {
@@ -91,14 +91,14 @@ class PackageAuditCommandTest extends TestCase
         Workspace::add('packages', null, true);
         $this->scaffoldPackage('packages/acme/my-pkg', 'acme/my-pkg');
 
-        $mock = $this->createStub(PackageVerifier::class);
-        $mock->method('checkComposer')->willReturn(new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkPint')->willReturn(new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkPhpstan')->willReturn(new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkTests')->willReturn(new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'));
-        $mock->method('checkIsolated')->willReturn(new CheckResult('isolated', 'acme/my-pkg', 'passed', 'OK'));
+        $stub = $this->createStub(PackageVerifier::class);
+        $stub->method('checkComposer')->willReturn(new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkPint')->willReturn(new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkPhpstan')->willReturn(new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkTests')->willReturn(new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'));
+        $stub->method('checkIsolated')->willReturn(new CheckResult('isolated', 'acme/my-pkg', 'passed', 'OK'));
 
-        $this->app->instance(PackageVerifier::class, $mock);
+        $this->app->instance(PackageVerifier::class, $stub);
         $this->app->forgetInstance(PackageAuditor::class);
 
         Process::fake(function ($process) {
@@ -160,8 +160,8 @@ class PackageAuditCommandTest extends TestCase
         File::put($pkgDir.'/AUDIT.json', json_encode($auditJson, JSON_PRETTY_PRINT));
 
         // Stub CertificateVerifier
-        $mockVerifier = $this->createStub(CertificateVerifier::class);
-        $mockVerifier->method('verify')->willReturn(
+        $stubVerifier = $this->createStub(CertificateVerifier::class);
+        $stubVerifier->method('verify')->willReturn(
             new VerificationResult(
                 verified: true,
                 status: 'VERIFIED',
@@ -169,7 +169,7 @@ class PackageAuditCommandTest extends TestCase
             )
         );
 
-        $this->app->instance(CertificateVerifier::class, $mockVerifier);
+        $this->app->instance(CertificateVerifier::class, $stubVerifier);
 
         $this->artisan('package:audit', ['name' => 'acme/my-pkg', '--verify' => true])
             ->expectsOutputToContain('Audit Certificate VERIFIED for package [acme/my-pkg]')
