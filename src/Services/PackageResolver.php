@@ -509,6 +509,8 @@ class PackageResolver
      * Validate Composer package name syntax and resolve parts.
      *
      * @return array{
+     *     vendorName: string,
+     *     packageName: string,
      *     vendor: string,
      *     package: string,
      *     fullName: string,
@@ -538,6 +540,8 @@ class PackageResolver
                 $suggestedPackage = Str::slug($package);
 
                 return [
+                    'vendorName' => $vendor,
+                    'packageName' => $package,
                     'vendor' => $vendor,
                     'package' => $package,
                     'fullName' => "{$vendor}/{$package}",
@@ -548,6 +552,8 @@ class PackageResolver
             }
 
             return [
+                'vendorName' => $vendor,
+                'packageName' => $package,
                 'vendor' => $vendor,
                 'package' => $package,
                 'fullName' => "{$vendor}/{$package}",
@@ -571,6 +577,8 @@ class PackageResolver
                 $suggested = Str::slug($package);
 
                 return [
+                    'vendorName' => $vendor,
+                    'packageName' => $package,
                     'vendor' => $vendor,
                     'package' => $package,
                     'fullName' => "{$vendor}/{$package}",
@@ -581,6 +589,8 @@ class PackageResolver
             }
 
             return [
+                'vendorName' => $vendor,
+                'packageName' => $package,
                 'vendor' => $vendor,
                 'package' => $package,
                 'fullName' => "{$vendor}/{$package}",
@@ -594,6 +604,8 @@ class PackageResolver
             $suggested = Str::slug($package);
 
             return [
+                'vendorName' => '',
+                'packageName' => $package,
                 'vendor' => '',
                 'package' => $package,
                 'fullName' => $package,
@@ -604,6 +616,8 @@ class PackageResolver
         }
 
         return [
+            'vendorName' => '',
+            'packageName' => $package,
             'vendor' => '',
             'package' => $package,
             'fullName' => $package,

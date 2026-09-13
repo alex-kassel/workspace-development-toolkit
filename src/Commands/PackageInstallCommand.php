@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerDiagnosticService;
-use Illuminate\Console\Command;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 
-class PackageInstallCommand extends Command
+class PackageInstallCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'package:install {name : Package name (vendor/package or short name for fixed-vendor workspace)} {--dev : Install package into require-dev} {--remote : Allow installing non-local package from Composer remote repositories}';
+    protected $signature = 'package:install {name : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Install package into require-dev} {--remote : Allow installing non-local package from Composer remote repositories}';
 
     /**
      * The console command description.
@@ -26,9 +26,11 @@ class PackageInstallCommand extends Command
     protected $description = 'Install a local workspace package into the application via Composer';
 
     public function __construct(
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
         protected readonly ComposerDiagnosticService $diagnostics,
     ) {
-        parent::__construct();
+        parent::__construct($workspace, $composer);
     }
 
     /**
@@ -36,67 +38,48 @@ class PackageInstallCommand extends Command
      */
     public function handle(): int
     {
-        $rawName = (string) $this->argument('name');
+        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
         $isDev = (bool) $this->option('dev');
         $allowRemote = (bool) $this->option('remote');
-        $normalizedInput = str_replace('\\', '/', trim($rawName));
 
-        $canonicalName = Workspace::resolveCanonicalPackageName($normalizedInput);
-
-        $validation = Workspace::validatePackageName($canonicalName);
-        if (! $validation['isValid']) {
-            $this->error($validation['error'] ?? "Invalid package name [{$rawName}].");
-            if ($validation['suggestion'] !== null) {
-                $this->line('  <comment>How to fix:</comment> Did you mean:');
-                $this->line("  <info>php artisan package:install {$validation['suggestion']}".($isDev ? ' --dev' : '').'</info>');
-            } else {
-                $this->line('  <comment>How to fix:</comment> Specify the full package name:');
-                $this->line('  <info>php artisan package:install my-vendor/my-package</info>');
-                $this->line('  Or check registered workspaces: <info>php artisan workspace:list</info>');
-            }
-
+        $package = $this->resolveAndValidatePackage($rawPackage);
+        if ($package === null) {
             return self::FAILURE;
         }
 
-        $name = $validation['fullName'];
-
-        if ($name !== $rawName) {
-            $this->line("  <comment>Notice:</comment> Resolved package [{$rawName}] to Composer package [{$name}].");
-        }
-
-        $packagePath = Workspace::findPackagePath($name);
+        $packagePath = $this->workspace->findPackagePath($package);
 
         if (! $packagePath) {
             if (! $allowRemote) {
-                $this->error("Package [{$name}] was not found in any registered workspace.");
+                $this->error("Package [{$package}] was not found in any registered workspace.");
                 $this->line('  <comment>How to fix:</comment> Verify that the package exists in one of your workspaces:');
                 $this->line('  <info>php artisan workspace:list</info>');
                 $this->line('  Or create the package first:');
-                $this->line("  <info>php artisan package:make {$name}</info>");
+                $this->line("  <info>php artisan package:make {$package}</info>");
                 $this->line('  If you intentionally wish to install a remote Composer package, re-run with --remote:');
-                $this->line("  <info>php artisan package:install {$name}".($isDev ? ' --dev' : '').' --remote</info>');
+                $this->line("  <info>php artisan package:install {$package}".($isDev ? ' --dev' : '').' --remote</info>');
 
                 return self::FAILURE;
             }
 
-            $this->warn("Notice: Package [{$name}] was not found locally. Installing from remote Composer repositories via [--remote].");
+            $this->warn("Notice: Package [{$package}] was not found locally. Installing from remote Composer repositories via [--remote].");
         }
 
-        $packageConstraint = $packagePath ? "{$name}:@dev" : $name;
+        $packageConstraint = $packagePath ? "{$package}:@dev" : $package;
         $args = ['require', $packageConstraint];
 
         if ($isDev) {
             $args[] = '--dev';
         }
 
-        $this->info("Installing [{$name}] via Composer...");
+        $this->info("Installing [{$package}] via Composer...");
 
         try {
-            Workspace::runComposer($args);
+            $this->composer->runComposer($args);
         } catch (ComposerProcessException $e) {
-            $diagnostic = $this->diagnostics->diagnoseInstallFailure($e->output, $name, $packagePath !== null);
+            $diagnostic = $this->diagnostics->diagnoseInstallFailure($e->output, $package, $packagePath !== null);
 
-            $this->error("Failed to install package [{$name}] via Composer.");
+            $this->error("Failed to install package [{$package}] via Composer.");
             $this->newLine();
             $this->warn("  [{$diagnostic->title}]");
             $this->line("  {$diagnostic->explanation}");
@@ -118,13 +101,13 @@ class PackageInstallCommand extends Command
         }
 
         $targetSection = $isDev ? 'require-dev' : 'require';
-        $this->info("Package [{$name}] installed successfully into [{$targetSection}].");
+        $this->info("Package [{$package}] installed successfully into [{$targetSection}].");
 
         $this->newLine();
         $this->line('  <comment>Hint:</comment> To uninstall this package from composer without deleting files:');
-        $this->line("  <info>php artisan package:uninstall {$name}</info>");
+        $this->line("  <info>php artisan package:uninstall {$package}</info>");
         $this->line('  Or to permanently delete it:');
-        $this->line("  <info>php artisan package:delete {$name}</info>");
+        $this->line("  <info>php artisan package:delete {$package}</info>");
 
         return self::SUCCESS;
     }

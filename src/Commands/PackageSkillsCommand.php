@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
-use Illuminate\Console\Command;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 
-class PackageSkillsCommand extends Command
+class PackageSkillsCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
@@ -16,7 +16,7 @@ class PackageSkillsCommand extends Command
      * @var string
      */
     protected $signature = 'package:skills
-        {name : Package name or alias}
+        {name : Package name in vendor/package format (e.g. acme/my-pkg)}
         {--symlink : Create symlinks instead of copying (for live dev)}
         {--force : Force overwrite existing skills}
         {--remove : Remove all installed skills of this package from project}';
@@ -28,27 +28,35 @@ class PackageSkillsCommand extends Command
      */
     protected $description = 'Manage and synchronize agent skills for a specific package';
 
+    public function __construct(
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
+        protected readonly SkillInstaller $installer,
+    ) {
+        parent::__construct($workspace, $composer);
+    }
+
     /**
      * Execute the console command.
      */
-    public function handle(SkillInstaller $installer): int
+    public function handle(): int
     {
-        $rawName = (string) $this->argument('name');
+        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
         $symlink = (bool) $this->option('symlink');
         $force = (bool) $this->option('force');
         $remove = (bool) $this->option('remove');
 
-        $canonicalName = Workspace::resolveCanonicalPackageName($rawName);
-        $packagePath = Workspace::findPackagePath($canonicalName);
+        $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+        $packagePath = $this->workspace->findPackagePath($package);
 
         if ($packagePath === null) {
-            $this->error("Package [{$rawName}] not found in any registered workspace.");
+            $this->error("Package [{$rawPackage}] not found in any registered workspace.");
 
             return self::FAILURE;
         }
 
         $skillsPath = base_path($packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills');
-        $discovered = $installer->discoverSkillsInPath($skillsPath);
+        $discovered = $this->installer->discoverSkillsInPath($skillsPath);
 
         if (empty($discovered)) {
             $this->comment("No skills discovered in [{$packagePath}/resources/skills].");
@@ -57,46 +65,46 @@ class PackageSkillsCommand extends Command
         }
 
         // Find which workspace this package belongs to
-        $workspace = null;
-        foreach (Workspace::all() as $wsPath => $wsConfig) {
+        $matchedWorkspace = null;
+        foreach ($this->workspace->all() as $wsPath => $wsConfig) {
             $wsPathStr = (string) $wsPath;
             if (str_starts_with($packagePath, $wsPathStr.'/')) {
-                $workspace = $wsPathStr;
+                $matchedWorkspace = $wsPathStr;
                 break;
             }
         }
 
         if ($remove) {
-            $this->info("Removing skills for package [{$canonicalName}]...");
+            $this->info("Removing skills for package [{$package}]...");
             foreach ($discovered as $slug => $path) {
-                if ($installer->removeSkill($slug)) {
+                if ($this->installer->removeSkill($slug)) {
                     $this->line("  ✔ Removed skill [{$slug}]");
                 }
             }
 
-            if ($workspace !== null) {
-                Workspace::updatePackageSkills($workspace, $canonicalName, []);
+            if ($matchedWorkspace !== null) {
+                $this->workspace->updatePackageSkills($matchedWorkspace, $package, []);
             }
 
-            $this->info("Skills for [{$canonicalName}] successfully removed.");
+            $this->info("Skills for [{$package}] successfully removed.");
 
             return self::SUCCESS;
         }
 
-        $this->info("Synchronizing skills for package [{$canonicalName}]:");
+        $this->info("Synchronizing skills for package [{$package}]:");
         $activeSkills = [];
         $hasErrors = false;
 
         foreach ($discovered as $slug => $sourceDir) {
             $skillMd = $sourceDir.DIRECTORY_SEPARATOR.'SKILL.md';
-            if (! $installer->isPublished($skillMd) && ! $force) {
+            if (! $this->installer->isPublished($skillMd) && ! $force) {
                 $this->comment("  ⏭  Skipping draft skill [{$slug}] (status is not 'published')");
 
                 continue;
             }
 
             try {
-                $installed = $installer->installSkill(
+                $installed = $this->installer->installSkill(
                     skillSlug: $slug,
                     sourceSkillDir: $sourceDir,
                     force: $force,
@@ -115,11 +123,11 @@ class PackageSkillsCommand extends Command
         }
 
         if (empty($activeSkills) && ! $hasErrors) {
-            $this->comment("No published skills found to install for [{$canonicalName}].");
+            $this->comment("No published skills found to install for [{$package}].");
         }
 
-        if ($workspace !== null) {
-            Workspace::updatePackageSkills($workspace, $canonicalName, $activeSkills);
+        if ($matchedWorkspace !== null) {
+            $this->workspace->updatePackageSkills($matchedWorkspace, $package, $activeSkills);
         }
 
         return $hasErrors ? self::FAILURE : self::SUCCESS;

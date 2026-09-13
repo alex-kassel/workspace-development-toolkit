@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReadmeValidator;
-use Illuminate\Console\Command;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use RuntimeException;
 
-class PackageReadmeCommand extends Command
+class PackageReadmeCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
@@ -16,7 +17,7 @@ class PackageReadmeCommand extends Command
      * @var string
      */
     protected $signature = 'package:readme
-        {name : The vendor/package name or relative package path}
+        {name : Package name in vendor/package format (e.g. acme/my-pkg) or relative package path}
         {--json : Output machine-readable JSON summary}';
 
     /**
@@ -26,16 +27,24 @@ class PackageReadmeCommand extends Command
      */
     protected $description = 'Validate package README.md compliance with configured standard';
 
+    public function __construct(
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
+        protected readonly ReadmeValidator $validator,
+    ) {
+        parent::__construct($workspace, $composer);
+    }
+
     /**
      * Execute the console command.
      */
-    public function handle(ReadmeValidator $validator): int
+    public function handle(): int
     {
-        $rawName = (string) $this->argument('name');
+        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
         $isJson = (bool) $this->option('json');
 
         try {
-            $result = $validator->validate($rawName);
+            $result = $this->validator->validate($rawPackage);
         } catch (RuntimeException $e) {
             if ($isJson) {
                 $this->line(json_encode([

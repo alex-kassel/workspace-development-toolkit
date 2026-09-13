@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
-use Illuminate\Console\Command;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 
-class PackageCheckCommand extends Command
+class PackageCheckCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
@@ -18,11 +18,10 @@ class PackageCheckCommand extends Command
      * @var string
      */
     protected $signature = 'package:check
-        {name? : Package name or alias}
+        {name? : Package name in vendor/package format (e.g. acme/my-pkg)}
         {--all : Verify all packages across workspaces}
         {--quick : Run only quick checks (Composer validate and Pint)}
         {--dry-run : Only check code style without applying automatic fixes (recommended for CI)}
-        {--fix : Automatically fix code style issues with Pint (default; kept for backwards compatibility)}
         {--only= : Comma-separated list of checks to run (composer,pint,phpstan,tests)}
         {--isolated : Install and test an independent temporary package copy (Phase 3)}';
 
@@ -34,9 +33,11 @@ class PackageCheckCommand extends Command
     protected $description = 'Run quality checks (Composer validate, Pint, PHPStan, Tests) on a package';
 
     public function __construct(
-        protected PackageVerifier $verifier
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
+        protected readonly PackageVerifier $verifier,
     ) {
-        parent::__construct();
+        parent::__construct($workspace, $composer);
     }
 
     /**
@@ -44,7 +45,7 @@ class PackageCheckCommand extends Command
      */
     public function handle(): int
     {
-        $rawName = (string) $this->argument('name');
+        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
         $all = (bool) $this->option('all');
         $quick = (bool) $this->option('quick');
         $dryRun = (bool) $this->option('dry-run')
@@ -61,7 +62,7 @@ class PackageCheckCommand extends Command
             return $this->handleAllPackages($tier, $only, $fix, $isolated);
         }
 
-        if ($rawName === '') {
+        if ($rawPackage === '') {
             $this->error('Please specify a package name or use the [--all] flag to check all packages.');
             $this->line('  <comment>How to fix:</comment> Provide a package name or use --all:');
             $this->line('  <info>php artisan package:check vendor/package</info>');
@@ -70,7 +71,7 @@ class PackageCheckCommand extends Command
             return self::FAILURE;
         }
 
-        return $this->handleSinglePackage($rawName, $tier, $only, $fix, $isolated);
+        return $this->handleSinglePackage($rawPackage, $tier, $only, $fix, $isolated);
     }
 
     /**
@@ -78,25 +79,25 @@ class PackageCheckCommand extends Command
      *
      * @param  array<int, string>  $only
      */
-    protected function handleSinglePackage(string $name, string $tier, array $only, bool $fix, bool $isolated = false): int
+    protected function handleSinglePackage(string $rawPackage, string $tier, array $only, bool $fix, bool $isolated = false): int
     {
-        $packagePath = Workspace::findPackagePath($name);
+        $packagePath = $this->workspace->findPackagePath($rawPackage);
 
         if ($packagePath === null || ! File::isDirectory(base_path($packagePath))) {
-            $this->error("Package [{$name}] not found.");
+            $this->error("Package [{$rawPackage}] not found.");
             $this->line('  <comment>How to fix:</comment> View registered packages using:');
             $this->line('  <info>php artisan workspace:list</info>');
 
             return self::FAILURE;
         }
 
-        $canonicalName = Workspace::resolveCanonicalPackageName($name);
+        $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
 
-        $this->info("Verifying package [{$canonicalName}] in [{$packagePath}]...");
+        $this->info("Verifying package [{$package}] in [{$packagePath}]...");
         $this->newLine();
 
         try {
-            $results = $this->verifier->checkAll($packagePath, $canonicalName, $tier, $only, $fix, $isolated);
+            $results = $this->verifier->checkAll($packagePath, $package, $tier, $only, $fix, $isolated);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -128,9 +129,9 @@ class PackageCheckCommand extends Command
         $this->table(['Check', 'Status', 'Duration'], $rows);
 
         foreach ($results as $result) {
-            if ($result->status === 'failed' && trim($result->output) !== '') {
+            if ($result->status === 'failed' && ! empty($result->output)) {
                 $this->newLine();
-                $this->error("Failure in [{$result->check}]:");
+                $this->error("Details for [{$result->check}]:");
                 $this->line($result->output);
             }
         }
@@ -138,12 +139,12 @@ class PackageCheckCommand extends Command
         $this->newLine();
 
         if ($hasFailure) {
-            $this->error("✖ Verification failed for package [{$canonicalName}].");
+            $this->error("✖ Verification failed for package [{$package}].");
 
             return self::FAILURE;
         }
 
-        $this->info("✔ Verification passed for package [{$canonicalName}].");
+        $this->info("✔ Verification passed for package [{$package}].");
 
         return self::SUCCESS;
     }
@@ -156,16 +157,16 @@ class PackageCheckCommand extends Command
     protected function handleAllPackages(string $tier, array $only, bool $fix, bool $isolated = false): int
     {
         $packagesToVerify = [];
-        $data = Workspace::sync();
+        $data = $this->workspace->sync();
 
-        foreach ($data['workspaces'] ?? [] as $ws => $config) {
-            foreach ($config['packages'] ?? [] as $pkg) {
-                $pkgName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
+        foreach ($data['workspaces'] as $ws => $config) {
+            foreach ($config['packages'] as $pkg) {
+                $pkgName = is_array($pkg) ? $pkg['name'] : (string) $pkg;
                 if ($pkgName === '') {
                     continue;
                 }
 
-                $path = Workspace::findPackagePath($pkgName);
+                $path = $this->workspace->findPackagePath($pkgName);
                 if ($path !== null && File::isDirectory(base_path($path))) {
                     $packagesToVerify[$pkgName] = $path;
                 }

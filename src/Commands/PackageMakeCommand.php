@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 
 class PackageMakeCommand extends BasePackageCommand
 {
@@ -16,7 +17,7 @@ class PackageMakeCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:make
-        {name : Package name (vendor/package for multi-vendor, or single-word for fixed-vendor workspace)}
+        {name : Package name in vendor/package format (e.g. acme/my-pkg) or single-word for fixed-vendor workspace}
         {--as= : Optional directory alias (flat workspaces only)}
         {--alias= : Optional directory alias (synonym for --as)}
         {--workspace= : The target workspace directory}
@@ -33,10 +34,18 @@ class PackageMakeCommand extends BasePackageCommand
      */
     protected $description = 'Create a local Laravel package with mandatory Git repository and initial v0.0.1 tag';
 
+    public function __construct(
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
+        protected readonly PackageScaffolder $scaffolder,
+    ) {
+        parent::__construct($workspace, $composer);
+    }
+
     /**
      * Execute the console command.
      */
-    public function handle(PackageScaffolder $scaffolder): int
+    public function handle(): int
     {
         $install = (bool) $this->option('install');
         $dev = (bool) $this->option('dev');
@@ -52,7 +61,7 @@ class PackageMakeCommand extends BasePackageCommand
         $workspace = (string) $this->option('workspace');
 
         if ($workspace === '') {
-            $workspace = Workspace::getDefault();
+            $workspace = $this->workspace->getDefault();
 
             if (! $workspace) {
                 $this->error('No default workspace is currently configured.');
@@ -75,7 +84,7 @@ class PackageMakeCommand extends BasePackageCommand
         $skillSlug = (string) $this->option('skill-name');
 
         try {
-            $result = $scaffolder->scaffold(
+            $result = $this->scaffolder->scaffold(
                 workspace: $workspace,
                 rawName: $rawName,
                 alias: $alias,

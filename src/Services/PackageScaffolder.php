@@ -25,6 +25,9 @@ class PackageScaffolder
      *
      * @return array{
      *     name: string,
+     *     package: string,
+     *     vendorName: string,
+     *     packageName: string,
      *     shortName: string,
      *     packagePath: string,
      *     displayPath: string,
@@ -95,11 +98,11 @@ class PackageScaffolder
                 throw new WorkspaceException($validation['error'] ?? "Invalid package name [{$rawName}].", $suggestion);
             }
 
-            $vendor = $validation['vendor'];
-            $package = $validation['package'];
-            $name = $validation['fullName'];
-            $shortName = $package;
-            $dirName = $cleanAlias !== '' ? $cleanAlias : $package;
+            $vendorName = $validation['vendorName'];
+            $packageName = $validation['packageName'];
+            $package = $validation['fullName'];
+            $shortName = $packageName;
+            $dirName = $cleanAlias !== '' ? $cleanAlias : $packageName;
             $packagePath = base_path("{$cleanWorkspace}/{$dirName}");
         } else {
             // Nested 2-level workspace: vendor is required
@@ -117,11 +120,11 @@ class PackageScaffolder
                 throw new WorkspaceException($validation['error'] ?? "Invalid package name [{$rawName}].", $suggestion);
             }
 
-            $vendor = $validation['vendor'];
-            $package = $validation['package'];
-            $name = $validation['fullName'];
-            $shortName = $name;
-            $packagePath = base_path("{$cleanWorkspace}/{$vendor}/{$package}");
+            $vendorName = $validation['vendorName'];
+            $packageName = $validation['packageName'];
+            $package = $validation['fullName'];
+            $shortName = $package;
+            $packagePath = base_path("{$cleanWorkspace}/{$vendorName}/{$packageName}");
         }
 
         $relDisplayPath = trim(str_replace(base_path(), '', $packagePath), '/\\');
@@ -142,14 +145,14 @@ class PackageScaffolder
         }
 
         // 3. Prepare replacement tokens
-        $vendorNamespace = Str::studly(str_replace(['.', '-'], '_', $vendor));
-        $packageNamespace = Str::studly(str_replace(['.', '-'], '_', $package));
+        $vendorNamespace = Str::studly(str_replace(['.', '-'], '_', $vendorName));
+        $packageNamespace = Str::studly(str_replace(['.', '-'], '_', $packageName));
         $providerClass = "{$packageNamespace}ServiceProvider";
         $illuminateConstraint = $this->resolveIlluminateConstraint();
 
         $replacements = [
-            '{{ vendor }}' => $vendor,
-            '{{ package }}' => $package,
+            '{{ vendor }}' => $vendorName,
+            '{{ package }}' => $packageName,
             '{{ vendorNamespace }}' => $vendorNamespace,
             '{{ packageNamespace }}' => $packageNamespace,
             '{{ providerClass }}' => $providerClass,
@@ -180,7 +183,7 @@ class PackageScaffolder
             // 5. Scaffold agent skill if requested
             if ($scaffoldSkills) {
                 $slug = ($skillSlug !== null && trim($skillSlug) !== '') ? trim($skillSlug) : Str::kebab($package);
-                $this->scaffoldPackageSkill($packagePath, $slug, $name);
+                $this->scaffoldPackageSkill($packagePath, $slug, $package);
             }
 
             // 6. Synchronize workspace manifest
@@ -191,7 +194,7 @@ class PackageScaffolder
             }
 
             // 7. Initialize Git repository with initial commit and tag v0.0.1
-            $this->gitInspector->initializeRepository($packagePath, $name, 'v0.0.1');
+            $this->gitInspector->initializeRepository($packagePath, $package, 'v0.0.1');
         } catch (\Throwable $e) {
             $cleanupSuccess = true;
             if (File::exists($packagePath)) {
@@ -217,7 +220,7 @@ class PackageScaffolder
 
             if (! $cleanupSuccess) {
                 throw new WorkspaceException(
-                    "Failed to scaffold package [{$name}]: {$e->getMessage()}. Rollback failed: package directory [{$packagePath}] could not be completely removed.",
+                    "Failed to scaffold package [{$package}]: {$e->getMessage()}. Rollback failed: package directory [{$packagePath}] could not be completely removed.",
                     "Inspect and clean up [{$packagePath}] manually.",
                     0,
                     $e
@@ -225,8 +228,8 @@ class PackageScaffolder
             }
 
             throw new WorkspaceException(
-                "Failed to scaffold package [{$name}]: {$e->getMessage()}. Package creation rolled back.",
-                "Ensure prerequisites are met, then retry: php artisan package:make {$name}",
+                "Failed to scaffold package [{$package}]: {$e->getMessage()}. Package creation rolled back.",
+                "Ensure prerequisites are met, then retry: php artisan package:make {$package}",
                 0,
                 $e
             );
@@ -235,7 +238,10 @@ class PackageScaffolder
         $displayPath = trim(str_replace(base_path(), '', $packagePath), '/\\');
 
         return [
-            'name' => $name,
+            'name' => $package,
+            'package' => $package,
+            'vendorName' => $vendorName,
+            'packageName' => $packageName,
             'shortName' => $shortName,
             'packagePath' => $packagePath,
             'displayPath' => $displayPath,

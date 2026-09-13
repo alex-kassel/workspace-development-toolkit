@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
-use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Mockery\MockInterface;
@@ -61,7 +59,7 @@ class PackageCloneCommand extends BasePackageCommand
 
         if ($isSelf) {
             // Determine our own repository URL and install mode
-            $repoUrl = Workspace::resolveSelfRepositoryUrl($useSsh);
+            $repoUrl = $this->workspace->resolveSelfRepositoryUrl($useSsh);
             // Self-cloned toolkit is naturally a dev dependency by default
             $install = true;
             $dev = true;
@@ -82,7 +80,7 @@ class PackageCloneCommand extends BasePackageCommand
                 return self::FAILURE;
             }
 
-            $repoUrl = Workspace::normalizeRepositoryUrl($rawRepo, $useSsh);
+            $repoUrl = $this->workspace->normalizeRepositoryUrl($rawRepo, $useSsh);
         }
 
         if ($dev && ! $install) {
@@ -96,7 +94,7 @@ class PackageCloneCommand extends BasePackageCommand
         // Resolve workspace
         $rawWorkspace = (string) $this->option('workspace');
         if ($rawWorkspace === '') {
-            $workspace = Workspace::getDefault();
+            $workspace = $this->workspace->getDefault();
             if (! $workspace) {
                 $this->error('No default workspace is currently configured.');
                 $this->line('  <comment>How to fix:</comment> Add a workspace first, or specify one via the [--workspace] option:');
@@ -109,7 +107,7 @@ class PackageCloneCommand extends BasePackageCommand
             $workspace = trim(preg_replace('#[/\\\\]+#', '/', $rawWorkspace) ?? '', '/');
         }
 
-        $workspaces = Workspace::all();
+        $workspaces = $this->workspace->all();
         if (! isset($workspaces[$workspace])) {
             $this->error("Workspace [{$workspace}] does not exist.");
             $this->line('  <comment>How to fix:</comment> You can add this workspace first using:');
@@ -118,7 +116,7 @@ class PackageCloneCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $workspaceVendor = Workspace::getWorkspaceVendor($workspace);
+        $workspaceVendor = $this->workspace->getWorkspaceVendor($workspace);
         $alias = trim((string) ($this->option('as') ?: $this->option('alias')));
 
         if ($alias !== '') {
@@ -137,7 +135,7 @@ class PackageCloneCommand extends BasePackageCommand
         }
 
         // Pre-parse vendor and package hints from URL (e.g. vendor/package)
-        [$inferredVendor, $inferredPackage] = Workspace::parseRepoVendorAndPackage($repoUrl);
+        [$inferredVendor, $inferredPackage] = $this->workspace->parseRepoVendorAndPackage($repoUrl);
 
         if ($workspaceVendor !== null) {
             // Fixed-vendor workspace (flat): labs/{package} or labs/{alias}
@@ -237,7 +235,7 @@ class PackageCloneCommand extends BasePackageCommand
         }
 
         // Sync workspace registry
-        Workspace::sync();
+        $this->workspace->sync();
 
         $canonicalComposerName = null;
         if (File::exists($clonedComposerPath)) {
@@ -256,7 +254,7 @@ class PackageCloneCommand extends BasePackageCommand
         $customUrl = ($isShorthand || $isSelf) ? null : $repoUrl;
 
         // Store package entry with optional custom URL and optional alias in workspace.json
-        Workspace::recordPackage($workspace, $recordedName, $alias !== '' ? $alias : null, $customUrl);
+        $this->workspace->recordPackage($workspace, $recordedName, $alias !== '' ? $alias : null, $customUrl);
 
         $this->info("Repository successfully cloned to [{$relativeTargetPath}].");
 
@@ -274,7 +272,7 @@ class PackageCloneCommand extends BasePackageCommand
             }
 
             try {
-                $installResult = Workspace::runComposer($requireArgs, $timeout);
+                $installResult = $this->composer->runComposer($requireArgs, $timeout);
 
                 if (! $installResult->successful()) {
                     $this->error("Failed to install package [{$canonicalComposerName}] via Composer.");
@@ -386,7 +384,7 @@ class PackageCloneCommand extends BasePackageCommand
             array_keys($content['require-dev'] ?? [])
         );
 
-        $workspaceVendor = Workspace::getWorkspaceVendor($workspace);
+        $workspaceVendor = $this->workspace->getWorkspaceVendor($workspace);
 
         foreach ($dependencies as $dep) {
             if (! is_string($dep) || ! str_contains($dep, '/')) {
@@ -431,7 +429,7 @@ class PackageCloneCommand extends BasePackageCommand
                 continue;
             }
 
-            $depRepoUrl = Workspace::normalizeRepositoryUrl($dep, $useSsh);
+            $depRepoUrl = $this->workspace->normalizeRepositoryUrl($dep, $useSsh);
             $this->info("Recursively cloning dependency [{$dep}] into [{$relTarget}]...");
 
             File::ensureDirectoryExists(dirname($fullTarget));
@@ -455,9 +453,9 @@ class PackageCloneCommand extends BasePackageCommand
             }
 
             // Sync and record
-            Workspace::sync();
+            $this->workspace->sync();
             $recorded = $workspaceVendor !== null ? $depPackage : $dep;
-            Workspace::recordPackage($workspace, $recorded, null, null);
+            $this->workspace->recordPackage($workspace, $recorded, null, null);
 
             $depComposerPath = "{$fullTarget}/composer.json";
             if ($install) {
@@ -467,7 +465,7 @@ class PackageCloneCommand extends BasePackageCommand
                     $requireArgs[] = '--dev';
                 }
                 try {
-                    Workspace::runComposer($requireArgs, $timeout);
+                    $this->composer->runComposer($requireArgs, $timeout);
                 } catch (\Throwable $e) {
                     $this->warn("Failed to install dependency [{$dep}]: {$e->getMessage()}");
                 }

@@ -10,9 +10,13 @@ abstract class BasePackageCommand extends BaseCommand
      * Retrieve and validate the required package argument.
      * Zero-ambiguity: provides concrete format example in prompt and error.
      */
-    protected function getRequiredPackage(?string $prompt = null): ?string
+    protected function getRequiredPackage(?string $prompt = null, string $argument = 'package'): ?string
     {
-        $package = trim((string) $this->argument('package'));
+        $raw = $this->hasArgument($argument)
+            ? (string) $this->argument($argument)
+            : ($this->hasArgument('name') ? (string) $this->argument('name') : '');
+
+        $package = trim($raw);
 
         if ($package === '' && $this->input->isInteractive()) {
             $defaultPrompt = 'Please enter the package name (format: vendor/package, e.g. acme/my-pkg):';
@@ -28,6 +32,39 @@ abstract class BasePackageCommand extends BaseCommand
         }
 
         return $this->normalizePackageInput($package);
+    }
+
+    /**
+     * Resolve and validate package name from raw user input.
+     * Outputs standardized error messages and suggestions if invalid.
+     */
+    protected function resolveAndValidatePackage(string $rawInput): ?string
+    {
+        $normalizedInput = $this->sanitizeInput($rawInput);
+        $canonical = $this->workspace->resolveCanonicalPackageName($normalizedInput);
+
+        $validation = $this->workspace->validatePackageName($canonical);
+        if (! $validation['isValid']) {
+            $this->error($validation['error'] ?? "Invalid package name [{$rawInput}].");
+            if ($validation['suggestion'] !== null) {
+                $this->line('  <comment>How to fix:</comment> Did you mean:');
+                $this->line("  <info>php artisan {$this->getName()} {$validation['suggestion']}</info>");
+            } else {
+                $this->line('  <comment>How to fix:</comment> Specify the full package name:');
+                $this->line("  <info>php artisan {$this->getName()} my-vendor/my-package</info>");
+                $this->line('  Or check registered workspaces: <info>php artisan workspace:list</info>');
+            }
+
+            return null;
+        }
+
+        $package = $validation['fullName'];
+
+        if ($package !== $rawInput) {
+            $this->line("  <comment>Notice:</comment> Resolved package [{$rawInput}] to Composer package [{$package}].");
+        }
+
+        return $package;
     }
 
     /**

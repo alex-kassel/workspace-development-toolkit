@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\CheckResult;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageAuditor;
-use Illuminate\Console\Command;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
 use Throwable;
 
-class PackageAuditCommand extends Command
+class PackageAuditCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
@@ -20,7 +20,7 @@ class PackageAuditCommand extends Command
      * @var string
      */
     protected $signature = 'package:audit
-        {name? : Package name, alias or directory path}
+        {name? : Package name in vendor/package format (e.g. acme/my-pkg) or directory path}
         {--verify : Verify an existing audit certificate}
         {--json : Output machine-readable JSON}
         {--target-version= : Explicit release version for the certificate}
@@ -35,10 +35,12 @@ class PackageAuditCommand extends Command
     protected $description = 'Audit and certify a package with deterministic cryptographic verification';
 
     public function __construct(
-        protected PackageAuditor $auditor,
-        protected CertificateVerifier $verifier,
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
+        protected readonly PackageAuditor $auditor,
+        protected readonly CertificateVerifier $verifier,
     ) {
-        parent::__construct();
+        parent::__construct($workspace, $composer);
     }
 
     /**
@@ -46,9 +48,9 @@ class PackageAuditCommand extends Command
      */
     public function handle(): int
     {
-        $rawName = (string) $this->argument('name');
+        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
 
-        if ($rawName === '') {
+        if ($rawPackage === '') {
             $this->error('Please specify a package name, alias, or path.');
             $this->line('  <comment>How to fix:</comment> Provide a package name:');
             $this->line('  <info>php artisan package:audit vendor/package</info>');
@@ -58,9 +60,9 @@ class PackageAuditCommand extends Command
         }
 
         // Verify package existence
-        $path = Workspace::findPackagePath($rawName);
-        if ($path === null && ! File::isDirectory(base_path($rawName)) && ! File::isDirectory($rawName)) {
-            $this->error("Package [{$rawName}] not found.");
+        $path = $this->workspace->findPackagePath($rawPackage);
+        if ($path === null && ! File::isDirectory(base_path($rawPackage)) && ! File::isDirectory($rawPackage)) {
+            $this->error("Package [{$rawPackage}] not found.");
             $this->line('  <comment>How to fix:</comment> View registered packages using:');
             $this->line('  <info>php artisan workspace:list</info>');
 
@@ -68,16 +70,16 @@ class PackageAuditCommand extends Command
         }
 
         if ($this->option('verify')) {
-            return $this->handleVerify($rawName);
+            return $this->handleVerify($rawPackage);
         }
 
-        return $this->handleAudit($rawName);
+        return $this->handleAudit($rawPackage);
     }
 
     /**
      * Handle audit execution and certificate generation.
      */
-    protected function handleAudit(string $name): int
+    protected function handleAudit(string $rawPackage): int
     {
         $targetVersion = is_string($this->option('target-version')) && $this->option('target-version') !== ''
             ? (string) $this->option('target-version')
@@ -87,7 +89,7 @@ class PackageAuditCommand extends Command
         $noTag = (bool) $this->option('no-tag');
 
         try {
-            $report = $this->auditor->audit($name, $targetVersion, $noCommit, $noTag);
+            $report = $this->auditor->audit($rawPackage, $targetVersion, $noCommit, $noTag);
         } catch (Throwable $e) {
             if ($this->option('json')) {
                 $this->line((string) json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -154,10 +156,10 @@ class PackageAuditCommand extends Command
     /**
      * Handle certificate verification.
      */
-    protected function handleVerify(string $name): int
+    protected function handleVerify(string $rawPackage): int
     {
         try {
-            $result = $this->verifier->verify($name);
+            $result = $this->verifier->verify($rawPackage);
         } catch (Throwable $e) {
             if ($this->option('json')) {
                 $this->line((string) json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -175,11 +177,11 @@ class PackageAuditCommand extends Command
         }
 
         $this->newLine();
-        $this->line("Verifying audit certificate for package [{$name}]...");
+        $this->line("Verifying audit certificate for package [{$rawPackage}]...");
         $this->newLine();
 
         if ($result->verified) {
-            $this->info("✔ Audit Certificate VERIFIED for package [{$name}].");
+            $this->info("✔ Audit Certificate VERIFIED for package [{$rawPackage}].");
             if ($result->certificate !== null) {
                 $this->line("  <fg=gray>Certified Version:</> {$result->certificate->version}");
                 $this->line("  <fg=gray>Certified Commit:</>  {$result->certificate->commit}");

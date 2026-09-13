@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
-use Illuminate\Console\Command;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
 
-class PackageDeleteCommand extends Command
+class PackageDeleteCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'package:delete {name : Package name (vendor/package or short name for fixed-vendor workspace)} {--force : Delete without interactive confirmation}';
+    protected $signature = 'package:delete {name : Package name in vendor/package format (e.g. acme/my-pkg)} {--force : Delete without interactive confirmation}';
 
     /**
      * The console command description.
@@ -27,51 +27,36 @@ class PackageDeleteCommand extends Command
      */
     protected $description = 'Permanently delete a local package from disk';
 
+    public function __construct(
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
+        protected readonly GitInspector $gitInspector,
+        protected readonly SkillInstaller $skillInstaller,
+    ) {
+        parent::__construct($workspace, $composer);
+    }
+
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
-        $rawName = (string) $this->argument('name');
+        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
         $force = (bool) $this->option('force');
-        $normalizedInput = str_replace('\\', '/', trim($rawName));
 
-        $canonicalName = Workspace::resolveCanonicalPackageName($normalizedInput);
-
-        if (! str_contains($canonicalName, '/')) {
-            $this->error("Invalid package name [{$rawName}]. Package must be in 'vendor/package' format or belong to a workspace with a fixed vendor.");
-            $this->line('  <comment>How to fix:</comment> Specify the full package name, e.g.:');
-            $this->line('  <info>php artisan package:delete my-vendor/my-package</info>');
-            $this->line('  Or check existing packages with: <info>php artisan workspace:list</info>');
-
+        $package = $this->resolveAndValidatePackage($rawPackage);
+        if ($package === null) {
             return self::FAILURE;
         }
 
-        $validation = Workspace::validatePackageName($canonicalName);
-        if (! $validation['isValid']) {
-            $this->error($validation['error'] ?? "Invalid package name [{$rawName}].");
-            if ($validation['suggestion'] !== null) {
-                $this->line('  <comment>How to fix:</comment> Did you mean:');
-                $this->line("  <info>php artisan package:delete {$validation['suggestion']}".($force ? ' --force' : '').'</info>');
-            }
-
-            return self::FAILURE;
-        }
-
-        $name = $validation['fullName'];
-
-        if ($name !== $rawName) {
-            $this->line("  <comment>Notice:</comment> Resolved package [{$rawName}] to Composer package [{$name}].");
-        }
-
-        $packagePath = Workspace::findPackagePath($name);
+        $packagePath = $this->workspace->findPackagePath($package);
 
         if (! $packagePath) {
-            $this->error("Package [{$name}] was not found in any registered workspace.");
+            $this->error("Package [{$package}] was not found in any registered workspace.");
             $this->line('  <comment>How to fix:</comment> Check existing packages using:');
             $this->line('  <info>php artisan workspace:list</info>');
             $this->line('  If the package is not local, remove it directly with Composer:');
-            $this->line("  <info>composer remove {$name}</info>");
+            $this->line("  <info>composer remove {$package}</info>");
 
             return self::FAILURE;
         }
@@ -92,7 +77,7 @@ class PackageDeleteCommand extends Command
         // F-01: Canonical root protection guard before any destructive action
         $targetCanonical = $this->canonicalPath($realFullPath);
         $protectedRoots = [$this->canonicalPath(base_path())];
-        foreach (array_keys(Workspace::all()) as $wsKey) {
+        foreach (array_keys($this->workspace->all()) as $wsKey) {
             $protectedRoots[] = $this->canonicalPath(base_path($wsKey));
         }
 
@@ -110,28 +95,27 @@ class PackageDeleteCommand extends Command
             }
         }
 
-        $gitInspector = app(GitInspector::class);
-        if (! $force && $gitInspector->hasGitRepository($realFullPath)) {
-            if (! $gitInspector->isClean($realFullPath)) {
-                $this->error("Cannot delete package [{$name}]: package working tree has uncommitted or untracked changes.");
+        if (! $force && $this->gitInspector->hasGitRepository($realFullPath)) {
+            if (! $this->gitInspector->isClean($realFullPath)) {
+                $this->error("Cannot delete package [{$package}]: package working tree has uncommitted or untracked changes.");
                 $this->line('  <comment>How to fix:</comment> Commit, stash, or discard changes before deleting, or use --force:');
-                $this->line("  <info>php artisan package:delete {$name} --force</info>");
+                $this->line("  <info>php artisan package:delete {$package} --force</info>");
 
                 return self::FAILURE;
             }
 
-            if ($gitInspector->hasUnpushedCommits($realFullPath)) {
-                $this->error("Cannot delete package [{$name}]: package has unpushed commits.");
+            if ($this->gitInspector->hasUnpushedCommits($realFullPath)) {
+                $this->error("Cannot delete package [{$package}]: package has unpushed commits.");
                 $this->line('  <comment>How to fix:</comment> Push your commits to remote, or bypass check with --force:');
-                $this->line("  <info>php artisan package:delete {$name} --force</info>");
+                $this->line("  <info>php artisan package:delete {$package} --force</info>");
 
                 return self::FAILURE;
             }
 
-            if ($gitInspector->hasStashes($realFullPath)) {
-                $this->error("Cannot delete package [{$name}]: package has stashed changes.");
+            if ($this->gitInspector->hasStashes($realFullPath)) {
+                $this->error("Cannot delete package [{$package}]: package has stashed changes.");
                 $this->line('  <comment>How to fix:</comment> Drop or apply your stashes, or bypass check with --force:');
-                $this->line("  <info>php artisan package:delete {$name} --force</info>");
+                $this->line("  <info>php artisan package:delete {$package} --force</info>");
 
                 return self::FAILURE;
             }
@@ -143,24 +127,24 @@ class PackageDeleteCommand extends Command
             return self::SUCCESS;
         }
 
-        $composer = json_decode(File::get(base_path('composer.json')), true) ?: [];
-        $isDev = isset($composer['require-dev'][$name]);
-        $isRequire = isset($composer['require'][$name]);
+        $composerData = json_decode(File::get(base_path('composer.json')), true) ?: [];
+        $isDev = isset($composerData['require-dev'][$package]);
+        $isRequire = isset($composerData['require'][$package]);
 
         if ($isRequire || $isDev) {
-            $this->info("Removing [{$name}] from Composer first...");
-            $args = ['remove', $name];
+            $this->info("Removing [{$package}] from Composer first...");
+            $args = ['remove', $package];
             if ($isDev) {
                 $args[] = '--dev';
             }
 
             try {
-                Workspace::runComposer($args);
+                $this->composer->runComposer($args);
             } catch (ComposerProcessException $e) {
-                $this->error("Failed to remove package [{$name}] from Composer.");
+                $this->error("Failed to remove package [{$package}] from Composer.");
                 $this->line("  <comment>Composer output:</comment>\n".trim($e->output));
                 $this->line('  <comment>How to fix:</comment> Resolve Composer issues or run removal manually:');
-                $this->line("  <info>composer remove {$name}".($isDev ? ' --dev' : '').' -v</info>');
+                $this->line("  <info>composer remove {$package}".($isDev ? ' --dev' : '').' -v</info>');
 
                 return self::FAILURE;
             }
@@ -169,17 +153,15 @@ class PackageDeleteCommand extends Command
         // Clean up any installed agent skills of this package
         $skillsPath = $realFullPath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
         if (File::isDirectory($skillsPath)) {
-            /** @var SkillInstaller $installer */
-            $installer = app(SkillInstaller::class);
-            $discovered = $installer->discoverSkillsInPath($skillsPath);
+            $discovered = $this->skillInstaller->discoverSkillsInPath($skillsPath);
             foreach ($discovered as $slug => $path) {
-                $installer->removeSkill($slug);
+                $this->skillInstaller->removeSkill($slug);
             }
         }
 
         $deleted = false;
         try {
-            $deleted = Workspace::deleteDirectoryRecursively($realFullPath);
+            $deleted = $this->workspace->deleteDirectoryRecursively($realFullPath);
         } catch (\Throwable $e) {
             $this->error("Failed to delete package directory [{$packagePath}]: {$e->getMessage()}");
 
@@ -194,7 +176,7 @@ class PackageDeleteCommand extends Command
 
         // Find which workspace this package belongs to and remove from workspace manifest
         $matchedWorkspace = null;
-        foreach (Workspace::all() as $ws => $config) {
+        foreach ($this->workspace->all() as $ws => $config) {
             $wsStr = (string) $ws;
             if ($packagePath === $wsStr || str_starts_with($packagePath, "{$wsStr}/")) {
                 $matchedWorkspace = $wsStr;
@@ -203,13 +185,13 @@ class PackageDeleteCommand extends Command
         }
 
         if ($matchedWorkspace !== null) {
-            Workspace::forgetPackage($matchedWorkspace, $name);
-            if (str_contains($name, '/')) {
-                [, $shortName] = explode('/', $name, 2);
-                Workspace::forgetPackage($matchedWorkspace, $shortName);
+            $this->workspace->forgetPackage($matchedWorkspace, $package);
+            if (str_contains($package, '/')) {
+                [, $shortName] = explode('/', $package, 2);
+                $this->workspace->forgetPackage($matchedWorkspace, $shortName);
             }
-            if ($rawName !== $name && $rawName !== '') {
-                Workspace::forgetPackage($matchedWorkspace, $rawName);
+            if ($rawPackage !== $package && $rawPackage !== '') {
+                $this->workspace->forgetPackage($matchedWorkspace, $rawPackage);
             }
         }
 
@@ -238,12 +220,12 @@ class PackageDeleteCommand extends Command
         }
 
         if (File::isDirectory($vendorDir) && ! $isProtectedVendorDir && $isEmpty) {
-            Workspace::deleteDirectoryRecursively($vendorDir);
+            $this->workspace->deleteDirectoryRecursively($vendorDir);
         }
 
-        Workspace::sync();
+        $this->workspace->sync();
 
-        $this->info("Package [{$name}] permanently deleted from [{$packagePath}].");
+        $this->info("Package [{$package}] permanently deleted from [{$packagePath}].");
 
         $this->newLine();
         $this->line('  <comment>Hint:</comment> To see remaining packages across all workspaces:');

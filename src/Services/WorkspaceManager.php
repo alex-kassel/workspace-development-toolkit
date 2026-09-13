@@ -329,6 +329,8 @@ class WorkspaceManager
      * Validate Composer package name syntax and resolve parts.
      *
      * @return array{
+     *     vendorName: string,
+     *     packageName: string,
      *     vendor: string,
      *     package: string,
      *     fullName: string,
