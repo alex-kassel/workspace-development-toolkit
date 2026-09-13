@@ -7,7 +7,6 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
-use Illuminate\Support\Facades\File;
 
 class PackageUninstallCommand extends BasePackageCommand
 {
@@ -45,9 +44,9 @@ class PackageUninstallCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $composerData = json_decode(File::get(base_path('composer.json')), true) ?: [];
-        $isRequire = isset($composerData['require'][$package]);
-        $isRequireDev = isset($composerData['require-dev'][$package]);
+        $requirementType = $this->composer->getRequirementType($package);
+        $isRequire = $requirementType === 'require';
+        $isRequireDev = $requirementType === 'require-dev';
 
         if (! $isRequire && ! $isRequireDev) {
             $this->error("Package [{$package}] is not installed in root composer.json.");

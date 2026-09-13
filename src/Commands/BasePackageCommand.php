@@ -66,7 +66,7 @@ abstract class BasePackageCommand extends BaseCommand
     /**
      * Standardized warning renderer when a chosen alias or name conflicts with another package in the workspace.
      */
-    protected function warnIfDuplicateAlias(string $alias, string $currentPath): void
+    protected function warnIfDuplicateAlias(string $alias, string $currentPath, ?string $packageName = null): void
     {
         $duplicates = $this->workspace->findDuplicateAliases($alias, $currentPath);
         if (empty($duplicates)) {
@@ -81,7 +81,8 @@ abstract class BasePackageCommand extends BaseCommand
         $this->newLine();
         $this->line("  <comment>Hint:</comment> Both packages will work normally in Composer, but resolving by short name '{$alias}' will be ambiguous.");
         $this->line('  If you wish to differentiate them, you can assign a unique alias:');
-        $this->line("  <info>php artisan package:alias {$currentPath} UniqueAlias</info>");
+        $target = $packageName ?? $this->workspace->resolveCanonicalPackageName($currentPath);
+        $this->line("  <info>php artisan package:alias {$target} UniqueAlias</info>");
     }
 
     /**

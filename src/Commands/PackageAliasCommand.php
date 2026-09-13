@@ -56,7 +56,7 @@ class PackageAliasCommand extends BasePackageCommand
 
         $this->info("Package [{$result->canonicalName}] successfully aliased to [{$result->alias}] ({$result->newPath}).");
 
-        $this->warnIfDuplicateAlias($result->alias, $result->newPath);
+        $this->warnIfDuplicateAlias($result->alias, $result->newPath, $result->canonicalName);
 
         $this->newLine();
         $this->line('  <comment>Next steps:</comment>');

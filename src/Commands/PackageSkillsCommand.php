@@ -65,14 +65,7 @@ class PackageSkillsCommand extends BasePackageCommand
         }
 
         // Find which workspace this package belongs to
-        $matchedWorkspace = null;
-        foreach ($this->workspace->all() as $wsPath => $wsConfig) {
-            $wsPathStr = (string) $wsPath;
-            if (str_starts_with($packagePath, $wsPathStr.'/')) {
-                $matchedWorkspace = $wsPathStr;
-                break;
-            }
-        }
+        $matchedWorkspace = $this->workspace->findWorkspaceForPath($packagePath);
 
         if ($remove) {
             $this->info("Removing skills for package [{$package}]...");
