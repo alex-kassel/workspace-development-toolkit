@@ -87,8 +87,11 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
             $targetRelative = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $targetRelative);
             $fullTarget = $rootPath . DIRECTORY_SEPARATOR . $targetRelative;
 
-            // Resolve Git clone URL
+            // Resolve Git clone URL with optional env var expansion (e.g. ${GIT_TOKEN})
             $cloneUrl = $customUrl ?? str_replace('{package}', $canonicalName, $template);
+            $cloneUrl = preg_replace_callback('/\$\{([a-zA-Z0-9_]+)\}/', function ($matches) {
+                return (string) (getenv($matches[1]) ?: '');
+            }, $cloneUrl);
 
             if (file_exists($fullTarget)) {
                 $aliasLabel = $alias ? " [alias: {$alias}]" : '';
@@ -126,10 +129,9 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
 
     echo "\n\033[32mDone!\033[0m Restored: {$totalRestored}, Already existing: {$totalExisting}, Failed: {$errors}\n";
     if ($errors > 0) {
-        fwrite(STDERR, "\n\033[33m[TROUBLESHOOTING TIP]\033[0m If package cloning failed with 'Permission denied (publickey)':\n");
-        fwrite(STDERR, "  • Check if SSH agent has keys loaded: ssh-add -l\n");
-        fwrite(STDERR, "  • Add your private SSH key:          ssh-add ~/.ssh/id_ed25519 (or ~/.ssh/id_rsa)\n");
-        fwrite(STDERR, "  • Verify connection to GitHub:        ssh -T git@github.com\n\n");
+        fwrite(STDERR, "\n\033[33m[TROUBLESHOOTING TIP]\033[0m If package cloning failed:\n");
+        fwrite(STDERR, "  • For SSH: check loaded keys (ssh-add -l) and host connection (ssh -T git@github.com / git@gitlab.com)\n");
+        fwrite(STDERR, "  • For HTTPS/CI: embed tokens in repository_template (e.g. https://oauth2:\${GIT_TOKEN}@gitlab.com/{package}.git)\n\n");
     }
 
     return $errors > 0 ? 1 : 0;

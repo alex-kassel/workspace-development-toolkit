@@ -428,14 +428,14 @@ class PackageResolver
     public function formatUrlProtocol(string $url, bool $useSsh): string
     {
         if ($useSsh) {
-            // If https://github.com/vendor/package.git -> git@github.com:vendor/package.git
-            if (preg_match('#^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
-                return "git@github.com:{$matches[1]}/{$matches[2]}.git";
+            // HTTPS -> SSH (e.g. https://github.com/vendor/pkg.git or https://gitlab.com/vendor/pkg.git)
+            if (preg_match('#^https?://([^/:]+)/([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
+                return "git@{$matches[1]}:{$matches[2]}/{$matches[3]}.git";
             }
         } else {
-            // If git@github.com:vendor/package.git -> https://github.com/vendor/package.git
-            if (preg_match('#^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
-                return "https://github.com/{$matches[1]}/{$matches[2]}.git";
+            // SSH -> HTTPS (e.g. git@github.com:vendor/pkg.git or git@gitlab.com:vendor/pkg.git)
+            if (preg_match('#^git@([^:]+):([^/]+)/([^/]+?)(?:\.git)?$#i', $url, $matches)) {
+                return "https://{$matches[1]}/{$matches[2]}/{$matches[3]}.git";
             }
         }
 
