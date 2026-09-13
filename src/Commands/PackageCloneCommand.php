@@ -7,10 +7,9 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageCloner;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Process;
-use Mockery\MockInterface;
 
 class PackageCloneCommand extends BasePackageCommand
 {
@@ -41,6 +40,7 @@ class PackageCloneCommand extends BasePackageCommand
         WorkspaceManager $workspace,
         ComposerManager $composer,
         protected readonly GitDiagnosticService $diagnostics,
+        protected readonly PackageCloner $cloner,
     ) {
         parent::__construct($workspace, $composer);
     }
@@ -190,18 +190,11 @@ class PackageCloneCommand extends BasePackageCommand
 
         $this->info("Cloning [{$repoUrl}] into [{$relativeTargetPath}]...");
 
-        // Ensure parent directory exists
-        File::ensureDirectoryExists(dirname($fullTargetPath));
-
         $timeout = (int) config('workspace.process_timeout', 300);
 
-        // Execute git clone
-        $cloneResult = Process::timeout($timeout)->run(['git', 'clone', '--', $repoUrl, $fullTargetPath]);
+        $diagnostic = $this->cloner->cloneRepository($repoUrl, $fullTargetPath, $timeout);
 
-        if (! $cloneResult->successful()) {
-            $gitOutput = trim($cloneResult->errorOutput() ?: $cloneResult->output());
-            $diagnostic = $this->diagnostics->diagnoseCloneFailure($gitOutput, $repoUrl);
-
+        if ($diagnostic !== null) {
             $this->error("Failed to clone repository [{$repoUrl}].");
             $this->newLine();
             $this->warn("  [{$diagnostic->title}]");
@@ -218,11 +211,6 @@ class PackageCloneCommand extends BasePackageCommand
             if ($diagnostic->rawOutput !== null && $diagnostic->rawOutput !== '') {
                 $this->newLine();
                 $this->line("  <comment>Git output:</comment>\n  ".str_replace("\n", "\n  ", $diagnostic->rawOutput));
-            }
-
-            // Clean up directory if left partially created
-            if (File::isDirectory($fullTargetPath)) {
-                File::deleteDirectory($fullTargetPath);
             }
 
             return self::FAILURE;
@@ -259,7 +247,7 @@ class PackageCloneCommand extends BasePackageCommand
         $this->info("Repository successfully cloned to [{$relativeTargetPath}].");
 
         if ($alias !== '') {
-            $this->warnIfDuplicateAlias($alias, $relativeTargetPath);
+            $this->warnIfDuplicateAlias($alias, $relativeTargetPath, $canonicalComposerName ?: $recordedName);
         }
 
         // Optional symlinking via Composer
@@ -303,7 +291,21 @@ class PackageCloneCommand extends BasePackageCommand
             }
 
             $visited = [$canonicalComposerName ?? $packageName => true];
-            $this->cloneDependenciesRecursively($clonedComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited, $rootVendor);
+            $this->cloner->cloneDependenciesRecursively(
+                $clonedComposerPath,
+                $workspace,
+                $useSsh,
+                $install,
+                $dev,
+                $timeout,
+                $visited,
+                $rootVendor,
+                fn (string $level, string $msg) => match ($level) {
+                    'warn' => $this->warn($msg),
+                    'line' => $this->line($msg),
+                    default => $this->info($msg),
+                }
+            );
         }
 
         // Ask to link package into application Composer if running interactively
@@ -338,142 +340,13 @@ class PackageCloneCommand extends BasePackageCommand
             return false;
         }
 
-        // In test suites using Laravel's PendingCommand, console output is mocked
-        $output = $this->output;
-        if ($output instanceof MockInterface) {
-            $director = $output->mockery_getExpectationsFor('askQuestion');
+        if (is_a($this->output, 'Mockery\MockInterface')) {
+            $director = $this->output->mockery_getExpectationsFor('askQuestion');
 
             return $director !== null && ! empty($director->getExpectations());
         }
 
         return (function_exists('stream_isatty') && @stream_isatty(STDIN))
             || (function_exists('posix_isatty') && @posix_isatty(STDIN));
-    }
-
-    /**
-     * Recursively clone dependencies from trusted organizations.
-     *
-     * @param  array<string, bool>  $visited
-     */
-    protected function cloneDependenciesRecursively(
-        string $composerPath,
-        string $workspace,
-        bool $useSsh,
-        bool $install,
-        bool $dev,
-        int $timeout,
-        array &$visited,
-        ?string $rootVendor = null
-    ): void {
-        $trustedOrgs = (array) config('workspace.trusted_organizations', []);
-        if ($rootVendor !== null && ! in_array($rootVendor, $trustedOrgs, true)) {
-            $trustedOrgs[] = $rootVendor;
-        }
-
-        if (empty($trustedOrgs) || ! File::exists($composerPath)) {
-            return;
-        }
-
-        $content = json_decode(File::get($composerPath), true);
-        if (! is_array($content)) {
-            return;
-        }
-
-        $dependencies = array_merge(
-            array_keys($content['require'] ?? []),
-            array_keys($content['require-dev'] ?? [])
-        );
-
-        $workspaceVendor = $this->workspace->getWorkspaceVendor($workspace);
-
-        foreach ($dependencies as $dep) {
-            if (! is_string($dep) || ! str_contains($dep, '/')) {
-                continue;
-            }
-
-            [$depVendor, $depPackage] = explode('/', $dep, 2);
-
-            // Only process dependencies belonging to trusted organizations
-            if (! in_array($depVendor, $trustedOrgs, true)) {
-                continue;
-            }
-
-            // Cycle detection
-            if (isset($visited[$dep])) {
-                continue;
-            }
-
-            $visited[$dep] = true;
-
-            // Determine target path in workspace
-            if ($workspaceVendor !== null) {
-                if (strtolower($depVendor) !== strtolower($workspaceVendor)) {
-                    // Cannot clone a dependency from a different vendor into a fixed-vendor workspace
-                    $this->warn("Skipping recursive dependency [{$dep}]: vendor [{$depVendor}] does not match fixed workspace vendor [{$workspaceVendor}].");
-
-                    continue;
-                }
-                $relTarget = "{$workspace}/{$depPackage}";
-            } else {
-                $relTarget = "{$workspace}/{$depVendor}/{$depPackage}";
-            }
-
-            $fullTarget = base_path($relTarget);
-            if (File::exists($fullTarget)) {
-                $this->line("Dependency [{$dep}] already exists at [{$relTarget}], inspecting nested dependencies...");
-                $depComposerPath = "{$fullTarget}/composer.json";
-                if (File::exists($depComposerPath)) {
-                    $this->cloneDependenciesRecursively($depComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited);
-                }
-
-                continue;
-            }
-
-            $depRepoUrl = $this->workspace->normalizeRepositoryUrl($dep, $useSsh);
-            $this->info("Recursively cloning dependency [{$dep}] into [{$relTarget}]...");
-
-            File::ensureDirectoryExists(dirname($fullTarget));
-            $cloneResult = Process::timeout($timeout)->run(['git', 'clone', $depRepoUrl, $fullTarget]);
-
-            if (! $cloneResult->successful()) {
-                $depOutput = trim($cloneResult->errorOutput() ?: $cloneResult->output());
-                $diagnostic = $this->diagnostics->diagnoseCloneFailure($depOutput, $depRepoUrl);
-
-                $this->warn("Failed to clone dependency [{$dep}] from [{$depRepoUrl}].");
-                $this->line("  <comment>[{$diagnostic->title}]</comment> {$diagnostic->explanation}");
-                if (! empty($diagnostic->actionableSteps)) {
-                    $this->line("  • Hint: {$diagnostic->actionableSteps[0]}");
-                }
-
-                if (File::isDirectory($fullTarget)) {
-                    File::deleteDirectory($fullTarget);
-                }
-
-                continue;
-            }
-
-            // Sync and record
-            $this->workspace->sync();
-            $recorded = $workspaceVendor !== null ? $depPackage : $dep;
-            $this->workspace->recordPackage($workspace, $recorded, null, null);
-
-            $depComposerPath = "{$fullTarget}/composer.json";
-            if ($install) {
-                $this->info("Registering and symlinking dependency [{$dep}] into root application...");
-                $requireArgs = ['require', "{$dep}:@dev"];
-                if ($dev) {
-                    $requireArgs[] = '--dev';
-                }
-                try {
-                    $this->composer->runComposer($requireArgs, $timeout);
-                } catch (\Throwable $e) {
-                    $this->warn("Failed to install dependency [{$dep}]: {$e->getMessage()}");
-                }
-            }
-
-            if (File::exists($depComposerPath)) {
-                $this->cloneDependenciesRecursively($depComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited);
-            }
-        }
     }
 }
