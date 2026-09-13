@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
-use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
-class WorkspaceAddCommand extends Command
+class WorkspaceAddCommand extends BaseWorkspaceCommand
 {
     /**
      * The name and signature of the console command.
@@ -30,18 +28,14 @@ class WorkspaceAddCommand extends Command
      */
     public function handle(): int
     {
-        $rawPath = (string) $this->argument('path');
-        $normalizedPath = trim(preg_replace('#[/\\\\]+#', '/', $rawPath) ?? '', '/');
-        $isDefault = (bool) $this->option('default');
-        $rawVendor = (string) $this->option('vendor');
-
-        if ($normalizedPath === '') {
-            $this->error('Workspace path cannot be empty.');
-            $this->line('  <comment>How to fix:</comment> Provide a relative directory path for the workspace, e.g.:');
-            $this->line('  <info>php artisan workspace:add packages</info>');
-
+        $path = $this->getRequiredWorkspacePath();
+        if ($path === null) {
             return self::FAILURE;
         }
+
+        $rawPath = (string) $this->argument('path');
+        $isDefault = (bool) $this->option('default');
+        $rawVendor = (string) $this->option('vendor');
 
         $vendor = null;
         if ($rawVendor !== '') {
@@ -49,7 +43,7 @@ class WorkspaceAddCommand extends Command
             if ($vendor === '') {
                 $this->error("Invalid vendor [{$rawVendor}]. Vendor may only contain alphanumeric characters.");
                 $this->line('  <comment>How to fix:</comment> Provide a valid vendor slug, e.g.:');
-                $this->line("  <info>php artisan workspace:add {$normalizedPath} --vendor=my-vendor</info>");
+                $this->line("  <info>php artisan workspace:add {$path} --vendor=my-vendor</info>");
 
                 return self::FAILURE;
             }
@@ -59,9 +53,7 @@ class WorkspaceAddCommand extends Command
             }
         }
 
-        $path = $normalizedPath;
-
-        if (array_key_exists($path, Workspace::all())) {
+        if (array_key_exists($path, $this->workspace->all())) {
             $this->error("Workspace [{$path}] is already registered.");
             $this->line('  <comment>How to fix:</comment> View registered workspaces using:');
             $this->line('  <info>php artisan workspace:list</info>');
@@ -70,17 +62,13 @@ class WorkspaceAddCommand extends Command
         }
 
         try {
-            Workspace::add($rawPath, $vendor, $isDefault);
+            $this->workspace->add($rawPath, $vendor, $isDefault);
         } catch (WorkspaceException $e) {
-            $this->error($e->getMessage());
-            if ($e->getSolution()) {
-                $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
-            }
-
-            return self::FAILURE;
+            return $this->handleWorkspaceException($e);
         }
 
-        $defaultMsg = Workspace::getDefault() === $path ? ' (set as default)' : '';
+        $defaultMsg = $this->workspace->getDefault() === $path ? ' (set as default)' : '';
+
         $vendorMsg = $vendor ? " with fixed vendor [{$vendor}] (flat structure)" : ' (multi-vendor nested structure)';
         $this->info("Workspace [{$path}] added successfully{$defaultMsg}{$vendorMsg}.");
 
@@ -88,12 +76,12 @@ class WorkspaceAddCommand extends Command
         $this->line('  <comment>Hint:</comment> You can now create packages in this workspace:');
         if ($vendor) {
             $this->line("  <info>php artisan package:make my-package --workspace={$path}</info>");
-            if (Workspace::getDefault() === $path) {
+            if ($this->workspace->getDefault() === $path) {
                 $this->line('  Or simply (using default workspace): <info>php artisan package:make my-package</info>');
             }
         } else {
             $this->line("  <info>php artisan package:make my-vendor/my-package --workspace={$path}</info>");
-            if (Workspace::getDefault() === $path) {
+            if ($this->workspace->getDefault() === $path) {
                 $this->line('  Or simply (using default workspace): <info>php artisan package:make my-vendor/my-package</info>');
             }
         }

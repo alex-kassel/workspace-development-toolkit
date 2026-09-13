@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
-use Illuminate\Console\Command;
 
-class WorkspaceRemoveCommand extends Command
+class WorkspaceRemoveCommand extends BaseWorkspaceCommand
 {
     /**
      * The name and signature of the console command.
@@ -29,26 +27,15 @@ class WorkspaceRemoveCommand extends Command
      */
     public function handle(): int
     {
-        $rawPath = (string) $this->argument('path');
-        $path = trim(preg_replace('#[/\\\\]+#', '/', $rawPath) ?? '', '/');
-
-        if ($path === '') {
-            $this->error('Workspace path cannot be empty.');
-            $this->line('  <comment>How to fix:</comment> Provide the name of a registered workspace, e.g.:');
-            $this->line('  <info>php artisan workspace:remove packages</info>');
-
+        $path = $this->getRequiredWorkspacePath();
+        if ($path === null) {
             return self::FAILURE;
         }
 
         try {
-            Workspace::remove($path);
+            $this->workspace->remove($path);
         } catch (WorkspaceException $e) {
-            $this->error($e->getMessage());
-            if ($e->getSolution()) {
-                $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
-            }
-
-            return self::FAILURE;
+            return $this->handleWorkspaceException($e);
         }
 
         $this->info("Workspace [{$path}] removed from configuration (composer.json and workspace.json).");

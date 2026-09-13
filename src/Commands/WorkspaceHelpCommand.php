@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
-use Illuminate\Console\Command;
-
-class WorkspaceHelpCommand extends Command
+class WorkspaceHelpCommand extends BaseWorkspaceCommand
 {
     /**
      * The name and signature of the console command.

@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use Composer\InstalledVersions;
-use Illuminate\Console\Command;
 
-class WorkspaceListCommand extends Command
+class WorkspaceListCommand extends BaseWorkspaceCommand
 {
     /**
      * The name and signature of the console command.
@@ -30,7 +28,8 @@ class WorkspaceListCommand extends Command
      */
     public function handle(): int
     {
-        $data = $this->option('sync') ? Workspace::sync() : Workspace::load();
+        $data = $this->option('sync') ? $this->workspace->sync() : $this->workspace->load();
+
         $workspaces = $data['workspaces'];
         $default = $data['default'];
 
@@ -45,13 +44,13 @@ class WorkspaceListCommand extends Command
         $rows = [];
         foreach ($workspaces as $workspace => $config) {
             $vendor = $config['vendor'] ?? null;
-            $packages = $config['packages'] ?? [];
+            $packages = $config['packages'];
 
             $formattedPackages = array_map(function ($pkg) use ($workspace) {
-                $rawName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
+                $rawName = is_array($pkg) ? $pkg['name'] : (string) $pkg;
                 $alias = is_array($pkg) ? ($pkg['alias'] ?? null) : null;
 
-                $canonical = Workspace::resolveCanonicalPackageName($rawName, $workspace);
+                $canonical = $this->workspace->resolveCanonicalPackageName($rawName, $workspace);
 
                 $installed = class_exists(InstalledVersions::class)
                     && InstalledVersions::isInstalled($canonical);
@@ -73,7 +72,7 @@ class WorkspaceListCommand extends Command
                     $statusParts[] = "as: {$alias}";
                 }
 
-                if (Workspace::isPackageCorrupted($rawName, $workspace)) {
+                if ($this->workspace->isPackageCorrupted($rawName, $workspace)) {
                     $statusParts[] = 'corrupted manifest';
                 }
 
