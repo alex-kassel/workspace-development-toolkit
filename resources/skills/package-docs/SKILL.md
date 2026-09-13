@@ -6,7 +6,7 @@ status: published
 description: >-
   Standardized documentation lifecycle skill for PHP and Laravel packages.
   Orchestrates documentation scaffolding, synchronization, and drift review
-  (e.g., "документируй пакет", "обнови readme", "review docs", "sync documentation", "scaffold docs").
+  (e.g., "document package", "update readme", "review docs", "sync documentation", "scaffold docs").
 ---
 
 # Package Documentation Lifecycle Skill

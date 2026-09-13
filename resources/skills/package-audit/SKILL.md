@@ -5,7 +5,7 @@ version: 1.0.0
 status: published
 description: >-
   Use this skill EXCLUSIVELY when the user explicitly requests a full package audit and release certification
-  (e.g., "проведи полный аудит пакета", "полный аудит перед релизом", "audit package", "certify package").
+  (e.g., "audit package", "certify package", "full release audit", "certify for release").
 ---
 
 # Package Audit & Release Certification Skill
@@ -15,7 +15,7 @@ description: >-
 > This skill is an expensive, high-rigor governance procedure reserved strictly for formal release certification.
 > - **DO NOT INVOKE OR EXECUTE THIS SKILL** during routine feature development, bugfixing, refactoring, or patch updates (`1.2.0` -> `1.2.1`).
 > - For everyday quality checks, use `php artisan package:check <pkg> --quick` or `composer test` instead.
-> - Execute this procedure **ONLY** when the human user explicitly instructs: *"проведи полный аудит"*, *"подготовь релизную сертификацию"*, *"certify package for release"*.
+> - Execute this procedure **ONLY** when the human user explicitly instructs: *"audit package"*, *"prepare release certification"*, *"certify package for release"*.
 
 ---
 

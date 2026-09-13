@@ -575,16 +575,16 @@ class WorkspaceManagerTest extends TestCase
         Workspace::add('packages');
         $this->createDummyPackage('packages/acme/good-pkg', 'acme/good-pkg');
 
-        // Создаём сломанный composer.json
+        // Create broken composer.json
         File::ensureDirectoryExists(base_path('packages/acme/broken-pkg'));
         File::put(base_path('packages/acme/broken-pkg/composer.json'), '{ invalid json ...');
 
         Workspace::sync();
 
-        // workspace:list должен работать несмотря на broken-pkg
+        // workspace:list must succeed despite broken-pkg
         $this->artisan('workspace:list')->assertSuccessful();
 
-        // good-pkg должен резолвиться
+        // good-pkg must resolve properly
         $path = Workspace::findPackagePath('acme/good-pkg');
         $this->assertNotNull($path);
         $this->assertSame('packages/acme/good-pkg', $path);

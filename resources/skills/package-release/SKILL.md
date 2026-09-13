@@ -5,7 +5,7 @@ version: 1.0.0
 status: published
 description: >-
   Use this skill when the user asks to release, publish, tag, or prepare a package for Packagist
-  (e.g., "подготовь к публикации на Packagist", "выпусти релиз", "опубликуй пакет", "release package", "prepare release").
+  (e.g., "release package", "prepare release", "tag release", "publish package", "prepare for Packagist").
 ---
 
 # Package Release Skill

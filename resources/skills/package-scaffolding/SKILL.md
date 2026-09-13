@@ -5,7 +5,7 @@ version: 1.0.0
 status: published
 description: >-
   Use this skill when the user asks to create, initialize, or scaffold a new package in the workspace
-  (e.g., "создай новый пакет", "создай библиотеку", "инициализируй пакет", "create package").
+  (e.g., "create package", "scaffold package", "initialize package", "create library").
 ---
 
 # Package Scaffolding Skill

@@ -5,7 +5,7 @@ version: 1.0.0
 status: published
 description: >-
   Use this skill when the user asks to test, lint, verify, analyze, or check the quality of a package
-  (e.g., "проверь пакет", "запусти тесты", "проверь кодстайл", "run tests", "check package", "phpstan").
+  (e.g., "verify package", "run tests", "check codestyle", "run analysis", "check package", "phpstan").
 ---
 
 # Package Verification Skill
