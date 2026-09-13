@@ -11,16 +11,11 @@ use Illuminate\Console\Command;
 
 abstract class BasePackageCommand extends Command
 {
-    protected WorkspaceManager $workspace;
-
-    protected ComposerManager $composer;
-
-    public function __construct(?WorkspaceManager $workspace = null, ?ComposerManager $composer = null)
-    {
+    public function __construct(
+        protected WorkspaceManager $workspace,
+        protected ComposerManager $composer,
+    ) {
         parent::__construct();
-
-        $this->workspace = $workspace ?? app(WorkspaceManager::class);
-        $this->composer = $composer ?? app(ComposerManager::class);
     }
 
     /**

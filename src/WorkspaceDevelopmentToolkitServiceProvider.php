@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAliasCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAuditCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCheckCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCloneCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDeleteCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageMakeCommand;
@@ -15,7 +16,6 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageReleaseCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageSkillsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageUninstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceAddCommand;
-use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceCloneCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
@@ -112,8 +112,8 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 PackageReadmeCommand::class,
                 PackageReleaseCheckCommand::class,
                 PackageSkillsCommand::class,
+                PackageCloneCommand::class,
                 WorkspaceAddCommand::class,
-                WorkspaceCloneCommand::class,
                 WorkspaceDefaultCommand::class,
                 WorkspaceListCommand::class,
                 WorkspaceRemoveCommand::class,

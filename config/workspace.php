@@ -52,7 +52,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Vendors considered internal/trusted when performing recursive package cloning.
-    | When `workspace:clone --recursive` is run, any dependencies belonging to these
+    | When `package:clone --recursive` is run, any dependencies belonging to these
     | organizations will be automatically cloned into the workspace as well.
     |
     */

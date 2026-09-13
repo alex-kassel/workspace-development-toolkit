@@ -124,10 +124,20 @@ class PackageScaffolder
             $packagePath = base_path("{$cleanWorkspace}/{$vendor}/{$package}");
         }
 
+        $relDisplayPath = trim(str_replace(base_path(), '', $packagePath), '/\\');
+
         if (File::isDirectory($packagePath)) {
+            $errorMessage = $cleanAlias !== ''
+                ? "Cannot use alias [{$cleanAlias}]: target directory [{$relDisplayPath}] already exists on disk."
+                : "Package directory [{$relDisplayPath}] already exists on disk.";
+
+            $solution = $cleanAlias !== ''
+                ? 'Choose a different alias name, or permanently delete the existing package:'
+                : 'Choose a different package name, or permanently delete the existing package:';
+
             throw new WorkspaceException(
-                "Package directory [{$packagePath}] already exists on disk.",
-                "Choose a different package name, or permanently delete the existing package:\n  php artisan package:delete {$shortName} --force"
+                $errorMessage,
+                "{$solution}\n  php artisan package:delete {$shortName} --force"
             );
         }
 

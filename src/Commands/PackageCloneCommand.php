@@ -6,21 +6,23 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Mockery\MockInterface;
 
-class WorkspaceCloneCommand extends BasePackageCommand
+class PackageCloneCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'workspace:clone
-        {repository? : Git repository URL or GitHub shorthand (e.g. vendor/package)}
+    protected $signature = 'package:clone
+        {package? : Git repository URL or GitHub shorthand (format: vendor/package, e.g. acme/my-pkg)}
         {--self : Clone the workspace toolkit itself}
         {--workspace= : The target workspace directory (defaults to configured default workspace)}
         {--as= : Optional directory alias (flat workspaces only)}
@@ -38,9 +40,11 @@ class WorkspaceCloneCommand extends BasePackageCommand
     protected $description = 'Clone a package from a Git/GitHub repository into a workspace and optionally symlink via Composer';
 
     public function __construct(
+        WorkspaceManager $workspace,
+        ComposerManager $composer,
         protected readonly GitDiagnosticService $diagnostics,
     ) {
-        parent::__construct();
+        parent::__construct($workspace, $composer);
     }
 
     /**
@@ -49,7 +53,7 @@ class WorkspaceCloneCommand extends BasePackageCommand
     public function handle(): int
     {
         $isSelf = (bool) $this->option('self');
-        $rawRepo = (string) $this->argument('repository');
+        $rawRepo = trim((string) $this->argument('package'));
         $useSsh = (bool) $this->option('ssh');
         $install = (bool) $this->option('install');
         $dev = (bool) $this->option('dev');
@@ -65,9 +69,9 @@ class WorkspaceCloneCommand extends BasePackageCommand
             if ($rawRepo === '') {
                 $this->error('Please specify a repository URL/shorthand or pass the [--self] flag.');
                 $this->line('  <comment>Usage examples:</comment>');
-                $this->line('  <info>php artisan workspace:clone vendor/package</info>');
-                $this->line('  <info>php artisan workspace:clone git@github.com:vendor/package.git</info>');
-                $this->line('  <info>php artisan workspace:clone --self</info>');
+                $this->line('  <info>php artisan package:clone vendor/package</info>');
+                $this->line('  <info>php artisan package:clone git@github.com:vendor/package.git</info>');
+                $this->line('  <info>php artisan package:clone --self</info>');
 
                 return self::FAILURE;
             }
@@ -84,7 +88,7 @@ class WorkspaceCloneCommand extends BasePackageCommand
         if ($dev && ! $install) {
             $this->error('The [--dev] option can only be used in combination with [--install].');
             $this->line('  <comment>How to fix:</comment> Pass [--install] along with [--dev]:');
-            $this->line('  <info>php artisan workspace:clone '.($rawRepo ?: '--self').' --install --dev</info>');
+            $this->line('  <info>php artisan package:clone '.($rawRepo ?: '--self').' --install --dev</info>');
 
             return self::FAILURE;
         }
@@ -97,7 +101,7 @@ class WorkspaceCloneCommand extends BasePackageCommand
                 $this->error('No default workspace is currently configured.');
                 $this->line('  <comment>How to fix:</comment> Add a workspace first, or specify one via the [--workspace] option:');
                 $this->line('  <info>php artisan workspace:add packages</info>');
-                $this->line('  <info>php artisan workspace:clone '.($rawRepo ?: '--self').' --workspace=packages</info>');
+                $this->line('  <info>php artisan package:clone '.($rawRepo ?: '--self').' --workspace=packages</info>');
 
                 return self::FAILURE;
             }

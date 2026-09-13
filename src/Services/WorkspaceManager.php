@@ -727,8 +727,8 @@ class WorkspaceManager
 
         if (strcasecmp($currentDir, $alias) !== 0 && File::exists($targetFullPath)) {
             throw new WorkspaceException(
-                "Target directory [{$targetRelativePath}] already exists on disk.",
-                'Choose a different alias or remove the existing directory.'
+                "Cannot use alias [{$alias}]: target directory [{$targetRelativePath}] already exists on disk.",
+                'Choose a different alias name or remove the conflicting directory.'
             );
         }
 

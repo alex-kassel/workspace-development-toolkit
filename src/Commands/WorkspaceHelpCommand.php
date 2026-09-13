@@ -52,12 +52,12 @@ class WorkspaceHelpCommand extends Command
 
         $commands = [
             ['workspace:add <path> [--vendor=] [--default]', 'Register a new workspace directory into composer and gitignore.'],
-            ['workspace:clone [repo] [--self] [--workspace=]', 'Clone a Git/GitHub package into workspace and optionally symlink.'],
             ['workspace:list', 'Display all registered workspaces, their vendors, structure mode, and packages.'],
             ['workspace:default <path>', 'Set the default workspace for creating new packages.'],
             ['workspace:remove <path>', 'Unregister workspace repository from Composer and manifest (files kept).'],
             ['workspace:help', 'Display this interactive guide and cheat sheet.'],
             ['package:make <name> [--workspace=] [--install] [--dev]', 'Scaffold a new local Laravel package with ServiceProvider and manifest.'],
+            ['package:clone [package] [--self] [--workspace=]', 'Clone a Git/GitHub package into workspace and optionally symlink.'],
             ['package:install <name> [--dev]', 'Symlink a local workspace package into root Laravel application.'],
             ['package:alias <name> <alias> [--as=]', 'Assign a directory alias to a package in a flat workspace.'],
             ['package:uninstall <name> [--dev]', 'Remove package from root composer.json requirements (files kept).'],

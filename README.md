@@ -65,10 +65,10 @@ php artisan vendor:publish --tag=workspace-config
    - [`workspace:add`](#workspaceadd)
    - [`workspace:list`](#workspacelist)
    - [`workspace:default`](#workspacedefault)
-   - [`workspace:clone`](#workspaceclone)
    - [`php workspace restore`](#php-workspace-restore-standalone-cli-runner)
    - [`workspace:remove`](#workspaceremove)
    - [`package:make`](#packagemake)
+   - [`package:clone`](#packageclone)
    - [`package:alias`](#packagealias)
    - [`package:install`](#packageinstall)
    - [`package:uninstall`](#packageuninstall)
@@ -262,27 +262,6 @@ Sets the active default workspace. Any subsequent `package:make` call without `-
 php artisan workspace:default labs
 ```
 
----
-
-### `workspace:clone`
-Clones a package repository from Git/GitHub into a target workspace, registers it in `workspace.json`, and optionally symlinks it via Composer.
-
-```bash
-# Clone via shorthand (resolved using repository_template, e.g. GitHub SSH/HTTPS):
-php artisan workspace:clone spatie/laravel-ray --workspace=packages
-
-# Clone via full SSH or HTTPS URL:
-php artisan workspace:clone git@github.com:vendor/package.git
-
-# Clone and immediately symlink as development dependency:
-php artisan workspace:clone vendor/package --install --dev
-
-# Recursively clone internal dependencies from trusted organizations:
-php artisan workspace:clone vendor/package --recursive
-
-# Clone the toolkit itself into a local workspace for active contribution:
-php artisan workspace:clone --self
-```
 
 ---
 
@@ -331,6 +310,28 @@ php artisan package:make billing --workspace=labs --install --dev
 * `--workspace=`: The target workspace (defaults to current default workspace).
 * `--install`: Immediately trigger `composer require` for the package upon creation.
 * `--dev`: Install into `require-dev` instead of `require` (used in conjunction with `--install`).
+
+---
+
+### `package:clone`
+Clones a package repository from Git/GitHub into a target workspace, registers it in `workspace.json`, and optionally symlinks it via Composer.
+
+```bash
+# Clone via shorthand (resolved using repository_template, e.g. GitHub SSH/HTTPS):
+php artisan package:clone spatie/laravel-ray --workspace=packages
+
+# Clone via full SSH or HTTPS URL:
+php artisan package:clone git@github.com:vendor/package.git
+
+# Clone and immediately symlink as development dependency:
+php artisan package:clone vendor/package --install --dev
+
+# Recursively clone internal dependencies from trusted organizations:
+php artisan package:clone vendor/package --recursive
+
+# Clone the toolkit itself into a local workspace for active contribution:
+php artisan package:clone --self
+```
 
 ---
 

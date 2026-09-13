@@ -613,6 +613,38 @@ class PackageCommandsTest extends TestCase
         $this->assertDirectoryDoesNotExist(base_path('app/Cores/ScraperEngine'));
     }
 
+    public function test_package_alias_fails_when_target_alias_directory_already_exists(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel', true);
+        $this->createDummyPackage('app/Cores/pkg-one', 'alex-kassel/pkg-one');
+        $this->createDummyPackage('app/Cores/SharedAlias', 'alex-kassel/pkg-two');
+        Workspace::sync();
+
+        $this->artisan('package:alias', [
+            'package' => 'pkg-one',
+            'alias' => 'SharedAlias',
+        ])
+            ->expectsOutputToContain('Cannot use alias [SharedAlias]: target directory [app/Cores/SharedAlias] already exists on disk.')
+            ->expectsOutputToContain('Choose a different alias name or remove the conflicting directory.')
+            ->assertFailed();
+    }
+
+    public function test_package_make_fails_when_alias_directory_already_exists(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel', true);
+        $this->createDummyPackage('app/Cores/ExistingAlias', 'alex-kassel/existing-pkg');
+        Workspace::sync();
+
+        $this->artisan('package:make', [
+            'name' => 'new-pkg',
+            '--alias' => 'ExistingAlias',
+            '--no-skills' => true,
+        ])
+            ->expectsOutputToContain('Cannot use alias [ExistingAlias]: target directory [app/Cores/ExistingAlias] already exists on disk.')
+            ->assertFailed();
+
+    }
+
     public function test_package_alias_prompts_for_alias_when_omitted(): void
     {
         Workspace::add('app/Cores', 'alex-kassel', true);
