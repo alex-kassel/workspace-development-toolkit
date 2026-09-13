@@ -21,6 +21,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerDiagnosticService;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FingerprintCalculator;
@@ -65,6 +66,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         });
         $this->app->singleton(PackageScaffolder::class);
         $this->app->singleton(GitDiagnosticService::class);
+        $this->app->singleton(ComposerDiagnosticService::class);
     }
 
     /**

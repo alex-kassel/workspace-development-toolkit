@@ -436,6 +436,7 @@ class WorkspaceManager
         $this->composer->syncRepositories($data['workspaces']);
         $this->composer->ensureComposerHooks();
         $this->composer->ensureWorkspaceScript();
+        $this->composer->ensureMinimumStability();
 
         return $data;
     }

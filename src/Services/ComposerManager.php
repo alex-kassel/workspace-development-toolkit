@@ -241,4 +241,52 @@ class ComposerManager
 
         return $result;
     }
+
+    /**
+     * Ensure root composer.json has minimum-stability set to dev and prefer-stable set to true.
+     * This is required for Composer to resolve local workspace packages and their inter-dependencies.
+     */
+    public function ensureMinimumStability(): bool
+    {
+        $composerPath = base_path('composer.json');
+        if (! File::exists($composerPath)) {
+            return false;
+        }
+
+        $content = File::get($composerPath);
+        try {
+            $composer = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new InvalidJsonException(
+                $composerPath,
+                "Failed to parse composer.json: {$e->getMessage()}",
+                $e
+            );
+        }
+
+        if (! is_array($composer)) {
+            throw new InvalidJsonException(
+                $composerPath,
+                'composer.json must be a valid JSON object'
+            );
+        }
+
+        $modified = false;
+
+        if (($composer['minimum-stability'] ?? null) !== 'dev') {
+            $composer['minimum-stability'] = 'dev';
+            $modified = true;
+        }
+
+        if (($composer['prefer-stable'] ?? null) !== true) {
+            $composer['prefer-stable'] = true;
+            $modified = true;
+        }
+
+        if ($modified) {
+            File::put($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n", true);
+        }
+
+        return $modified;
+    }
 }

@@ -423,6 +423,21 @@ class WorkspaceManagerTest extends TestCase
         $this->assertArrayHasKey('workspace-packages', $saved['repositories']);
     }
 
+    public function test_composer_manager_ensures_minimum_stability_and_prefer_stable(): void
+    {
+        $composer = app(ComposerManager::class);
+
+        // Initially in dummy composer.json, minimum-stability is not dev
+        $this->assertTrue($composer->ensureMinimumStability());
+
+        $saved = json_decode(File::get(base_path('composer.json')), true);
+        $this->assertSame('dev', $saved['minimum-stability'] ?? null);
+        $this->assertTrue($saved['prefer-stable'] ?? false);
+
+        // Second call should return false (no-op since already set)
+        $this->assertFalse($composer->ensureMinimumStability());
+    }
+
     public function test_package_resolver_url_helpers_and_protocols(): void
     {
         // HTTPS to SSH

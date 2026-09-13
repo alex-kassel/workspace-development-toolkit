@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerDiagnosticService;
 use Illuminate\Console\Command;
 
 class PackageInstallCommand extends Command
@@ -23,6 +24,12 @@ class PackageInstallCommand extends Command
      * @var string
      */
     protected $description = 'Install a local workspace package into the application via Composer';
+
+    public function __construct(
+        protected readonly ComposerDiagnosticService $diagnostics,
+    ) {
+        parent::__construct();
+    }
 
     /**
      * Execute the console command.
@@ -87,11 +94,25 @@ class PackageInstallCommand extends Command
         try {
             Workspace::runComposer($args);
         } catch (ComposerProcessException $e) {
+            $diagnostic = $this->diagnostics->diagnoseInstallFailure($e->output, $name, $packagePath !== null);
+
             $this->error("Failed to install package [{$name}] via Composer.");
-            $this->line("  <comment>Composer output:</comment>\n".trim($e->output));
-            $this->line('  <comment>How to fix:</comment> If this is a local package, verify that it was created first:');
-            $this->line("  <info>php artisan package:make {$name}</info>");
-            $this->line('  Also check your registered workspaces: <info>php artisan workspace:list</info>');
+            $this->newLine();
+            $this->warn("  [{$diagnostic->title}]");
+            $this->line("  {$diagnostic->explanation}");
+
+            if (! empty($diagnostic->actionableSteps)) {
+                $this->newLine();
+                $this->line('  <fg=yellow>How to fix:</>');
+                foreach ($diagnostic->actionableSteps as $step) {
+                    $this->line("  • {$step}");
+                }
+            }
+
+            if ($diagnostic->rawOutput !== null && $diagnostic->rawOutput !== '') {
+                $this->newLine();
+                $this->line("  <comment>Composer output:</comment>\n  ".str_replace("\n", "\n  ", $diagnostic->rawOutput));
+            }
 
             return self::FAILURE;
         }

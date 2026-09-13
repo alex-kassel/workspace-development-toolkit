@@ -270,6 +270,27 @@ class PackageCommandsTest extends TestCase
         });
     }
 
+    public function test_package_install_displays_structured_diagnostics_on_composer_failure(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/my-lib', 'acme/my-lib');
+        Workspace::sync();
+
+        Process::fake([
+            '*' => Process::result(
+                output: '',
+                errorOutput: 'requires dep dev-main -> could not be found in any version, but it does match your minimum-stability.',
+                exitCode: 2
+            ),
+        ]);
+
+        $this->artisan('package:install', ['name' => 'acme/my-lib'])
+            ->expectsOutputToContain('Failed to install package [acme/my-lib] via Composer.')
+            ->expectsOutputToContain('Stability Mismatch')
+            ->expectsOutputToContain('composer config minimum-stability dev')
+            ->assertFailed();
+    }
+
     public function test_package_install_resolves_short_name_in_fixed_vendor_workspace(): void
     {
         Workspace::add('labs', 'alex-kassel-labs', true);
