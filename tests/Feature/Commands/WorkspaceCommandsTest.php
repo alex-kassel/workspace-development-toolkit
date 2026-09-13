@@ -668,4 +668,78 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertContains('acme/main-package', $workspaceData['workspaces']['packages']['packages']);
         $this->assertContains('acme/sub-package', $workspaceData['workspaces']['packages']['packages']);
     }
+
+    public function test_workspace_clone_recursive_auto_trusts_root_vendor_without_config(): void
+    {
+        Workspace::add('packages', null, true);
+        config(['workspace.trusted_organizations' => []]);
+
+        Process::fake([
+            '*' => function ($process) {
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;
+
+                if (str_contains($cmd, 'acme/main-package')) {
+                    $targetPath = base_path('packages/acme/main-package');
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'acme/main-package',
+                        'require' => [
+                            'acme/sub-package' => '^1.0',
+                            'untrusted/other-package' => '^2.0',
+                        ],
+                    ]));
+
+                    return Process::result(output: 'Cloned main-package');
+                }
+
+                if (str_contains($cmd, 'acme/sub-package')) {
+                    $targetPath = base_path('packages/acme/sub-package');
+                    File::ensureDirectoryExists($targetPath);
+                    File::put("{$targetPath}/composer.json", json_encode([
+                        'name' => 'acme/sub-package',
+                    ]));
+
+                    return Process::result(output: 'Cloned sub-package');
+                }
+
+                return Process::result(output: 'OK');
+            },
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'acme/main-package',
+            '--recursive' => true,
+        ])
+            ->expectsOutputToContain('Repository successfully cloned to [packages/acme/main-package]')
+            ->expectsOutputToContain('Recursively cloning dependency [acme/sub-package]')
+            ->doesntExpectOutputToContain('Recursively cloning dependency [untrusted/other-package]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists(base_path('packages/acme/main-package'));
+        $this->assertDirectoryExists(base_path('packages/acme/sub-package'));
+        $this->assertDirectoryDoesNotExist(base_path('packages/untrusted/other-package'));
+    }
+
+    public function test_workspace_clone_outputs_ssh_diagnostic_guide_on_auth_failure(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result(
+                output: '',
+                errorOutput: "git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.",
+                exitCode: 128
+            ),
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'vendor/private-package',
+        ])
+            ->expectsOutputToContain('Failed to clone repository')
+            ->expectsOutputToContain('SSH Key Missing or Rejected')
+            ->expectsOutputToContain('ssh-add -l')
+            ->assertFailed();
+
+        $this->assertDirectoryDoesNotExist(base_path('packages/vendor/private-package'));
+    }
 }

@@ -180,7 +180,7 @@ class PackageVerifier
             }
         }
 
-        $command = [$phpstanBin, 'analyse'];
+        $command = [$phpstanBin, 'analyse', '--debug'];
         if ($neonConfig !== null) {
             $command[] = '--configuration='.$neonConfig;
         } else {
@@ -572,7 +572,7 @@ class PackageVerifier
             }
         }
 
-        $command = [$phpstanBin, 'analyse'];
+        $command = [$phpstanBin, 'analyse', '--debug'];
         if ($neonConfig !== null) {
             $command[] = '--configuration='.$neonConfig;
         } else {

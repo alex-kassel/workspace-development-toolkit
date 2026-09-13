@@ -125,6 +125,12 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
     }
 
     echo "\n\033[32mDone!\033[0m Restored: {$totalRestored}, Already existing: {$totalExisting}, Failed: {$errors}\n";
+    if ($errors > 0) {
+        fwrite(STDERR, "\n\033[33m[TROUBLESHOOTING TIP]\033[0m If package cloning failed with 'Permission denied (publickey)':\n");
+        fwrite(STDERR, "  • Check if SSH agent has keys loaded: ssh-add -l\n");
+        fwrite(STDERR, "  • Add your private SSH key:          ssh-add ~/.ssh/id_ed25519 (or ~/.ssh/id_rsa)\n");
+        fwrite(STDERR, "  • Verify connection to GitHub:        ssh -T git@github.com\n\n");
+    }
 
     return $errors > 0 ? 1 : 0;
 }

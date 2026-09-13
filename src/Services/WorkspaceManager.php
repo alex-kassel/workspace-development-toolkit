@@ -423,6 +423,11 @@ class WorkspaceManager
         $this->clearCache();
         $data = $this->load();
 
+        if (empty($data['repository_template'])) {
+            $configured = (string) config('workspace.repository_template', 'git@github.com:{package}.git');
+            $data['repository_template'] = trim($configured) !== '' ? trim($configured) : 'git@github.com:{package}.git';
+        }
+
         foreach ($data['workspaces'] as $path => $config) {
             $data['workspaces'][$path]['packages'] = $this->scanPackages($path, $config['vendor'] ?? null);
         }

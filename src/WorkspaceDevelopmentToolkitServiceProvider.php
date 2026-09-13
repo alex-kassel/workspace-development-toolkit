@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAliasCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAuditCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDeleteCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
@@ -19,11 +20,15 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\FingerprintCalculator;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\IsolatedPackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageAuditor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
@@ -52,10 +57,14 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(GitInspector::class);
         $this->app->singleton(ReadmeValidator::class);
         $this->app->singleton(ReleaseChecker::class);
+        $this->app->singleton(FingerprintCalculator::class);
+        $this->app->singleton(PackageAuditor::class);
+        $this->app->singleton(CertificateVerifier::class);
         $this->app->singleton(SkillInstaller::class, function () {
             return new SkillInstaller;
         });
         $this->app->singleton(PackageScaffolder::class);
+        $this->app->singleton(GitDiagnosticService::class);
     }
 
     /**
@@ -93,6 +102,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
             $this->commands([
                 PackageMakeCommand::class,
                 PackageCheckCommand::class,
+                PackageAuditCommand::class,
                 PackageInstallCommand::class,
                 PackageUninstallCommand::class,
                 PackageDeleteCommand::class,

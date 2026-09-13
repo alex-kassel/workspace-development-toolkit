@@ -34,6 +34,7 @@ This skill guides the deterministic, non-destructive creation of new packages in
 
 4. **Implement Initial Package Logic**:
    - Add contracts, DTOs, and services in `src/`.
+   - Keep commands and controllers strictly as thin coordinators: delegate process execution, file operations, error diagnostics, and business logic to reusable services + typed DTOs.
    - Add unit/feature tests in `tests/`.
    - Remember: **Strict No-Stubs Policy** (never leave empty methods, `// TODO`, or fake stubs).
 

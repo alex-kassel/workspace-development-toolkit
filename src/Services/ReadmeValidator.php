@@ -27,23 +27,21 @@ class ReadmeValidator
      */
     public function validate(string $packageNameOrPath): array
     {
-        $packagePath = $this->packageResolver->findPackagePath($packageNameOrPath);
-        if ($packagePath === null) {
-            $normalized = trim(str_replace('\\', '/', $packageNameOrPath), '/');
-            if (File::isDirectory(base_path($normalized))) {
-                $packagePath = $normalized;
-            } elseif (File::isDirectory($packageNameOrPath)) {
-                $packagePath = $packageNameOrPath;
+        if (File::isDirectory($packageNameOrPath)) {
+            $fullPath = realpath($packageNameOrPath) ?: $packageNameOrPath;
+            $packagePath = $packageNameOrPath;
+        } else {
+            $packagePath = $this->packageResolver->findPackagePath($packageNameOrPath);
+            if ($packagePath === null) {
+                $normalized = trim(str_replace('\\', '/', $packageNameOrPath), '/');
+                if (File::isDirectory(base_path($normalized))) {
+                    $packagePath = $normalized;
+                    $fullPath = base_path($packagePath);
+                } else {
+                    throw new RuntimeException("Package [{$packageNameOrPath}] not found in any registered workspace.");
+                }
             } else {
-                throw new RuntimeException("Package [{$packageNameOrPath}] not found in any registered workspace.");
-            }
-        }
-
-        $fullPath = base_path($packagePath);
-        if (! File::isDirectory($fullPath)) {
-            $fullPath = $packagePath;
-            if (! File::isDirectory($fullPath)) {
-                throw new RuntimeException("Package directory does not exist: {$fullPath}");
+                $fullPath = base_path($packagePath);
             }
         }
 

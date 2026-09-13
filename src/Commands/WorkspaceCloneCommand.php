@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -33,6 +34,12 @@ class WorkspaceCloneCommand extends Command
      * @var string
      */
     protected $description = 'Clone a package from a Git/GitHub repository into a workspace and optionally symlink via Composer';
+
+    public function __construct(
+        protected readonly GitDiagnosticService $diagnostics,
+    ) {
+        parent::__construct();
+    }
 
     /**
      * Execute the console command.
@@ -175,9 +182,26 @@ class WorkspaceCloneCommand extends Command
         $cloneResult = Process::timeout($timeout)->run(['git', 'clone', '--', $repoUrl, $fullTargetPath]);
 
         if (! $cloneResult->successful()) {
+            $gitOutput = trim($cloneResult->errorOutput() ?: $cloneResult->output());
+            $diagnostic = $this->diagnostics->diagnoseCloneFailure($gitOutput, $repoUrl);
+
             $this->error("Failed to clone repository [{$repoUrl}].");
-            $this->line("  <comment>Git output:</comment>\n".trim($cloneResult->errorOutput() ?: $cloneResult->output()));
-            $this->line('  <comment>How to fix:</comment> Verify that git is installed, the URL is correct, and you have read access (check SSH keys for private repositories).');
+            $this->newLine();
+            $this->warn("  [{$diagnostic->title}]");
+            $this->line("  {$diagnostic->explanation}");
+
+            if (! empty($diagnostic->actionableSteps)) {
+                $this->newLine();
+                $this->line('  <fg=yellow>How to fix:</>');
+                foreach ($diagnostic->actionableSteps as $step) {
+                    $this->line("  • {$step}");
+                }
+            }
+
+            if ($diagnostic->rawOutput !== null && $diagnostic->rawOutput !== '') {
+                $this->newLine();
+                $this->line("  <comment>Git output:</comment>\n  ".str_replace("\n", "\n  ", $diagnostic->rawOutput));
+            }
 
             // Clean up directory if left partially created
             if (File::isDirectory($fullTargetPath)) {
@@ -264,8 +288,17 @@ class WorkspaceCloneCommand extends Command
 
         // Recursive cloning of dependencies from trusted organizations
         if ($recursive && File::exists($clonedComposerPath)) {
+            $rootVendor = null;
+            if ($canonicalComposerName && str_contains($canonicalComposerName, '/')) {
+                [$rootVendor] = explode('/', $canonicalComposerName, 2);
+            } elseif ($inferredVendor) {
+                $rootVendor = $inferredVendor;
+            } elseif ($workspaceVendor) {
+                $rootVendor = $workspaceVendor;
+            }
+
             $visited = [$canonicalComposerName ?? $packageName => true];
-            $this->cloneDependenciesRecursively($clonedComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited);
+            $this->cloneDependenciesRecursively($clonedComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited, $rootVendor);
         }
 
         $this->newLine();
@@ -291,9 +324,14 @@ class WorkspaceCloneCommand extends Command
         bool $install,
         bool $dev,
         int $timeout,
-        array &$visited
+        array &$visited,
+        ?string $rootVendor = null
     ): void {
         $trustedOrgs = (array) config('workspace.trusted_organizations', []);
+        if ($rootVendor !== null && ! in_array($rootVendor, $trustedOrgs, true)) {
+            $trustedOrgs[] = $rootVendor;
+        }
+
         if (empty($trustedOrgs) || ! File::exists($composerPath)) {
             return;
         }
@@ -360,7 +398,14 @@ class WorkspaceCloneCommand extends Command
             $cloneResult = Process::timeout($timeout)->run(['git', 'clone', $depRepoUrl, $fullTarget]);
 
             if (! $cloneResult->successful()) {
+                $depOutput = trim($cloneResult->errorOutput() ?: $cloneResult->output());
+                $diagnostic = $this->diagnostics->diagnoseCloneFailure($depOutput, $depRepoUrl);
+
                 $this->warn("Failed to clone dependency [{$dep}] from [{$depRepoUrl}].");
+                $this->line("  <comment>[{$diagnostic->title}]</comment> {$diagnostic->explanation}");
+                if (! empty($diagnostic->actionableSteps)) {
+                    $this->line("  • Hint: {$diagnostic->actionableSteps[0]}");
+                }
 
                 if (File::isDirectory($fullTarget)) {
                     File::deleteDirectory($fullTarget);

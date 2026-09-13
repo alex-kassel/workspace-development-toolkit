@@ -234,4 +234,24 @@ class GitInspector
             throw new \RuntimeException("Failed to create initial Git tag [{$initialTag}]: ".$tagResult->errorOutput());
         }
     }
+
+    /**
+     * Resolve the git tree hash of HEAD in the target package directory.
+     */
+    public function getTreeHash(string $path): string
+    {
+        $result = Process::path($path)->run(['git', 'rev-parse', 'HEAD^{tree}']);
+
+        return $result->successful() ? trim($result->output()) : '';
+    }
+
+    /**
+     * Resolve the git commit hash of HEAD in the target package directory.
+     */
+    public function getCommitHash(string $path): string
+    {
+        $result = Process::path($path)->run(['git', 'rev-parse', 'HEAD']);
+
+        return $result->successful() ? trim($result->output()) : '';
+    }
 }
