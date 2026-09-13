@@ -611,6 +611,24 @@ class PackageCommandsTest extends TestCase
         $this->assertDirectoryExists(base_path('app/Cores/Scraper'));
     }
 
+    public function test_package_alias_prompts_for_alias_when_omitted(): void
+    {
+        Workspace::add('app/Cores', 'alex-kassel', true);
+        $this->createDummyPackage('app/Cores/scraper-core', 'alex-kassel/scraper-core');
+        Workspace::sync();
+
+        Process::fake([
+            'composer*' => Process::result(output: 'dumped'),
+        ]);
+
+        $this->artisan('package:alias', ['package' => 'scraper-core'])
+            ->expectsQuestion('Please enter the new directory alias for [scraper-core]:', 'PromptedAlias')
+            ->expectsOutputToContain('successfully aliased to [PromptedAlias]')
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists(base_path('app/Cores/PromptedAlias'));
+    }
+
     public function test_package_alias_warns_when_duplicate_alias_exists(): void
     {
         Workspace::add('app/Cores', 'alex-kassel');

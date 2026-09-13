@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
 use Illuminate\Console\Command;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Mockery\MockInterface;
 
-class WorkspaceCloneCommand extends Command
+class WorkspaceCloneCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
@@ -124,11 +125,10 @@ class WorkspaceCloneCommand extends Command
                 return self::FAILURE;
             }
 
-            if (! preg_match('/^[a-zA-Z0-9_.-]+$/', $alias) || str_contains($alias, '/') || str_contains($alias, '\\') || $alias === '.' || $alias === '..') {
-                $this->error("Invalid alias [{$alias}].");
-                $this->line('  <comment>Notice:</comment> Alias must contain only alphanumeric characters, dashes, underscores, and dots.');
-
-                return self::FAILURE;
+            try {
+                $this->workspace->validateAliasName($alias);
+            } catch (WorkspaceException $e) {
+                return $this->handleWorkspaceException($e);
             }
         }
 
@@ -256,20 +256,8 @@ class WorkspaceCloneCommand extends Command
 
         $this->info("Repository successfully cloned to [{$relativeTargetPath}].");
 
-        // Check if the chosen alias already exists elsewhere
         if ($alias !== '') {
-            $duplicates = Workspace::findDuplicateAliases($alias, $relativeTargetPath);
-            if (! empty($duplicates)) {
-                $this->newLine();
-                $this->warn("Notice: The alias/name [{$alias}] is also used by another package:");
-                foreach ($duplicates as $duplicate) {
-                    $this->line("  • {$duplicate}");
-                }
-                $this->newLine();
-                $this->line("  <comment>Hint:</comment> Both packages will work normally in Composer, but resolving by short name '{$alias}' will be ambiguous.");
-                $this->line('  If you wish to differentiate them, you can assign a unique alias:');
-                $this->line("  <info>php artisan package:alias {$relativeTargetPath} UniqueAlias</info>");
-            }
+            $this->warnIfDuplicateAlias($alias, $relativeTargetPath);
         }
 
         // Optional symlinking via Composer

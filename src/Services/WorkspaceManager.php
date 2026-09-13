@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\PackageAliasResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\AmbiguousPackageException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\DefaultWorkspaceNotConfiguredException;
@@ -444,11 +445,9 @@ class WorkspaceManager
     /**
      * Assign directory alias to a package in a flat workspace.
      *
-     * @return array{old_path: string, new_path: string, canonical_name: string}
-     *
      * @throws WorkspaceException
      */
-    public function aliasPackage(string $packageName, string $alias): array
+    public function aliasPackage(string $packageName, string $alias, bool $dumpAutoload = true): PackageAliasResult
     {
         $context = $this->validateAndResolveAliasContext($packageName, $alias);
 
@@ -617,11 +616,45 @@ class WorkspaceManager
             );
         }
 
-        return [
-            'old_path' => $packagePath,
-            'new_path' => $targetRelativePath,
-            'canonical_name' => $canonicalName,
-        ];
+        if ($dumpAutoload) {
+            try {
+                $this->composer->runComposer(['dump-autoload']);
+            } catch (\Throwable) {
+                // Autoload dump error is non-fatal for alias operation
+            }
+        }
+
+        return new PackageAliasResult(
+            oldPath: $packagePath,
+            newPath: $targetRelativePath,
+            canonicalName: $canonicalName,
+            alias: $alias,
+            workspace: $workspace,
+            wasInstalled: $vendorLinkExisted,
+        );
+    }
+
+    /**
+     * Validate an alias name syntax.
+     *
+     * @throws WorkspaceException
+     */
+    public function validateAliasName(string $alias): void
+    {
+        $trimmed = trim($alias);
+        if ($trimmed === '') {
+            throw new WorkspaceException(
+                'Alias cannot be empty.',
+                'Specify a non-empty directory name alias, e.g. php artisan package:alias scraper-core Scraper.'
+            );
+        }
+
+        if (! preg_match('/^[a-zA-Z0-9_.-]+$/', $trimmed) || str_contains($trimmed, '/') || str_contains($trimmed, '\\') || $trimmed === '.' || $trimmed === '..') {
+            throw new WorkspaceException(
+                "Invalid alias [{$trimmed}].",
+                'Alias must contain only alphanumeric characters, dashes, underscores, and dots, and cannot contain path separators or relative directory operators.'
+            );
+        }
     }
 
     /**
@@ -642,20 +675,8 @@ class WorkspaceManager
      */
     protected function validateAndResolveAliasContext(string $packageName, string $alias): array
     {
+        $this->validateAliasName($alias);
         $alias = trim($alias);
-        if ($alias === '') {
-            throw new WorkspaceException(
-                'Alias cannot be empty.',
-                'Specify a non-empty directory name alias, e.g. php artisan package:alias scraper-core Scraper.'
-            );
-        }
-
-        if (! preg_match('/^[a-zA-Z0-9_.-]+$/', $alias)) {
-            throw new WorkspaceException(
-                "Invalid alias [{$alias}].",
-                'Alias must contain only alphanumeric characters, dashes, underscores, and dots.'
-            );
-        }
 
         $packagePath = $this->findPackagePath($packageName);
         if ($packagePath === null) {

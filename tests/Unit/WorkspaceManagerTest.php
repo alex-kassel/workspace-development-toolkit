@@ -213,6 +213,12 @@ class WorkspaceManagerTest extends TestCase
 
         $result = Workspace::aliasPackage('scraper-core', 'Scraper');
 
+        $this->assertSame('app/Cores/scraper-core', $result->oldPath);
+        $this->assertSame('app/Cores/Scraper', $result->newPath);
+        $this->assertSame('alex-kassel/scraper-core', $result->canonicalName);
+        $this->assertSame('Scraper', $result->alias);
+        $this->assertSame('app/Cores', $result->workspace);
+
         $this->assertSame('app/Cores/scraper-core', $result['old_path']);
         $this->assertSame('app/Cores/Scraper', $result['new_path']);
         $this->assertSame('alex-kassel/scraper-core', $result['canonical_name']);
@@ -230,6 +236,31 @@ class WorkspaceManagerTest extends TestCase
         $this->assertSame('app/Cores/Scraper', Workspace::findPackagePath('scraper-core'));
         // Can find by canonical name
         $this->assertSame('app/Cores/Scraper', Workspace::findPackagePath('alex-kassel/scraper-core'));
+    }
+
+    public function test_validate_alias_name_accepts_valid_and_rejects_invalid(): void
+    {
+        // Valid aliases should not throw
+        Workspace::validateAliasName('ValidAlias');
+        Workspace::validateAliasName('my-alias_1.0');
+
+        // Empty
+        try {
+            Workspace::validateAliasName('');
+            $this->fail('Expected exception for empty alias');
+        } catch (WorkspaceException $e) {
+            $this->assertStringContainsString('Alias cannot be empty', $e->getMessage());
+        }
+
+        // Path separator or invalid characters
+        foreach (['../../bad', 'foo/bar', 'foo\\bar', '.', '..', 'invalid alias'] as $badAlias) {
+            try {
+                Workspace::validateAliasName($badAlias);
+                $this->fail("Expected exception for bad alias: {$badAlias}");
+            } catch (WorkspaceException $e) {
+                $this->assertStringContainsString("Invalid alias [{$badAlias}]", $e->getMessage());
+            }
+        }
     }
 
     public function test_alias_package_rejects_nested_workspace(): void

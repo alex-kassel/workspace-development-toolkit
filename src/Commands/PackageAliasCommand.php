@@ -5,11 +5,8 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Process;
 
-class PackageAliasCommand extends Command
+class PackageAliasCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
@@ -34,17 +31,21 @@ class PackageAliasCommand extends Command
      */
     public function handle(): int
     {
-        $package = (string) $this->argument('package');
-        $rawAlias = (string) ($this->option('as') ?: $this->option('alias') ?: $this->argument('alias'));
-
-        if (trim($package) === '') {
+        $package = trim((string) $this->argument('package'));
+        if ($package === '') {
             $this->error('Package name is required.');
             $this->line('  <comment>Usage:</comment> php artisan package:alias <package> <alias>');
 
             return self::FAILURE;
         }
 
-        if (trim($rawAlias) === '') {
+        $rawAlias = trim((string) ($this->option('as') ?: $this->option('alias') ?: $this->argument('alias')));
+
+        if ($rawAlias === '' && $this->input->isInteractive()) {
+            $rawAlias = trim((string) $this->ask("Please enter the new directory alias for [{$package}]:"));
+        }
+
+        if ($rawAlias === '') {
             $this->error('Alias is required.');
             $this->line('  <comment>Usage:</comment>');
             $this->line("  <info>php artisan package:alias {$package} MyAlias</info>");
@@ -54,49 +55,19 @@ class PackageAliasCommand extends Command
         }
 
         try {
-            $result = Workspace::aliasPackage($package, $rawAlias);
+            $result = $this->workspace->aliasPackage($package, $rawAlias);
         } catch (WorkspaceException $e) {
-            $this->error($e->getMessage());
-            if ($e->getSolution()) {
-                $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
-            }
-
-            return self::FAILURE;
+            return $this->handleWorkspaceException($e);
         }
 
-        $oldPath = $result['old_path'];
-        $newPath = $result['new_path'];
-        $canonicalName = $result['canonical_name'];
+        $this->info("Package [{$result->canonicalName}] successfully aliased to [{$result->alias}] ({$result->newPath}).");
 
-        // Refresh Composer autoloader to account for directory rename
-        $dumpResult = Process::path(base_path())
-            ->timeout((int) config('workspace.process_timeout', 300))
-            ->run(['composer', 'dump-autoload']);
-        if (! $dumpResult->successful()) {
-            $this->warn('Notice: Composer dump-autoload encountered warnings or errors:');
-            $this->line('  '.trim($dumpResult->errorOutput() ?: $dumpResult->output()));
-        }
-
-        $this->info("Package [{$canonicalName}] successfully aliased to [{$rawAlias}] ({$newPath}).");
-
-        // Check if the chosen alias already exists elsewhere
-        $duplicates = Workspace::findDuplicateAliases($rawAlias, $newPath);
-        if (! empty($duplicates)) {
-            $this->newLine();
-            $this->warn("Notice: The alias/name [{$rawAlias}] is also used by another package:");
-            foreach ($duplicates as $duplicate) {
-                $this->line("  • {$duplicate}");
-            }
-            $this->newLine();
-            $this->line("  <comment>Hint:</comment> Both packages will work normally in Composer, but resolving by short name '{$rawAlias}' will be ambiguous.");
-            $this->line('  If you wish to differentiate them, you can assign a unique alias:');
-            $this->line("  <info>php artisan package:alias {$newPath} UniqueAlias</info>");
-        }
+        $this->warnIfDuplicateAlias($result->alias, $result->newPath);
 
         $this->newLine();
         $this->line('  <comment>Next steps:</comment>');
         $this->line('  • Check registered packages: <info>php artisan workspace:list</info>');
-        $this->line("  • Refer to this package:     <info>php artisan package:install {$rawAlias}</info>");
+        $this->line("  • Verify package status:     <info>php artisan package:check {$result->alias}</info>");
 
         return self::SUCCESS;
     }

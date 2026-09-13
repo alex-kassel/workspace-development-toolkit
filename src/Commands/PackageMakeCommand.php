@@ -7,9 +7,8 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
-use Illuminate\Console\Command;
 
-class PackageMakeCommand extends Command
+class PackageMakeCommand extends BasePackageCommand
 {
     /**
      * The name and signature of the console command.
@@ -84,12 +83,7 @@ class PackageMakeCommand extends Command
                 skillSlug: $skillSlug !== '' ? $skillSlug : null
             );
         } catch (WorkspaceException $e) {
-            $this->error($e->getMessage());
-            if ($e->getSolution()) {
-                $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
-            }
-
-            return self::FAILURE;
+            return $this->handleWorkspaceException($e);
         } catch (\Throwable $e) {
             $this->error("Failed to scaffold package: {$e->getMessage()}");
 
@@ -104,16 +98,7 @@ class PackageMakeCommand extends Command
         $this->line('  <info>Git repository initialized with initial commit and tag v0.0.1.</info>');
 
         if ($alias !== null) {
-            $duplicates = Workspace::findDuplicateAliases($alias, $displayPath);
-            if (! empty($duplicates)) {
-                $this->newLine();
-                $this->warn("Notice: The alias/name [{$alias}] is also used by another package:");
-                foreach ($duplicates as $duplicate) {
-                    $this->line("  • {$duplicate}");
-                }
-                $this->newLine();
-                $this->line("  <comment>Hint:</comment> Both packages will work normally in Composer, but resolving by short name '{$alias}' will be ambiguous.");
-            }
+            $this->warnIfDuplicateAlias($alias, $displayPath);
         }
 
         if ($install) {
