@@ -21,11 +21,11 @@ class PackageVerifier
     /**
      * Run isolated package verification.
      */
-    public function checkIsolated(string $packagePath, ?string $packageName = null): CheckResult
+    public function checkIsolated(string $packagePath, ?string $packageName = null, bool $withWorkspaceDeps = false): CheckResult
     {
         $this->isolatedVerifier ??= app(IsolatedPackageVerifier::class);
 
-        return $this->isolatedVerifier->verify($packagePath, $packageName);
+        return $this->isolatedVerifier->verify($packagePath, $packageName, $withWorkspaceDeps);
     }
 
     /**
@@ -280,7 +280,8 @@ class PackageVerifier
         string|array $tier = 'deep',
         array $only = [],
         bool $fix = true,
-        bool $isolated = false
+        bool $isolated = false,
+        bool $withWorkspaceDeps = false
     ): array {
         if ($packageName === 'quick' || $packageName === 'deep') {
             if (is_array($tier)) {
@@ -347,7 +348,7 @@ class PackageVerifier
         }
 
         if (in_array('isolated', $checks, true)) {
-            $results[] = $this->checkIsolated($absPackagePath, $packageName);
+            $results[] = $this->checkIsolated($absPackagePath, $packageName, $withWorkspaceDeps);
         }
 
         return $results;
@@ -365,7 +366,8 @@ class PackageVerifier
         string|array $tier = 'deep',
         array $only = [],
         bool $fix = true,
-        bool $isolated = false
+        bool $isolated = false,
+        bool $withWorkspaceDeps = false
     ): array {
         if (is_array($tier)) {
             $isolated = $fix;
@@ -380,7 +382,7 @@ class PackageVerifier
         if ($fix || $isolated || count($packagePaths) <= 1) {
             foreach ($packagePaths as $key => $path) {
                 $packageName = is_string($key) && ! is_numeric($key) ? $key : null;
-                $results[$path] = $this->checkAll($path, $packageName, $tier, $only, $fix, $isolated);
+                $results[$path] = $this->checkAll($path, $packageName, $tier, $only, $fix, $isolated, $withWorkspaceDeps);
             }
 
             return $results;

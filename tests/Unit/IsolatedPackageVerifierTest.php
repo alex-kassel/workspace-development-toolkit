@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Unit;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\IsolatedPackageVerifier;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -146,5 +147,80 @@ class IsolatedPackageVerifierTest extends TestCase
         $this->assertFileDoesNotExist($dest.'/.env');
         $this->assertFileDoesNotExist($dest.'/composer.lock');
         $this->assertFileDoesNotExist($dest.'/vendor/autoload/file.php');
+    }
+
+    public function test_isolated_verification_detects_workspace_dependency_and_fails_without_flag(): void
+    {
+        $siblingDir = $this->tempDir.'/packages/acme/sibling-core';
+        $targetDir = $this->tempDir.'/packages/acme/consumer-pkg';
+        File::ensureDirectoryExists($siblingDir);
+        File::ensureDirectoryExists($targetDir);
+
+        File::put($siblingDir.'/composer.json', json_encode(['name' => 'acme/sibling-core']));
+        File::put($targetDir.'/composer.json', json_encode([
+            'name' => 'acme/consumer-pkg',
+            'require' => [
+                'acme/sibling-core' => '^1.0',
+            ],
+        ], JSON_PRETTY_PRINT));
+        File::put($targetDir.'/phpunit.xml', '<phpunit></phpunit>');
+
+        $mockResolver = $this->createMock(PackageResolver::class);
+        $mockResolver->method('findPackagePath')
+            ->with('acme/sibling-core')
+            ->willReturn($siblingDir);
+
+        $verifier = new IsolatedPackageVerifier(app(FilesystemHelper::class), $mockResolver);
+        $result = $verifier->verify($targetDir, withWorkspaceDeps: false);
+
+        $this->assertSame('failed', $result->status);
+        $this->assertStringContainsString('[WORKSPACE DEPENDENCY DETECTED]', $result->output);
+        $this->assertStringContainsString('--with-workspace-deps', $result->output);
+    }
+
+    public function test_isolated_verification_links_workspace_dependency_when_flag_provided(): void
+    {
+        $siblingDir = $this->tempDir.'/packages/acme/sibling-core';
+        $targetDir = $this->tempDir.'/packages/acme/consumer-pkg';
+        File::ensureDirectoryExists($siblingDir);
+        File::ensureDirectoryExists($targetDir);
+
+        File::put($siblingDir.'/composer.json', json_encode(['name' => 'acme/sibling-core']));
+        File::put($targetDir.'/composer.json', json_encode([
+            'name' => 'acme/consumer-pkg',
+            'require' => [
+                'acme/sibling-core' => '^1.0',
+            ],
+        ], JSON_PRETTY_PRINT));
+        File::put($targetDir.'/phpunit.xml', '<phpunit></phpunit>');
+
+        $mockResolver = $this->createMock(PackageResolver::class);
+        $mockResolver->method('findPackagePath')
+            ->with('acme/sibling-core')
+            ->willReturn($siblingDir);
+
+        Process::fake([
+            '*' => function ($process) {
+                $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+                $cwd = $process->path;
+
+                if (str_contains($cmd, 'git ls-files')) {
+                    return Process::result(output: "composer.json\0phpunit.xml\0");
+                }
+
+                if (is_string($cwd) && str_contains($cmd, 'composer install')) {
+                    $binDir = $cwd.'/vendor/bin';
+                    File::ensureDirectoryExists($binDir);
+                    File::put($binDir.'/phpunit', "#!/bin/sh\necho OK\n");
+                }
+
+                return Process::result(output: 'OK');
+            },
+        ]);
+
+        $verifier = new IsolatedPackageVerifier(app(FilesystemHelper::class), $mockResolver);
+        $result = $verifier->verify($targetDir, withWorkspaceDeps: true);
+
+        $this->assertSame('passed', $result->status, $result->output);
     }
 }

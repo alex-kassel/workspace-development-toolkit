@@ -16,13 +16,14 @@ use Throwable;
 class IsolatedPackageVerifier
 {
     public function __construct(
-        protected FilesystemHelper $filesystem
+        protected FilesystemHelper $filesystem,
+        protected ?PackageResolver $packageResolver = null
     ) {}
 
     /**
      * Run isolated package verification in a clean temporary directory.
      */
-    public function verify(string $packagePath, ?string $packageName = null): CheckResult
+    public function verify(string $packagePath, ?string $packageName = null, bool $withWorkspaceDeps = false): CheckResult
     {
         $startTime = microtime(true);
         $packageName ??= $this->resolvePackageName($packagePath);
@@ -46,10 +47,72 @@ class IsolatedPackageVerifier
                 throw new RuntimeException('Package composer.json must contain an object.');
             }
 
-            foreach (($manifest['repositories'] ?? []) as $repository) {
+            $declaredRepos = $manifest['repositories'] ?? [];
+            $hasCommittedPathRepo = false;
+            foreach ($declaredRepos as $repository) {
                 if (is_array($repository) && ($repository['type'] ?? '') === 'path') {
-                    throw new RuntimeException('Standalone verification rejects path repositories; dependencies must be independently installable.');
+                    $hasCommittedPathRepo = true;
+                    break;
                 }
+            }
+
+            if ($hasCommittedPathRepo && ! $withWorkspaceDeps) {
+                throw new RuntimeException('Standalone verification rejects path repositories; dependencies must be independently installable.');
+            }
+
+            // Detect dependencies that exist within local workspaces
+            $dependencies = array_merge(
+                array_keys($manifest['require'] ?? []),
+                array_keys($manifest['require-dev'] ?? [])
+            );
+
+            $this->packageResolver ??= function_exists('app') && app()->bound(PackageResolver::class)
+                ? app(PackageResolver::class)
+                : null;
+
+            $workspaceDependencies = [];
+            if ($this->packageResolver !== null) {
+                $absSource = realpath($packagePath) ?: $packagePath;
+                foreach ($dependencies as $dep) {
+                    if (! is_string($dep) || ! str_contains($dep, '/')) {
+                        continue;
+                    }
+                    $siblingPath = $this->packageResolver->findPackagePath($dep);
+                    if ($siblingPath !== null) {
+                        $absSibling = realpath(base_path($siblingPath)) ?: base_path($siblingPath);
+                        if ($absSource !== $absSibling) {
+                            $workspaceDependencies[$dep] = $absSibling;
+                        }
+                    }
+                }
+            }
+
+            if (! empty($workspaceDependencies)) {
+                if (! $withWorkspaceDeps) {
+                    $depList = implode(', ', array_keys($workspaceDependencies));
+                    throw new RuntimeException(
+                        "[WORKSPACE DEPENDENCY DETECTED]\n"
+                        ."Package [{$packageName}] depends on local workspace package(s): [{$depList}].\n"
+                        ."Standalone verification isolates the package; linking sibling workspace packages requires explicit authorization.\n\n"
+                        ."How to fix:\n"
+                        ."  Run the command with the --with-workspace-deps flag:\n"
+                        ."  php artisan package:check {$packageName} --isolated --with-workspace-deps"
+                    );
+                }
+
+                // Ephemeral path repositories injection for isolated run
+                $ephemeralRepos = is_array($declaredRepos) ? $declaredRepos : [];
+                foreach ($workspaceDependencies as $depPath) {
+                    $ephemeralRepos[] = [
+                        'type' => 'path',
+                        'url' => $depPath,
+                        'options' => [
+                            'symlink' => true,
+                        ],
+                    ];
+                }
+                $manifest['repositories'] = $ephemeralRepos;
+                File::put($composerJsonPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
             }
 
             $configuration = File::exists($project.DIRECTORY_SEPARATOR.'phpunit.xml') ? 'phpunit.xml' : 'phpunit.xml.dist';
@@ -75,7 +138,7 @@ class IsolatedPackageVerifier
             }
 
             $output[] = $this->run(
-                ['composer', 'install', '--prefer-dist', '--no-interaction', '--no-progress'],
+                ['composer', 'install', '--prefer-dist', '--prefer-offline', '--no-interaction', '--no-progress'],
                 $project,
                 $environment
             );
