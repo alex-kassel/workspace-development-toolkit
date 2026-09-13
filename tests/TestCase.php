@@ -76,6 +76,7 @@ abstract class TestCase extends BaseTestCase
         $this->app->forgetInstance(FilesystemHelper::class);
         $this->app->forgetInstance(ComposerManager::class);
         $this->app->forgetInstance(PackageResolver::class);
+        $this->app->forgetInstance(PackageGraph::class);
         $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
     }
@@ -88,6 +89,7 @@ abstract class TestCase extends BaseTestCase
         $this->app->forgetInstance(FilesystemHelper::class);
         $this->app->forgetInstance(ComposerManager::class);
         $this->app->forgetInstance(PackageResolver::class);
+        $this->app->forgetInstance(PackageGraph::class);
         $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
 

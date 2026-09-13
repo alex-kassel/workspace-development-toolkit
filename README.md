@@ -84,6 +84,7 @@ WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED=
    - [`workspace:default`](#workspacedefault)
    - [`php workspace restore`](#php-workspace-restore-standalone-cli-runner)
    - [`workspace:remove`](#workspaceremove)
+   - [`workspace:sync`](#workspacesync)
    - [`package:make`](#packagemake)
    - [`package:clone`](#packageclone)
    - [`package:alias`](#packagealias)
@@ -92,6 +93,8 @@ WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED=
    - [`package:delete`](#packagedelete)
    - [`package:skills`](#packageskills)
    - [`package:check`](#packagecheck)
+   - [`package:deps`](#packagedeps)
+   - [`package:workflow`](#packageworkflow)
    - [`package:readme`](#packagereadme)
    - [`package:release-check`](#packagerelease-check)
 8. [Smart Developer Experience (DX)](#smart-developer-experience-dx)
@@ -309,6 +312,22 @@ php artisan workspace:remove labs
 
 ---
 
+### `workspace:sync`
+Synchronizes root `composer.json` path repository definitions and scripts with all registered workspaces.
+
+```bash
+# Perform idempotent synchronization:
+php artisan workspace:sync
+
+# Inspect what would be synchronized without writing to disk:
+php artisan workspace:sync --dry-run
+```
+
+> [!TIP]
+> The synchronization is **strictly idempotent**: if root `composer.json` already contains the correct repository paths, it will **not touch or reformat the file** on disk, completely eliminating ghost git diffs in team environments.
+
+---
+
 ### `package:make`
 Scaffolds a new minimal Laravel package with a ServiceProvider, `composer.json`, and PSR-4 autoloading.
 
@@ -461,6 +480,12 @@ php artisan package:check my-package --fix
 # Run tests in an isolated temporary Laravel environment:
 php artisan package:check my-package --isolated
 
+# Run isolated tests linking unpublished local sibling packages:
+php artisan package:check my-package --isolated --with-workspace-deps
+
+# Run checks on my-package and automatically run regression tests for all dependent packages:
+php artisan package:check my-package --affected
+
 # Check all registered packages across workspaces:
 php artisan package:check --all
 
@@ -472,8 +497,46 @@ php artisan package:check --all --quick
 * `--quick`: Run quick tier checks only (`composer` validation and `pint` style check). Default is deep tier (`composer`, `pint`, `phpstan`, `tests`).
 * `--fix`: Automatically format and fix code style issues using Pint.
 * `--only=`: Comma-separated list of checks to run (`composer`, `pint`, `phpstan`, `tests`, `isolated`).
-* `--isolated`: Install and test an independent temporary copy of the package in isolation.
+* `--isolated`: Install and test an independent temporary copy of the package in isolation with Composer cache optimization (`--prefer-offline`).
+* `--with-workspace-deps`: Allow isolated checks to resolve and link unpublished sibling packages in your workspace using local path repositories. If omitted when sibling dependencies exist, the check halts with an explicit, actionable error.
+* `--affected`: Traverse the workspace dependency graph (DAG) and execute regression test suites for all packages that depend on this package.
 * `--all`: Verify all packages across all registered workspaces.
+
+---
+
+### `package:deps`
+Inspects and visualizes the dependency graph (DAG) for a package, showing direct and transitive dependencies as well as downstream dependents. It also detects circular dependency loops.
+
+```bash
+# Display an ASCII tree of dependencies and dependents:
+php artisan package:deps my-package
+
+# Output a Mermaid diagram (pasteable into Markdown or GitHub):
+php artisan package:deps my-package --mermaid
+
+# Output raw JSON for agent or CI pipeline consumption:
+php artisan package:deps my-package --json
+```
+
+**Options**:
+* `--mermaid`: Render a Mermaid graph definition (`flowchart TD`).
+* `--json`: Output full graph data (dependencies, dependents, cycle warnings) as JSON.
+
+---
+
+### `package:workflow`
+Scaffolds or regenerates a GitHub Actions CI test matrix workflow (`.github/workflows/run-tests.yml`) testing the package across PHP versions (8.2, 8.3, 8.4) and Laravel versions (11.*, 12.*, 13.*).
+
+```bash
+# Generate GitHub Actions matrix workflow for a package:
+php artisan package:workflow my-package
+
+# Overwrite existing workflow file:
+php artisan package:workflow my-package --force
+```
+
+**Options**:
+* `--force`: Overwrite existing `.github/workflows/run-tests.yml` if it already exists.
 
 ---
 

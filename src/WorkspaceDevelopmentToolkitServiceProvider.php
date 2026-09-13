@@ -9,17 +9,20 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageAuditCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageCloneCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDeleteCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageDepsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageMakeCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageReadmeCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageReleaseCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageSkillsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageUninstallCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageWorkflowCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceAddCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceSyncCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerDiagnosticService;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
@@ -30,6 +33,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\IsolatedPackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageAuditor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageGraph;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
@@ -67,6 +71,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(PackageScaffolder::class);
         $this->app->singleton(GitDiagnosticService::class);
         $this->app->singleton(ComposerDiagnosticService::class);
+        $this->app->singleton(PackageGraph::class);
     }
 
     /**
@@ -113,10 +118,13 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 PackageReleaseCheckCommand::class,
                 PackageSkillsCommand::class,
                 PackageCloneCommand::class,
+                PackageDepsCommand::class,
+                PackageWorkflowCommand::class,
                 WorkspaceAddCommand::class,
                 WorkspaceDefaultCommand::class,
                 WorkspaceListCommand::class,
                 WorkspaceRemoveCommand::class,
+                WorkspaceSyncCommand::class,
                 WorkspaceHelpCommand::class,
             ]);
 
