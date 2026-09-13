@@ -14,7 +14,7 @@ class PackageAliasCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:alias
-        {package : Package name in vendor/package format (e.g. acme/my-pkg)}
+        {package? : Package name in vendor/package format (e.g. acme/my-pkg)}
         {alias? : New directory alias name (e.g. MyPackage)}';
 
     /**
