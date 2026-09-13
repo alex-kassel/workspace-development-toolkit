@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\CheckResult;
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageAuditor;
@@ -202,12 +203,7 @@ class PackageAuditCommand extends BasePackageCommand
 
     protected function formatStatus(string $status): string
     {
-        return match (strtolower($status)) {
-            'passed' => '<fg=green>PASS</>',
-            'failed' => '<fg=red>FAIL</>',
-            'skipped' => '<fg=yellow>SKIP</>',
-            default => $status,
-        };
+        return CheckStatus::format($status);
     }
 
     protected function summarizeOutput(CheckResult $check): string

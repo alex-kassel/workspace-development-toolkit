@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -108,12 +109,7 @@ class PackageCheckCommand extends BasePackageCommand
         $rows = [];
 
         foreach ($results as $result) {
-            $statusFormatted = match ($result->status) {
-                'passed' => '<fg=green>PASS</>',
-                'failed' => '<fg=red>FAIL</>',
-                'skipped' => '<fg=yellow>SKIP</>',
-                default => $result->status,
-            };
+            $statusFormatted = CheckStatus::format($result->status);
 
             if ($result->status === 'failed') {
                 $hasFailure = true;
@@ -156,22 +152,11 @@ class PackageCheckCommand extends BasePackageCommand
      */
     protected function handleAllPackages(string $tier, array $only, bool $fix, bool $isolated = false): int
     {
-        $packagesToVerify = [];
-        $data = $this->workspace->sync();
-
-        foreach ($data['workspaces'] as $ws => $config) {
-            foreach ($config['packages'] as $pkg) {
-                $pkgName = is_array($pkg) ? $pkg['name'] : (string) $pkg;
-                if ($pkgName === '') {
-                    continue;
-                }
-
-                $path = $this->workspace->findPackagePath($pkgName);
-                if ($path !== null && File::isDirectory(base_path($path))) {
-                    $packagesToVerify[$pkgName] = $path;
-                }
-            }
-        }
+        $this->workspace->sync();
+        $packagesToVerify = array_filter(
+            $this->workspace->getAllLocalPackages(),
+            fn (string $path) => File::isDirectory(base_path($path))
+        );
 
         if (empty($packagesToVerify)) {
             $this->warn('No local packages found in registered workspaces.');
@@ -201,12 +186,7 @@ class PackageCheckCommand extends BasePackageCommand
             $pkgFailed = false;
 
             foreach ($results as $r) {
-                $statusMap[$r->check] = match ($r->status) {
-                    'passed' => '<fg=green>PASS</>',
-                    'failed' => '<fg=red>FAIL</>',
-                    'skipped' => '<fg=yellow>SKIP</>',
-                    default => '-',
-                };
+                $statusMap[$r->check] = CheckStatus::format($r->status);
 
                 if ($r->status === 'failed') {
                     $pkgFailed = true;
