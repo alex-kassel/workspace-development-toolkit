@@ -5,7 +5,7 @@ declare(strict_types=1);
 return [
     /*
     |--------------------------------------------------------------------------
-    | Default Git Repository Template
+    | Default Git Repository URL Template
     |--------------------------------------------------------------------------
     |
     | When cloning or restoring packages, this template is used to construct
@@ -15,7 +15,7 @@ return [
     | e.g. "alex-kassel/workspace-development-toolkit".
     |
     */
-    'repository_template' => 'git@github.com:{package}.git',
+    'repository_url_template' => env('WORKSPACE_REPOSITORY_URL_TEMPLATE', env('WORKSPACE_REPOSITORY_TEMPLATE', 'git@github.com:{package}.git')),
 
     /*
     |--------------------------------------------------------------------------
@@ -26,7 +26,7 @@ return [
     | or Composer require / install / dump-autoload operations.
     |
     */
-    'process_timeout' => 300,
+    'process_timeout' => (int) env('WORKSPACE_PROCESS_TIMEOUT', 300),
 
     /*
     |--------------------------------------------------------------------------
@@ -54,9 +54,10 @@ return [
     | Vendors considered internal/trusted when performing recursive package cloning.
     | When `package:clone --recursive` is run, any dependencies belonging to these
     | organizations will be automatically cloned into the workspace as well.
+    | Can be defined as an array or comma-separated list via WORKSPACE_TRUSTED_ORGANIZATIONS.
     |
     */
-    'trusted_organizations' => [],
+    'trusted_organizations' => array_values(array_filter(array_map('trim', explode(',', (string) env('WORKSPACE_TRUSTED_ORGANIZATIONS', ''))))),
 
     /*
     |--------------------------------------------------------------------------
@@ -67,7 +68,7 @@ return [
     | should be installed, materialized, or linked.
     |
     */
-    'skills_path' => '.agents/skills',
+    'skills_path' => env('WORKSPACE_SKILLS_PATH', '.agents/skills'),
 
     /*
     |--------------------------------------------------------------------------
@@ -80,7 +81,7 @@ return [
     | have access to the latest workspace tools.
     |
     */
-    'auto_publish_skill' => true,
+    'auto_publish_skill' => (bool) env('WORKSPACE_AUTO_PUBLISH_SKILLS', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -93,5 +94,5 @@ return [
     | `--no-skills` command options.
     |
     */
-    'scaffold_agent_skills' => true,
+    'scaffold_agent_skills' => (bool) env('WORKSPACE_SCAFFOLD_AGENT_SKILLS', true),
 ];

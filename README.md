@@ -48,19 +48,48 @@ Optionally, publish the package configuration:
 php artisan vendor:publish --tag=workspace-config
 ```
 
+### Configuration & Environment Variables
+
+You can configure the toolkit via your published `config/workspace.php` or directly in your host `.env` file. Copy the following block into your `.env`:
+
+```bash
+# -----------------------------------------------------------------------------
+# Workspace Development Toolkit
+# -----------------------------------------------------------------------------
+# Default Git clone URL template used when cloning packages (e.g. acme/my-pkg).
+# The placeholder {package} will be replaced with the package name.
+WORKSPACE_REPOSITORY_URL_TEMPLATE=git@github.com:{package}.git
+
+# Maximum process timeout in seconds for Git and Composer operations.
+WORKSPACE_PROCESS_TIMEOUT=300
+
+# Relative directory path where AI agent skills are materialized or linked.
+WORKSPACE_SKILLS_PATH=.agents/skills
+
+# Automatically materialize bundled agent skills on console boot.
+WORKSPACE_AUTO_PUBLISH_SKILLS=true
+
+# Automatically scaffold agent skill skeletons (resources/skills) in new packages.
+WORKSPACE_SCAFFOLD_AGENT_SKILLS=true
+
+# Comma-separated list of vendor organizations trusted for recursive cloning.
+# WORKSPACE_TRUSTED_ORGANIZATIONS=acme,my-org
+```
+
 ---
 
 ## Table of Contents
 
 1. [Requirements](#requirements)
 2. [Installation](#installation)
-3. [Introduction & Philosophy](#introduction--philosophy)
-4. [Key Highlights](#key-highlights)
-5. [Usage](#usage)
+3. [Configuration & Environment Variables](#configuration--environment-variables)
+4. [Introduction & Philosophy](#introduction--philosophy)
+5. [Key Highlights](#key-highlights)
+6. [Usage](#usage)
    - [The Two Workspace Paradigms](#the-two-workspace-paradigms)
    - [Quick Start Tutorial (60 Seconds)](#quick-start-tutorial-60-seconds)
    - [Interactive Help & CLI Guide](#interactive-help--cli-guide)
-6. [Command Reference](#command-reference)
+7. [Command Reference](#command-reference)
    - [`workspace:help`](#workspacehelp)
    - [`workspace:add`](#workspaceadd)
    - [`workspace:list`](#workspacelist)
@@ -77,12 +106,12 @@ php artisan vendor:publish --tag=workspace-config
    - [`package:check`](#packagecheck)
    - [`package:readme`](#packagereadme)
    - [`package:release-check`](#packagerelease-check)
-7. [Smart Developer Experience (DX)](#smart-developer-experience-dx)
-8. [Under the Hood: Architecture & Manifest](#under-the-hood-architecture--manifest)
-9. [Real-World Recipes & Patterns](#real-world-recipes--patterns)
-10. [Troubleshooting & Domain Exceptions](#troubleshooting--domain-exceptions)
-11. [Testing](#testing)
-12. [License](#license)
+8. [Smart Developer Experience (DX)](#smart-developer-experience-dx)
+9. [Under the Hood: Architecture & Manifest](#under-the-hood-architecture--manifest)
+10. [Real-World Recipes & Patterns](#real-world-recipes--patterns)
+11. [Troubleshooting & Domain Exceptions](#troubleshooting--domain-exceptions)
+12. [Testing](#testing)
+13. [License](#license)
 
 ---
 

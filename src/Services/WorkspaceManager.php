@@ -456,8 +456,8 @@ class WorkspaceManager
         $this->clearCache();
         $data = $this->load();
 
-        if (empty($data['repository_template'])) {
-            $configured = (string) config('workspace.repository_template', 'git@github.com:{package}.git');
+        if (empty($data['repository_template']) && empty($data['repository_url_template'])) {
+            $configured = (string) (config('workspace.repository_url_template') ?? config('workspace.repository_template', 'git@github.com:{package}.git'));
             $data['repository_template'] = trim($configured) !== '' ? trim($configured) : 'git@github.com:{package}.git';
         }
 

@@ -53,7 +53,7 @@ class ManifestRepository
         $path = $this->workspaceJsonPath();
 
         if (! File::exists($path)) {
-            $configuredTemplate = (string) config('workspace.repository_template', 'git@github.com:{package}.git');
+            $configuredTemplate = (string) (config('workspace.repository_url_template') ?? config('workspace.repository_template', 'git@github.com:{package}.git'));
             $defaultData = [
                 'default' => null,
                 'repository_template' => trim($configuredTemplate) !== '' ? trim($configuredTemplate) : 'git@github.com:{package}.git',
@@ -225,10 +225,10 @@ class ManifestRepository
     public function getRepositoryTemplate(): string
     {
         $data = $this->load();
-        $configured = (string) config('workspace.repository_template', 'git@github.com:{package}.git');
+        $configured = (string) (config('workspace.repository_url_template') ?? config('workspace.repository_template', 'git@github.com:{package}.git'));
         $default = trim($configured) !== '' ? trim($configured) : 'git@github.com:{package}.git';
 
-        return $data['repository_template'] ?? $default;
+        return $data['repository_url_template'] ?? $data['repository_template'] ?? $default;
     }
 
     /**
