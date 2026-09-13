@@ -691,10 +691,10 @@ The package includes a comprehensive PHPUnit test suite covering workspace manif
 
 ```bash
 # Run tests from the host Laravel application:
-php artisan test packages/alex-kassel/workspace-development-toolkit/tests --compact
+php artisan test -c packages/alex-kassel/workspace-development-toolkit/phpunit.xml.dist --compact
 
 # Or run PHPUnit directly:
-vendor/bin/phpunit packages/alex-kassel/workspace-development-toolkit/tests
+vendor/bin/phpunit -c packages/alex-kassel/workspace-development-toolkit/phpunit.xml.dist
 ```
 
 ---

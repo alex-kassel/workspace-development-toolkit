@@ -106,7 +106,7 @@ class PackageDeleteCommand extends BasePackageCommand
             }
 
             if ($this->gitInspector->hasUnpushedCommits($realFullPath)) {
-                $this->error("Cannot delete package [{$package}]: package has unpushed commits.");
+                $this->error("Cannot delete package [{$package}]: package contains local Git commits that have not been pushed to a remote repository.");
                 $this->line('  <comment>How to fix:</comment> Push your commits to remote, or bypass check with --force:');
                 $this->line("  <info>php artisan package:delete {$package} --force</info>");
 

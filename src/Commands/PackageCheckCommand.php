@@ -23,6 +23,7 @@ class PackageCheckCommand extends BasePackageCommand
         {package? : Package name in vendor/package format (e.g. acme/my-pkg)}
         {--all : Verify all packages across workspaces}
         {--quick : Run only quick checks (Composer validate and Pint)}
+        {--fix : Automatically fix code style errors (enabled by default)}
         {--dry-run : Only check code style without applying automatic fixes (recommended for CI)}
         {--only= : Comma-separated list of checks to run (composer,pint,phpstan,tests)}
         {--isolated : Install and test an independent temporary package copy (Phase 3)}
@@ -56,7 +57,7 @@ class PackageCheckCommand extends BasePackageCommand
         $dryRun = (bool) $this->option('dry-run')
             || (getenv('CI') === 'true')
             || (getenv('GITHUB_ACTIONS') !== false);
-        $fix = ! $dryRun;
+        $fix = (bool) $this->option('fix') || ! $dryRun;
         $isolated = (bool) $this->option('isolated');
         $withWorkspaceDeps = (bool) $this->option('with-workspace-deps');
         $affected = (bool) $this->option('affected');

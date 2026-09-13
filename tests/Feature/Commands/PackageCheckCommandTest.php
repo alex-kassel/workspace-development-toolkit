@@ -288,6 +288,29 @@ class PackageCheckCommandTest extends TestCase
         });
     }
 
+    public function test_package_check_with_fix_flag_runs_pint_in_fix_mode(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => Process::result(output: 'OK'),
+        ]);
+
+        $this->artisan('package:check', [
+            'package' => 'acme/my-pkg',
+            '--only' => 'pint',
+            '--fix' => true,
+        ])->assertSuccessful();
+
+        Process::assertRan(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+
+            return str_contains($cmd, 'pint') && ! str_contains($cmd, '--test');
+        });
+    }
+
     public function test_package_check_missing_binary_marks_check_as_failed(): void
     {
         Workspace::add('packages', null, true);

@@ -629,6 +629,13 @@ class WorkspaceManager
             try {
                 $this->updateComposerPathReferences($canonicalName, $packagePath, $targetRelativePath);
                 $this->updateVendorSymlink($canonicalName, $targetFullPath);
+                if (File::exists(base_path('vendor/autoload.php'))) {
+                    try {
+                        $this->composer->runComposer(['dump-autoload']);
+                    } catch (\Throwable) {
+                        // Best-effort autoloader refresh
+                    }
+                }
             } catch (\Throwable $e) {
                 $rollback($e);
             }

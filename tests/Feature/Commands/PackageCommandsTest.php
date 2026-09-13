@@ -530,6 +530,37 @@ class PackageCommandsTest extends TestCase
         $this->assertDirectoryExists(base_path('packages/acme/dirty-pkg'));
     }
 
+    public function test_package_delete_blocks_unpushed_commits_without_force(): void
+    {
+        Workspace::add('packages', null, true);
+        $this->createDummyPackage('packages/acme/unpushed-pkg', 'acme/unpushed-pkg');
+        File::ensureDirectoryExists(base_path('packages/acme/unpushed-pkg/.git'));
+        Workspace::sync();
+
+        Process::fake(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+            if (str_contains($cmd, 'status')) {
+                return Process::result('');
+            }
+            if (str_contains($cmd, 'rev-parse')) {
+                return Process::result('origin/main');
+            }
+            if (str_contains($cmd, 'log')) {
+                return Process::result("commit-hash feat: local commit\n");
+            }
+
+            return Process::result('OK');
+        });
+
+        $this->artisan('package:delete', [
+            'package' => 'acme/unpushed-pkg',
+        ])
+            ->expectsOutputToContain('package contains local Git commits that have not been pushed to a remote repository')
+            ->assertFailed();
+
+        $this->assertDirectoryExists(base_path('packages/acme/unpushed-pkg'));
+    }
+
     public function test_package_delete_bypasses_git_safety_with_force(): void
     {
         Workspace::add('packages', null, true);

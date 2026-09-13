@@ -227,6 +227,9 @@ class ComposerManager
                     foreach ($packages as &$pkg) {
                         if (($pkg['name'] ?? '') === $canonicalName && ($pkg['dist']['type'] ?? '') === 'path') {
                             $pkg['dist']['url'] = $newRelPath;
+                            if (isset($pkg['install-path'])) {
+                                $pkg['install-path'] = '../../'.$newRelPath;
+                            }
                             $changed = true;
                         }
                     }
@@ -235,6 +238,16 @@ class ComposerManager
                 if ($changed) {
                     File::put($installedFile, json_encode($installedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n");
                 }
+            }
+        }
+
+        // 3. Update vendor/composer/installed.php if present
+        $installedPhpFile = base_path('vendor/composer/installed.php');
+        if (File::exists($installedPhpFile)) {
+            $installedPhpContent = File::get($installedPhpFile);
+            if (str_contains($installedPhpContent, $oldRelPath)) {
+                $installedPhpContent = str_replace($oldRelPath, $newRelPath, $installedPhpContent);
+                File::put($installedPhpFile, $installedPhpContent);
             }
         }
     }
