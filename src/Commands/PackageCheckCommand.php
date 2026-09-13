@@ -18,7 +18,7 @@ class PackageCheckCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:check
-        {name? : Package name in vendor/package format (e.g. acme/my-pkg)}
+        {package? : Package name in vendor/package format (e.g. acme/my-pkg)}
         {--all : Verify all packages across workspaces}
         {--quick : Run only quick checks (Composer validate and Pint)}
         {--dry-run : Only check code style without applying automatic fixes (recommended for CI)}
@@ -45,7 +45,7 @@ class PackageCheckCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
+        $rawPackage = (string) $this->argument('package');
         $all = (bool) $this->option('all');
         $quick = (bool) $this->option('quick');
         $dryRun = (bool) $this->option('dry-run')

@@ -18,7 +18,7 @@ class PackageDeleteCommand extends BasePackageCommand
      *
      * @var string
      */
-    protected $signature = 'package:delete {name : Package name in vendor/package format (e.g. acme/my-pkg)} {--force : Delete without interactive confirmation}';
+    protected $signature = 'package:delete {package : Package name in vendor/package format (e.g. acme/my-pkg)} {--force : Delete without interactive confirmation}';
 
     /**
      * The console command description.
@@ -41,7 +41,7 @@ class PackageDeleteCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
+        $rawPackage = (string) $this->argument('package');
         $force = (bool) $this->option('force');
 
         $package = $this->resolveAndValidatePackage($rawPackage);

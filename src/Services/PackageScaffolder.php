@@ -39,7 +39,7 @@ class PackageScaffolder
      */
     public function scaffold(
         string $workspace,
-        string $rawName,
+        string $rawPackage,
         ?string $alias = null,
         bool $scaffoldSkills = true,
         ?string $skillSlug = null
@@ -76,7 +76,7 @@ class PackageScaffolder
             );
         }
 
-        $normalizedInput = str_replace('\\', '/', trim($rawName));
+        $normalizedInput = str_replace('\\', '/', trim($rawPackage));
         $validation = Workspace::validatePackageName($normalizedInput, $workspaceVendor);
 
         if ($workspaceVendor !== null) {
@@ -95,7 +95,7 @@ class PackageScaffolder
                 $suggestion = $validation['suggestion'] !== null
                     ? "\n  Did you mean: php artisan package:make {$validation['suggestion']} --workspace={$cleanWorkspace}"
                     : '';
-                throw new WorkspaceException($validation['error'] ?? "Invalid package name [{$rawName}].", $suggestion);
+                throw new WorkspaceException($validation['error'] ?? "Invalid package name [{$rawPackage}].", $suggestion);
             }
 
             $vendorName = $validation['vendorName'];
@@ -108,8 +108,8 @@ class PackageScaffolder
             // Nested 2-level workspace: vendor is required
             if (! str_contains($normalizedInput, '/')) {
                 throw new WorkspaceException(
-                    "Workspace [{$cleanWorkspace}] requires a vendor prefix in 'vendor/package' format.",
-                    "Specify both vendor and package name:\n  php artisan package:make my-vendor/{$normalizedInput} --workspace={$cleanWorkspace}"
+                    "Vendor prefix is required for nested workspace [{$cleanWorkspace}] (e.g. acme/{$rawPackage}).",
+                    "Specify the vendor prefix:\n  php artisan package:make acme/{$rawPackage} --workspace={$cleanWorkspace}"
                 );
             }
 
@@ -117,7 +117,7 @@ class PackageScaffolder
                 $suggestion = $validation['suggestion'] !== null
                     ? "\n  Did you mean: php artisan package:make {$validation['suggestion']} --workspace={$cleanWorkspace}"
                     : '';
-                throw new WorkspaceException($validation['error'] ?? "Invalid package name [{$rawName}].", $suggestion);
+                throw new WorkspaceException($validation['error'] ?? "Invalid package name [{$rawPackage}].", $suggestion);
             }
 
             $vendorName = $validation['vendorName'];

@@ -18,7 +18,7 @@ class PackageReadmeCommandTest extends TestCase
         File::put($dir.'/composer.json', json_encode(['name' => 'acme/good-pkg']));
         File::put($dir.'/README.md', "# Good Pkg\n\n## Requirements\n\n## Installation\n\n## Usage\n\n## Testing\n\n## License\n");
 
-        $this->artisan('package:readme', ['name' => 'acme/good-pkg'])
+        $this->artisan('package:readme', ['package' => 'acme/good-pkg'])
             ->expectsOutputToContain('README verification passed')
             ->assertSuccessful();
     }
@@ -30,7 +30,7 @@ class PackageReadmeCommandTest extends TestCase
         File::ensureDirectoryExists($dir);
         File::put($dir.'/composer.json', json_encode(['name' => 'acme/json-pkg']));
 
-        $this->artisan('package:readme', ['name' => 'acme/json-pkg', '--json' => true])
+        $this->artisan('package:readme', ['package' => 'acme/json-pkg', '--json' => true])
             ->expectsOutputToContain('file_exists')
             ->assertFailed();
     }

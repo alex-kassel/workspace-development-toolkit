@@ -16,7 +16,7 @@ class PackageUninstallCommand extends BasePackageCommand
      *
      * @var string
      */
-    protected $signature = 'package:uninstall {name : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Uninstall from require-dev}';
+    protected $signature = 'package:uninstall {package : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Uninstall from require-dev}';
 
     /**
      * The console command description.
@@ -37,7 +37,7 @@ class PackageUninstallCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
+        $rawPackage = (string) $this->argument('package');
         $isDevOption = (bool) $this->option('dev');
 
         $package = $this->resolveAndValidatePackage($rawPackage);

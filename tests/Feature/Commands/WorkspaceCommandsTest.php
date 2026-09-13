@@ -219,7 +219,7 @@ class WorkspaceCommandsTest extends TestCase
             ->assertSuccessful();
 
         $this->artisan('package:make', [
-            'name' => 'billing-portal',
+            'package' => 'billing-portal',
             '--workspace' => 'clients/acme',
         ])
             ->expectsOutputToContain('created successfully in')

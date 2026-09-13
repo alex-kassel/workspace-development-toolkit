@@ -17,7 +17,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:make', ['name' => 'acme/billing-module'])
+        $this->artisan('package:make', ['package' => 'acme/billing-module'])
             ->expectsOutputToContain('created successfully in')
             ->assertSuccessful();
 
@@ -47,11 +47,11 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:make', ['name' => 'acme/existing-pkg'])
+        $this->artisan('package:make', ['package' => 'acme/existing-pkg'])
             ->assertSuccessful();
 
         // Second attempt must fail cleanly
-        $this->artisan('package:make', ['name' => 'acme/existing-pkg'])
+        $this->artisan('package:make', ['package' => 'acme/existing-pkg'])
             ->expectsOutputToContain('already exists')
             ->assertFailed();
     }
@@ -61,7 +61,7 @@ class PackageCommandsTest extends TestCase
         Workspace::add('packages', null, true);
 
         $this->artisan('package:make', [
-            'name' => 'acme/dev-only-pkg',
+            'package' => 'acme/dev-only-pkg',
             '--dev' => true,
         ])
             ->expectsOutputToContain('The [--dev] option can only be used in combination with [--install]')
@@ -72,7 +72,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('labs', 'alex-kassel-labs', true);
 
-        $this->artisan('package:make', ['name' => 'demo-bot'])
+        $this->artisan('package:make', ['package' => 'demo-bot'])
             ->expectsOutputToContain('created successfully in')
             ->assertSuccessful();
 
@@ -94,7 +94,7 @@ class PackageCommandsTest extends TestCase
         Workspace::add('app/Cores', 'alex-kassel', true);
 
         $this->artisan('package:make', [
-            'name' => 'scraper-core',
+            'package' => 'scraper-core',
             '--as' => 'Scraper',
         ])
             ->expectsOutputToContain('created successfully in')
@@ -117,7 +117,7 @@ class PackageCommandsTest extends TestCase
         Workspace::add('packages', null, true);
 
         $this->artisan('package:make', [
-            'name' => 'acme/foo-pkg',
+            'package' => 'acme/foo-pkg',
             '--alias' => 'Foo',
         ])
             ->expectsOutputToContain('Aliases are only supported in flat (fixed-vendor) workspaces')
@@ -128,7 +128,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('labs', 'alex-kassel-labs', true);
 
-        $this->artisan('package:make', ['name' => 'wrong-vendor/my-tool'])
+        $this->artisan('package:make', ['package' => 'wrong-vendor/my-tool'])
             ->expectsOutputToContain('has a fixed vendor [alex-kassel-labs], but [wrong-vendor] was provided')
             ->assertFailed();
     }
@@ -136,7 +136,7 @@ class PackageCommandsTest extends TestCase
     public function test_package_make_fails_when_no_default_workspace_is_configured(): void
     {
         // Sandbox has no workspaces registered
-        $this->artisan('package:make', ['name' => 'acme/test-pkg'])
+        $this->artisan('package:make', ['package' => 'acme/test-pkg'])
             ->expectsOutputToContain('No default workspace is currently configured')
             ->assertFailed();
     }
@@ -145,7 +145,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:make', ['name' => 'invalid vendor/package!'])
+        $this->artisan('package:make', ['package' => 'invalid vendor/package!'])
             ->expectsOutputToContain('Composer vendor and package names must contain only lowercase letters')
             ->assertFailed();
     }
@@ -154,7 +154,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:make', ['name' => 'vendor_a/pkg.b'])
+        $this->artisan('package:make', ['package' => 'vendor_a/pkg.b'])
             ->expectsOutputToContain('created successfully in')
             ->assertSuccessful();
 
@@ -170,7 +170,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:make', [
-            'name' => 'acme/installable-pkg',
+            'package' => 'acme/installable-pkg',
             '--install' => true,
         ])
             ->assertSuccessful();
@@ -191,7 +191,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:make', [
-            'name' => 'acme/dev-pkg',
+            'package' => 'acme/dev-pkg',
             '--install' => true,
             '--dev' => true,
         ])
@@ -214,7 +214,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:make', [
-            'name' => 'acme/failed-install-pkg',
+            'package' => 'acme/failed-install-pkg',
             '--install' => true,
         ])
             ->expectsOutputToContain('automatic Composer installation failed')
@@ -235,7 +235,7 @@ class PackageCommandsTest extends TestCase
             '*' => Process::result(output: 'Installed'),
         ]);
 
-        $this->artisan('package:install', ['name' => 'acme/my-lib'])
+        $this->artisan('package:install', ['package' => 'acme/my-lib'])
             ->expectsOutputToContain('installed successfully')
             ->assertSuccessful();
 
@@ -257,7 +257,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:install', [
-            'name' => 'acme/my-dev-lib',
+            'package' => 'acme/my-dev-lib',
             '--dev' => true,
         ])
             ->expectsOutputToContain('installed successfully')
@@ -284,7 +284,7 @@ class PackageCommandsTest extends TestCase
             ),
         ]);
 
-        $this->artisan('package:install', ['name' => 'acme/my-lib'])
+        $this->artisan('package:install', ['package' => 'acme/my-lib'])
             ->expectsOutputToContain('Failed to install package [acme/my-lib] via Composer.')
             ->expectsOutputToContain('Stability Mismatch')
             ->expectsOutputToContain('composer config minimum-stability dev')
@@ -302,7 +302,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         // Install using short name 'smart-agent'
-        $this->artisan('package:install', ['name' => 'smart-agent'])
+        $this->artisan('package:install', ['package' => 'smart-agent'])
             ->expectsOutputToContain('installed successfully')
             ->assertSuccessful();
 
@@ -317,7 +317,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:install', ['name' => 'acme/non-existent'])
+        $this->artisan('package:install', ['package' => 'acme/non-existent'])
             ->expectsOutputToContain('was not found in any registered workspace')
             ->assertFailed();
     }
@@ -331,7 +331,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:install', [
-            'name' => 'acme/remote-package',
+            'package' => 'acme/remote-package',
             '--remote' => true,
         ])
             ->expectsOutputToContain('Installing from remote Composer repositories')
@@ -358,7 +358,7 @@ class PackageCommandsTest extends TestCase
             '*' => Process::result(output: 'Removed'),
         ]);
 
-        $this->artisan('package:uninstall', ['name' => 'acme/my-lib'])
+        $this->artisan('package:uninstall', ['package' => 'acme/my-lib'])
             ->expectsOutputToContain('uninstalled successfully')
             ->assertSuccessful();
 
@@ -387,7 +387,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         // Call without --dev option, should auto-detect and append --dev
-        $this->artisan('package:uninstall', ['name' => 'acme/dev-tool'])
+        $this->artisan('package:uninstall', ['package' => 'acme/dev-tool'])
             ->expectsOutputToContain('uninstalled successfully')
             ->assertSuccessful();
 
@@ -403,7 +403,7 @@ class PackageCommandsTest extends TestCase
         Workspace::add('packages', null, true);
         $this->createDummyPackage('packages/acme/uninstalled-lib', 'acme/uninstalled-lib');
 
-        $this->artisan('package:uninstall', ['name' => 'acme/uninstalled-lib'])
+        $this->artisan('package:uninstall', ['package' => 'acme/uninstalled-lib'])
             ->expectsOutputToContain('is not installed in root composer.json')
             ->assertFailed();
     }
@@ -414,7 +414,7 @@ class PackageCommandsTest extends TestCase
 
         // Attempting to delete with traversal pattern should fail cleanly
         $this->artisan('package:delete', [
-            'name' => 'acme/../../dangerous',
+            'package' => 'acme/../../dangerous',
             '--force' => true,
         ])
             ->assertFailed();
@@ -436,7 +436,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:delete', [
-            'name' => 'acme/to-delete',
+            'package' => 'acme/to-delete',
             '--force' => true,
         ])
             ->expectsOutputToContain('permanently deleted')
@@ -467,7 +467,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:delete', [
-            'name' => 'acme/dev-delete',
+            'package' => 'acme/dev-delete',
             '--force' => true,
         ])
             ->expectsOutputToContain('permanently deleted')
@@ -491,7 +491,7 @@ class PackageCommandsTest extends TestCase
         $this->assertDirectoryExists(base_path('packages/acme'));
 
         $this->artisan('package:delete', [
-            'name' => 'acme/lone-pkg',
+            'package' => 'acme/lone-pkg',
             '--force' => true,
         ])
             ->expectsOutputToContain('permanently deleted')
@@ -522,7 +522,7 @@ class PackageCommandsTest extends TestCase
         });
 
         $this->artisan('package:delete', [
-            'name' => 'acme/dirty-pkg',
+            'package' => 'acme/dirty-pkg',
         ])
             ->expectsOutputToContain('package working tree has uncommitted or untracked changes')
             ->assertFailed();
@@ -547,7 +547,7 @@ class PackageCommandsTest extends TestCase
         });
 
         $this->artisan('package:delete', [
-            'name' => 'acme/dirty-pkg',
+            'package' => 'acme/dirty-pkg',
             '--force' => true,
         ])
             ->expectsOutputToContain('permanently deleted')
@@ -636,7 +636,7 @@ class PackageCommandsTest extends TestCase
         Workspace::sync();
 
         $this->artisan('package:make', [
-            'name' => 'new-pkg',
+            'package' => 'new-pkg',
             '--alias' => 'ExistingAlias',
             '--no-skills' => true,
         ])
@@ -702,7 +702,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:make', ['name' => 'acme/all-stubs-pkg'])
+        $this->artisan('package:make', ['package' => 'acme/all-stubs-pkg'])
             ->assertSuccessful();
 
         $packageDir = base_path('packages/acme/all-stubs-pkg');
@@ -722,7 +722,7 @@ class PackageCommandsTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:make', ['name' => 'acme/placeholder-pkg'])
+        $this->artisan('package:make', ['package' => 'acme/placeholder-pkg'])
             ->assertSuccessful();
 
         $packageDir = base_path('packages/acme/placeholder-pkg');
@@ -758,7 +758,7 @@ class PackageCommandsTest extends TestCase
         File::ensureDirectoryExists($customStubsDir);
         File::put($customStubsDir.'/README.md.stub', "# Custom Header for {{ package }}\nBy {{ vendor }}.\n");
 
-        $this->artisan('package:make', ['name' => 'acme/custom-stub-pkg'])
+        $this->artisan('package:make', ['package' => 'acme/custom-stub-pkg'])
             ->assertSuccessful();
 
         $packageDir = base_path('packages/acme/custom-stub-pkg');
@@ -775,7 +775,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:make', [
-            'name' => 'acme/git-pkg',
+            'package' => 'acme/git-pkg',
         ])
             ->expectsOutputToContain('Git repository initialized with initial commit and tag v0.0.1.')
             ->assertSuccessful();
@@ -805,7 +805,7 @@ class PackageCommandsTest extends TestCase
         $this->createDummyPackage('labs/my-pkg', 'alex-kassel/my-pkg');
         Workspace::sync();
 
-        $this->artisan('package:delete', ['name' => 'my-pkg', '--force' => true])
+        $this->artisan('package:delete', ['package' => 'my-pkg', '--force' => true])
             ->assertSuccessful();
 
         $this->assertDirectoryExists(base_path('labs'));
@@ -817,7 +817,7 @@ class PackageCommandsTest extends TestCase
         $this->createDummyPackage('packages/acme/lone-pkg', 'acme/lone-pkg');
         Workspace::sync();
 
-        $this->artisan('package:delete', ['name' => 'acme/lone-pkg', '--force' => true])
+        $this->artisan('package:delete', ['package' => 'acme/lone-pkg', '--force' => true])
             ->assertSuccessful();
 
         $this->assertDirectoryDoesNotExist(base_path('packages/acme'));

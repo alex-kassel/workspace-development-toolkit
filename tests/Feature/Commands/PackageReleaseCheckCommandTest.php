@@ -48,7 +48,7 @@ class PackageReleaseCheckCommandTest extends TestCase
         });
 
         $this->artisan('package:release-check', [
-            'name' => 'acme/release-pkg',
+            'package' => 'acme/release-pkg',
             '--fast' => true,
         ])
             ->expectsOutputToContain('READY TO PUBLISH')
@@ -63,7 +63,7 @@ class PackageReleaseCheckCommandTest extends TestCase
         File::put($dir.'/composer.json', json_encode(['name' => 'acme/json-rel-pkg']));
 
         $this->artisan('package:release-check', [
-            'name' => 'acme/json-rel-pkg',
+            'package' => 'acme/json-rel-pkg',
             '--fast' => true,
             '--json' => true,
         ])

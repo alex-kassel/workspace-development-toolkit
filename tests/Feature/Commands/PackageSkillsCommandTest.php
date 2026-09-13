@@ -30,7 +30,7 @@ class PackageSkillsCommandTest extends TestCase
             '# My Skill Content',
         ]));
 
-        $this->artisan('package:skills', ['name' => 'acme/my-pkg'])
+        $this->artisan('package:skills', ['package' => 'acme/my-pkg'])
             ->expectsOutputToContain('Materialized skill [my-skill]')
             ->assertSuccessful();
 
@@ -70,7 +70,7 @@ class PackageSkillsCommandTest extends TestCase
             '# Draft Skill',
         ]));
 
-        $this->artisan('package:skills', ['name' => 'acme/draft-pkg'])
+        $this->artisan('package:skills', ['package' => 'acme/draft-pkg'])
             ->expectsOutputToContain('Skipping draft skill [draft-skill]')
             ->expectsOutputToContain('No published skills found to install')
             ->assertSuccessful();
@@ -100,7 +100,7 @@ class PackageSkillsCommandTest extends TestCase
         ]));
 
         $this->artisan('package:skills', [
-            'name' => 'acme/symlink-pkg',
+            'package' => 'acme/symlink-pkg',
             '--symlink' => true,
         ])->assertSuccessful();
 
@@ -125,7 +125,7 @@ class PackageSkillsCommandTest extends TestCase
             'status: published',
             '---',
         ]));
-        $this->artisan('package:skills', ['name' => 'acme/pkg-a'])->assertSuccessful();
+        $this->artisan('package:skills', ['package' => 'acme/pkg-a'])->assertSuccessful();
 
         // Package B attempts to install same skill slug with different origin
         $pkgB = base_path('packages/acme/pkg-b');
@@ -140,7 +140,7 @@ class PackageSkillsCommandTest extends TestCase
             '---',
         ]));
 
-        $this->artisan('package:skills', ['name' => 'acme/pkg-b'])
+        $this->artisan('package:skills', ['package' => 'acme/pkg-b'])
             ->expectsOutputToContain('collision detected')
             ->assertFailed();
     }
@@ -161,12 +161,12 @@ class PackageSkillsCommandTest extends TestCase
             '---',
         ]));
 
-        $this->artisan('package:skills', ['name' => 'acme/remove-pkg'])->assertSuccessful();
+        $this->artisan('package:skills', ['package' => 'acme/remove-pkg'])->assertSuccessful();
         $this->assertDirectoryExists(base_path('.agents/skills/rem-skill'));
 
         // Remove skills
         $this->artisan('package:skills', [
-            'name' => 'acme/remove-pkg',
+            'package' => 'acme/remove-pkg',
             '--remove' => true,
         ])
             ->expectsOutputToContain('Removed skill [rem-skill]')
@@ -202,12 +202,12 @@ class PackageSkillsCommandTest extends TestCase
             '---',
         ]));
 
-        $this->artisan('package:skills', ['name' => 'acme/delete-skills-pkg'])->assertSuccessful();
+        $this->artisan('package:skills', ['package' => 'acme/delete-skills-pkg'])->assertSuccessful();
         $this->assertDirectoryExists(base_path('.agents/skills/del-skill'));
 
         // Now delete the package
         $this->artisan('package:delete', [
-            'name' => 'acme/delete-skills-pkg',
+            'package' => 'acme/delete-skills-pkg',
             '--force' => true,
         ])->assertSuccessful();
 

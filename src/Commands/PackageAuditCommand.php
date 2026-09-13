@@ -20,7 +20,7 @@ class PackageAuditCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:audit
-        {name? : Package name in vendor/package format (e.g. acme/my-pkg) or directory path}
+        {package? : Package name in vendor/package format (e.g. acme/my-pkg) or directory path}
         {--verify : Verify an existing audit certificate}
         {--json : Output machine-readable JSON}
         {--target-version= : Explicit release version for the certificate}
@@ -48,10 +48,10 @@ class PackageAuditCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
+        $rawPackage = (string) $this->argument('package');
 
         if ($rawPackage === '') {
-            $this->error('Please specify a package name, alias, or path.');
+            $this->error('Please specify a package in vendor/package format (e.g. acme/my-pkg) or directory path.');
             $this->line('  <comment>How to fix:</comment> Provide a package name:');
             $this->line('  <info>php artisan package:audit vendor/package</info>');
             $this->line('  <info>php artisan package:audit vendor/package --verify</info>');

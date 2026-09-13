@@ -10,13 +10,9 @@ abstract class BasePackageCommand extends BaseCommand
      * Retrieve and validate the required package argument.
      * Zero-ambiguity: provides concrete format example in prompt and error.
      */
-    protected function getRequiredPackage(?string $prompt = null, string $argument = 'package'): ?string
+    protected function getRequiredPackage(?string $prompt = null): ?string
     {
-        $raw = $this->hasArgument($argument)
-            ? (string) $this->argument($argument)
-            : ($this->hasArgument('name') ? (string) $this->argument('name') : '');
-
-        $package = trim($raw);
+        $package = trim((string) $this->argument('package'));
 
         if ($package === '' && $this->input->isInteractive()) {
             $defaultPrompt = 'Please enter the package name (format: vendor/package, e.g. acme/my-pkg):';
@@ -38,14 +34,14 @@ abstract class BasePackageCommand extends BaseCommand
      * Resolve and validate package name from raw user input.
      * Outputs standardized error messages and suggestions if invalid.
      */
-    protected function resolveAndValidatePackage(string $rawInput): ?string
+    protected function resolveAndValidatePackage(string $rawPackage): ?string
     {
-        $normalizedInput = $this->sanitizeInput($rawInput);
+        $normalizedInput = $this->sanitizeInput($rawPackage);
         $canonical = $this->workspace->resolveCanonicalPackageName($normalizedInput);
 
         $validation = $this->workspace->validatePackageName($canonical);
         if (! $validation['isValid']) {
-            $this->error($validation['error'] ?? "Invalid package name [{$rawInput}].");
+            $this->error($validation['error'] ?? "Invalid package name [{$rawPackage}].");
             if ($validation['suggestion'] !== null) {
                 $this->line('  <comment>How to fix:</comment> Did you mean:');
                 $this->line("  <info>php artisan {$this->getName()} {$validation['suggestion']}</info>");
@@ -60,8 +56,8 @@ abstract class BasePackageCommand extends BaseCommand
 
         $package = $validation['fullName'];
 
-        if ($package !== $rawInput) {
-            $this->line("  <comment>Notice:</comment> Resolved package [{$rawInput}] to Composer package [{$package}].");
+        if ($package !== $rawPackage) {
+            $this->line("  <comment>Notice:</comment> Resolved package [{$rawPackage}] to Composer package [{$package}].");
         }
 
         return $package;

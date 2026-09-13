@@ -17,7 +17,7 @@ class PackageReleaseCheckCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:release-check
-        {name : Package name in vendor/package format (e.g. acme/my-pkg) or relative package path}
+        {package : Package name in vendor/package format (e.g. acme/my-pkg) or relative package path}
         {--fast : Skip isolated standalone installation check for rapid verification}
         {--json : Output machine-readable JSON summary}';
 
@@ -41,7 +41,7 @@ class PackageReleaseCheckCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
+        $rawPackage = (string) $this->argument('package');
         $fast = (bool) $this->option('fast');
         $isJson = (bool) $this->option('json');
 

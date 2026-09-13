@@ -51,7 +51,7 @@ class PackageCloneCommand extends BasePackageCommand
     public function handle(): int
     {
         $isSelf = (bool) $this->option('self');
-        $rawRepo = trim((string) $this->argument('package'));
+        $rawPackage = trim((string) $this->argument('package'));
         $useSsh = (bool) $this->option('ssh');
         $install = (bool) $this->option('install');
         $dev = (bool) $this->option('dev');
@@ -64,7 +64,7 @@ class PackageCloneCommand extends BasePackageCommand
             $install = true;
             $dev = true;
         } else {
-            if ($rawRepo === '') {
+            if ($rawPackage === '') {
                 $this->error('Please specify a repository URL/shorthand or pass the [--self] flag.');
                 $this->line('  <comment>Usage examples:</comment>');
                 $this->line('  <info>php artisan package:clone vendor/package</info>');
@@ -74,19 +74,19 @@ class PackageCloneCommand extends BasePackageCommand
                 return self::FAILURE;
             }
 
-            if (str_starts_with($rawRepo, '-')) {
-                $this->error("Invalid repository URL [{$rawRepo}]: option-like arguments are not permitted.");
+            if (str_starts_with($rawPackage, '-')) {
+                $this->error("Invalid repository URL [{$rawPackage}]: option-like arguments are not permitted.");
 
                 return self::FAILURE;
             }
 
-            $repoUrl = $this->workspace->normalizeRepositoryUrl($rawRepo, $useSsh);
+            $repoUrl = $this->workspace->normalizeRepositoryUrl($rawPackage, $useSsh);
         }
 
         if ($dev && ! $install) {
             $this->error('The [--dev] option can only be used in combination with [--install].');
             $this->line('  <comment>How to fix:</comment> Pass [--install] along with [--dev]:');
-            $this->line('  <info>php artisan package:clone '.($rawRepo ?: '--self').' --install --dev</info>');
+            $this->line('  <info>php artisan package:clone '.($rawPackage ?: '--self').' --install --dev</info>');
 
             return self::FAILURE;
         }
@@ -99,7 +99,7 @@ class PackageCloneCommand extends BasePackageCommand
                 $this->error('No default workspace is currently configured.');
                 $this->line('  <comment>How to fix:</comment> Add a workspace first, or specify one via the [--workspace] option:');
                 $this->line('  <info>php artisan workspace:add packages</info>');
-                $this->line('  <info>php artisan package:clone '.($rawRepo ?: '--self').' --workspace=packages</info>');
+                $this->line('  <info>php artisan package:clone '.($rawPackage ?: '--self').' --workspace=packages</info>');
 
                 return self::FAILURE;
             }
@@ -250,7 +250,7 @@ class PackageCloneCommand extends BasePackageCommand
                 : $recordedName;
         }
 
-        $isShorthand = ! $isSelf && preg_match('#^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$#', trim($rawRepo));
+        $isShorthand = ! $isSelf && preg_match('#^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$#', trim($rawPackage));
         $customUrl = ($isShorthand || $isSelf) ? null : $repoUrl;
 
         // Store package entry with optional custom URL and optional alias in workspace.json
@@ -312,7 +312,7 @@ class PackageCloneCommand extends BasePackageCommand
             $this->newLine();
             if ($this->confirm("Would you like to link [{$refName}] into Composer now?", true)) {
                 return $this->call('package:install', [
-                    'name' => $refName,
+                    'package' => $refName,
                     '--dev' => $dev,
                 ]);
             }

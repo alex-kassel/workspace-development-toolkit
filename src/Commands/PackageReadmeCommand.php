@@ -17,7 +17,7 @@ class PackageReadmeCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:readme
-        {name : Package name in vendor/package format (e.g. acme/my-pkg) or relative package path}
+        {package : Package name in vendor/package format (e.g. acme/my-pkg) or relative package path}
         {--json : Output machine-readable JSON summary}';
 
     /**
@@ -40,7 +40,7 @@ class PackageReadmeCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
+        $rawPackage = (string) $this->argument('package');
         $isJson = (bool) $this->option('json');
 
         try {

@@ -31,13 +31,13 @@ class PackageAuditCommandTest extends TestCase
     public function test_package_audit_requires_name_argument(): void
     {
         $this->artisan('package:audit')
-            ->expectsOutputToContain('Please specify a package name, alias, or path')
+            ->expectsOutputToContain('Please specify a package in vendor/package format')
             ->assertFailed();
     }
 
     public function test_package_audit_fails_on_nonexistent_package(): void
     {
-        $this->artisan('package:audit', ['name' => 'nonexistent/pkg'])
+        $this->artisan('package:audit', ['package' => 'nonexistent/pkg'])
             ->expectsOutputToContain('Package [nonexistent/pkg] not found')
             ->assertFailed();
     }
@@ -79,7 +79,7 @@ class PackageAuditCommandTest extends TestCase
             return Process::result('OK');
         });
 
-        $this->artisan('package:audit', ['name' => 'acme/my-pkg', '--no-commit' => true])
+        $this->artisan('package:audit', ['package' => 'acme/my-pkg', '--no-commit' => true])
             ->expectsOutputToContain('Auditing package [acme/my-pkg]')
             ->expectsOutputToContain('passed all audit checks')
             ->expectsOutputToContain('Fingerprint:')
@@ -122,7 +122,7 @@ class PackageAuditCommandTest extends TestCase
             return Process::result('OK');
         });
 
-        $this->artisan('package:audit', ['name' => 'acme/my-pkg', '--json' => true, '--no-commit' => true])
+        $this->artisan('package:audit', ['package' => 'acme/my-pkg', '--json' => true, '--no-commit' => true])
             ->expectsOutputToContain('"verdict": "PASSED"')
             ->assertSuccessful();
     }
@@ -171,7 +171,7 @@ class PackageAuditCommandTest extends TestCase
 
         $this->app->instance(CertificateVerifier::class, $stubVerifier);
 
-        $this->artisan('package:audit', ['name' => 'acme/my-pkg', '--verify' => true])
+        $this->artisan('package:audit', ['package' => 'acme/my-pkg', '--verify' => true])
             ->expectsOutputToContain('Audit Certificate VERIFIED for package [acme/my-pkg]')
             ->assertSuccessful();
     }

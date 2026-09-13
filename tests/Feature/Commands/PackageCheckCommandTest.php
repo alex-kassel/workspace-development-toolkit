@@ -62,7 +62,7 @@ class PackageCheckCommandTest extends TestCase
             '*' => Process::result(output: 'OK'),
         ]);
 
-        $this->artisan('package:check', ['name' => 'acme/my-pkg'])
+        $this->artisan('package:check', ['package' => 'acme/my-pkg'])
             ->expectsOutputToContain('Verifying package [acme/my-pkg]')
             ->expectsOutputToContain('COMPOSER')
             ->expectsOutputToContain('PINT')
@@ -107,7 +107,7 @@ class PackageCheckCommandTest extends TestCase
         ]);
 
         $this->artisan('package:check', [
-            'name' => 'acme/my-pkg',
+            'package' => 'acme/my-pkg',
             '--quick' => true,
         ])
             ->expectsOutputToContain('COMPOSER')
@@ -142,7 +142,7 @@ class PackageCheckCommandTest extends TestCase
         });
     }
 
-    public function test_package_check_with_quick_and_only_flags_work_together(): void
+    public function test_package_check_with_only_flag_and_quick_runs_only_pint(): void
     {
         Workspace::add('packages', null, true);
         $this->scaffoldTestPackage('packages/acme/my-pkg', 'acme/my-pkg');
@@ -153,7 +153,7 @@ class PackageCheckCommandTest extends TestCase
         ]);
 
         $this->artisan('package:check', [
-            'name' => 'acme/my-pkg',
+            'package' => 'acme/my-pkg',
             '--quick' => true,
             '--only' => 'pint',
         ])
@@ -221,7 +221,7 @@ class PackageCheckCommandTest extends TestCase
         ]);
 
         $this->artisan('package:check', [
-            'name' => 'acme/my-pkg',
+            'package' => 'acme/my-pkg',
             '--only' => 'pint',
         ])
             ->expectsOutputToContain('PINT')
@@ -254,7 +254,7 @@ class PackageCheckCommandTest extends TestCase
         ]);
 
         $this->artisan('package:check', [
-            'name' => 'acme/my-pkg',
+            'package' => 'acme/my-pkg',
             '--only' => 'pint',
         ])->assertSuccessful();
 
@@ -276,7 +276,7 @@ class PackageCheckCommandTest extends TestCase
         ]);
 
         $this->artisan('package:check', [
-            'name' => 'acme/my-pkg',
+            'package' => 'acme/my-pkg',
             '--only' => 'pint',
             '--dry-run' => true,
         ])->assertSuccessful();
@@ -298,7 +298,7 @@ class PackageCheckCommandTest extends TestCase
             '*' => Process::result(output: 'OK'),
         ]);
 
-        $this->artisan('package:check', ['name' => 'acme/my-pkg'])
+        $this->artisan('package:check', ['package' => 'acme/my-pkg'])
             ->expectsOutputToContain('FAIL')
             ->expectsOutputToContain('not found in vendor/bin')
             ->assertFailed();
@@ -335,7 +335,7 @@ class PackageCheckCommandTest extends TestCase
     {
         Workspace::add('packages', null, true);
 
-        $this->artisan('package:check', ['name' => 'nonexistent/pkg'])
+        $this->artisan('package:check', ['package' => 'nonexistent/pkg'])
             ->expectsOutputToContain('Package [nonexistent/pkg] not found')
             ->assertFailed();
     }
@@ -370,7 +370,7 @@ class PackageCheckCommandTest extends TestCase
         ]);
 
         $this->artisan('package:check', [
-            'name' => 'acme/my-pkg',
+            'package' => 'acme/my-pkg',
             '--isolated' => true,
         ])
             ->expectsOutputToContain('ISOLATED')

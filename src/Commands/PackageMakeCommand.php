@@ -17,7 +17,7 @@ class PackageMakeCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:make
-        {name : Package name in vendor/package format (e.g. acme/my-pkg) or single-word for fixed-vendor workspace}
+        {package : Package name in vendor/package format (e.g. acme/my-pkg) or single-word for fixed-vendor workspace}
         {--as= : Optional directory alias (flat workspaces only)}
         {--alias= : Optional directory alias (synonym for --as)}
         {--workspace= : The target workspace directory}
@@ -73,7 +73,7 @@ class PackageMakeCommand extends BasePackageCommand
             }
         }
 
-        $rawName = (string) $this->argument('name');
+        $rawPackage = (string) $this->argument('package');
         $rawAlias = (string) ($this->option('as') ?: $this->option('alias'));
         $alias = trim($rawAlias) !== '' ? trim($rawAlias) : null;
 
@@ -86,7 +86,7 @@ class PackageMakeCommand extends BasePackageCommand
         try {
             $result = $this->scaffolder->scaffold(
                 workspace: $workspace,
-                rawName: $rawName,
+                rawPackage: $rawPackage,
                 alias: $alias,
                 scaffoldSkills: $scaffoldSkills,
                 skillSlug: $skillSlug !== '' ? $skillSlug : null
@@ -99,11 +99,11 @@ class PackageMakeCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $name = $result['name'];
+        $package = $result['package'];
         $shortName = $result['shortName'];
         $displayPath = $result['displayPath'];
 
-        $this->info("Package [{$name}] created successfully in [{$displayPath}].");
+        $this->info("Package [{$package}] created successfully in [{$displayPath}].");
         $this->line('  <info>Git repository initialized with initial commit and tag v0.0.1.</info>');
 
         if ($alias !== null) {
@@ -114,7 +114,7 @@ class PackageMakeCommand extends BasePackageCommand
             $this->newLine();
 
             $exitCode = $this->call('package:install', [
-                'name' => $shortName,
+                'package' => $shortName,
                 '--dev' => $dev,
             ]);
 

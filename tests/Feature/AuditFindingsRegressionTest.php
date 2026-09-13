@@ -73,7 +73,7 @@ final class AuditFindingsRegressionTest extends TestCase
         Workspace::add('labs/./area', 'acme', true);
         $this->createDummyPackage('labs/area/one', 'acme/one');
         Workspace::sync();
-        $this->artisan('package:delete', ['name' => 'acme/one', '--force' => true])->assertSuccessful();
+        $this->artisan('package:delete', ['package' => 'acme/one', '--force' => true])->assertSuccessful();
         $this->assertDirectoryExists(base_path('labs/area'));
     }
 
@@ -84,7 +84,7 @@ final class AuditFindingsRegressionTest extends TestCase
         Workspace::add('labs/one/children', 'child');
         File::put(base_path('labs/one/children/.gitkeep'), 'keep');
         Workspace::sync();
-        $this->artisan('package:delete', ['name' => 'acme/one', '--force' => true])->run();
+        $this->artisan('package:delete', ['package' => 'acme/one', '--force' => true])->run();
         $this->assertFileExists(base_path('labs/one/children/.gitkeep'));
     }
 
@@ -96,9 +96,9 @@ final class AuditFindingsRegressionTest extends TestCase
         File::put(base_path('packages/acme/.gitkeep'), 'keep');
         File::ensureDirectoryExists(base_path('packages/acme/.git'));
         Workspace::sync();
-        $this->artisan('package:delete', ['name' => 'acme/one', '--force' => true])->assertSuccessful();
+        $this->artisan('package:delete', ['package' => 'acme/one', '--force' => true])->assertSuccessful();
         $this->assertFileExists(base_path('packages/acme/two/composer.json'));
-        $this->artisan('package:delete', ['name' => 'acme/two', '--force' => true])->assertSuccessful();
+        $this->artisan('package:delete', ['package' => 'acme/two', '--force' => true])->assertSuccessful();
         $this->assertFileExists(base_path('packages/acme/.gitkeep'));
         $this->assertDirectoryExists(base_path('packages/acme/.git'));
     }
@@ -120,7 +120,7 @@ final class AuditFindingsRegressionTest extends TestCase
         $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
 
-        $this->artisan('package:delete', ['name' => 'acme/failing', '--force' => true])
+        $this->artisan('package:delete', ['package' => 'acme/failing', '--force' => true])
             ->assertFailed();
 
         $afterWorkspace = File::get(base_path('workspace.json'));
@@ -147,7 +147,7 @@ final class AuditFindingsRegressionTest extends TestCase
         $this->app->forgetInstance(WorkspaceManager::class);
         Workspace::clearResolvedInstances();
 
-        $this->artisan('package:delete', ['name' => 'acme/failing-ex', '--force' => true])
+        $this->artisan('package:delete', ['package' => 'acme/failing-ex', '--force' => true])
             ->assertFailed();
 
         $afterWorkspace = File::get(base_path('workspace.json'));
@@ -539,7 +539,7 @@ final class AuditFindingsRegressionTest extends TestCase
         $this->assertSame('packages/acme/a', Workspace::findPackagePath('acme/a'));
         $this->assertSame('packages/acme/c', Workspace::findPackagePath('acme/c'));
         $this->artisan('workspace:list')->assertSuccessful();
-        $this->artisan('package:delete', ['name' => 'acme/a', '--force' => true])->assertSuccessful();
+        $this->artisan('package:delete', ['package' => 'acme/a', '--force' => true])->assertSuccessful();
         $this->assertContains(['name' => 'acme/b', 'url' => 'https://example.invalid/b'], Workspace::all()['packages']['packages']);
         $this->assertFileExists(base_path('packages/acme/b/composer.json'));
     }
@@ -573,7 +573,7 @@ final class AuditFindingsRegressionTest extends TestCase
         Workspace::clearCache();
 
         // Targeted deletion removes the corrupted package and its manifest record
-        $this->artisan('package:delete', ['name' => 'acme/broken', '--force' => true])->assertSuccessful();
+        $this->artisan('package:delete', ['package' => 'acme/broken', '--force' => true])->assertSuccessful();
         $this->assertDirectoryDoesNotExist(base_path('packages/acme/broken'));
         $this->assertNull(Workspace::findPackagePath('acme/broken'));
 

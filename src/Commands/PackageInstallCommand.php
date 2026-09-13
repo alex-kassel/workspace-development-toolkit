@@ -16,7 +16,7 @@ class PackageInstallCommand extends BasePackageCommand
      *
      * @var string
      */
-    protected $signature = 'package:install {name : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Install package into require-dev} {--remote : Allow installing non-local package from Composer remote repositories}';
+    protected $signature = 'package:install {package : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Install package into require-dev} {--remote : Allow installing non-local package from Composer remote repositories}';
 
     /**
      * The console command description.
@@ -38,7 +38,7 @@ class PackageInstallCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $rawPackage = (string) ($this->hasArgument('package') ? $this->argument('package') : $this->argument('name'));
+        $rawPackage = (string) $this->argument('package');
         $isDev = (bool) $this->option('dev');
         $allowRemote = (bool) $this->option('remote');
 
