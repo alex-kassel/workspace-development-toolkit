@@ -15,7 +15,7 @@ return [
     | e.g. "alex-kassel/workspace-development-toolkit".
     |
     */
-    'repository_url_template' => env('WORKSPACE_REPOSITORY_URL_TEMPLATE', env('WORKSPACE_REPOSITORY_TEMPLATE', 'git@github.com:{package}.git')),
+    'repository_url_template' => env('WORKSPACE_REPOSITORY_URL_TEMPLATE', 'git@github.com:{package}.git'),
 
     /*
     |--------------------------------------------------------------------------
@@ -54,10 +54,10 @@ return [
     | Vendors considered internal/trusted when performing recursive package cloning.
     | When `package:clone --recursive` is run, any dependencies belonging to these
     | organizations will be automatically cloned into the workspace as well.
-    | Can be defined as an array or comma-separated list via WORKSPACE_TRUSTED_ORGANIZATIONS.
+    | Can be defined as an array or comma-separated list via WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED.
     |
     */
-    'trusted_organizations' => array_values(array_filter(array_map('trim', explode(',', (string) env('WORKSPACE_TRUSTED_ORGANIZATIONS', ''))))),
+    'trusted_organizations' => array_values(array_filter(array_map('trim', explode(',', (string) env('WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED', ''))))),
 
     /*
     |--------------------------------------------------------------------------

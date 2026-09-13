@@ -48,7 +48,7 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
         return 1;
     }
 
-    $template = $manifest['repository_template'] ?? 'git@github.com:{package}.git';
+    $template = $manifest['repository_url_template'] ?? $manifest['repository_template'] ?? 'git@github.com:{package}.git';
     $workspaces = $manifest['workspaces'];
 
     echo "\033[36mRestoring workspace packages...\033[0m\n";

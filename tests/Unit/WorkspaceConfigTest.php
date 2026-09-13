@@ -24,11 +24,13 @@ class WorkspaceConfigTest extends TestCase
         $this->assertSame('https://custom-git.com/{package}.git', Workspace::getRepositoryTemplate());
     }
 
-    public function test_manifest_repository_falls_back_to_legacy_repository_template_config(): void
+    public function test_workspace_config_parses_comma_separated_trusted_organizations(): void
     {
-        Config::set('workspace.repository_url_template', null);
-        Config::set('workspace.repository_template', 'https://legacy-git.com/{package}.git');
+        putenv('WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED=acme, spatie , alex-kassel');
 
-        $this->assertSame('https://legacy-git.com/{package}.git', Workspace::getRepositoryTemplate());
+        $config = require __DIR__.'/../../config/workspace.php';
+        $this->assertSame(['acme', 'spatie', 'alex-kassel'], $config['trusted_organizations']);
+
+        putenv('WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED');
     }
 }
