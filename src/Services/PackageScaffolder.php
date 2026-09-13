@@ -309,6 +309,7 @@ class PackageScaffolder
             'ServiceProvider.php.stub' => "src/{$providerClass}.php",
             'config.php.stub' => "config/{$package}.php",
             'gitkeep.stub' => 'tests/Unit/.gitkeep',
+            'run-tests.yml.stub' => '.github/workflows/run-tests.yml',
         ];
 
         // 1. Gather all stub files from default stubs

@@ -275,6 +275,20 @@ class ReleaseChecker
                 : "README has {$readmeResult['summary']['failed']} violation(s). Run package:readme for details.",
         ];
 
+        // 6. GitHub Actions CI Matrix Workflow
+        $workflowFile = $fullPath.DIRECTORY_SEPARATOR.'.github'.DIRECTORY_SEPARATOR.'workflows'.DIRECTORY_SEPARATOR.'run-tests.yml';
+        $workflowDir = $fullPath.DIRECTORY_SEPARATOR.'.github'.DIRECTORY_SEPARATOR.'workflows';
+        $hasWorkflow = File::exists($workflowFile)
+            || (File::isDirectory($workflowDir) && count(File::glob($workflowDir.'/*.{yml,yaml}', GLOB_BRACE) ?: []) > 0);
+
+        $checks['github_actions'] = [
+            'name' => 'GitHub Actions CI Matrix',
+            'status' => $hasWorkflow ? 'passed' : 'notice',
+            'message' => $hasWorkflow
+                ? 'GitHub Actions test workflow verified.'
+                : 'No test workflow found (.github/workflows/run-tests.yml). Run "php artisan package:workflow '.$packageName.'" to generate one.',
+        ];
+
         // Calculate final verdict
         $hasHardFailures = false;
         $hasActionRequired = false;
