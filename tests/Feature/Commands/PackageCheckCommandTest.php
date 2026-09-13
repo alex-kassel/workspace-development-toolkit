@@ -418,4 +418,33 @@ class PackageCheckCommandTest extends TestCase
             return str_contains($cmd, 'phpunit');
         });
     }
+
+    public function test_package_check_with_affected_flag_runs_dependent_regression_tests(): void
+    {
+        Workspace::add('packages', null, true);
+        $coreDir = $this->scaffoldTestPackage('packages/acme/core-pkg', 'acme/core-pkg');
+        $serviceDir = $this->scaffoldTestPackage('packages/acme/service-pkg', 'acme/service-pkg');
+
+        // service requires core
+        File::put($serviceDir.'/composer.json', json_encode([
+            'name' => 'acme/service-pkg',
+            'type' => 'library',
+            'require' => ['acme/core-pkg' => '^1.0'],
+        ], JSON_PRETTY_PRINT));
+
+        Workspace::sync();
+        $this->createMockBinaries();
+
+        Process::fake([
+            '*' => Process::result(output: 'OK'),
+        ]);
+
+        $this->artisan('package:check', ['package' => 'acme/core-pkg', '--affected' => true])
+            ->expectsOutputToContain('Verifying package [acme/core-pkg]')
+            ->expectsOutputToContain('Running regression test suites for 1 dependent package(s)')
+            ->expectsOutputToContain('Dependent Package (Affected)')
+            ->expectsOutputToContain('acme/service-pkg')
+            ->expectsOutputToContain('Verification passed for package [acme/core-pkg]')
+            ->assertSuccessful();
+    }
 }

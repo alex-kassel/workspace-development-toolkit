@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageGraph;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
@@ -24,7 +25,9 @@ class PackageCheckCommand extends BasePackageCommand
         {--quick : Run only quick checks (Composer validate and Pint)}
         {--dry-run : Only check code style without applying automatic fixes (recommended for CI)}
         {--only= : Comma-separated list of checks to run (composer,pint,phpstan,tests)}
-        {--isolated : Install and test an independent temporary package copy (Phase 3)}';
+        {--isolated : Install and test an independent temporary package copy (Phase 3)}
+        {--with-workspace-deps : Link sibling workspace packages during isolated verification}
+        {--affected : Also run regression tests for packages that depend on this package}';
 
     /**
      * The console command description.
@@ -37,6 +40,7 @@ class PackageCheckCommand extends BasePackageCommand
         WorkspaceManager $workspace,
         ComposerManager $composer,
         protected readonly PackageVerifier $verifier,
+        protected readonly ?PackageGraph $graph = null,
     ) {
         parent::__construct($workspace, $composer);
     }
@@ -54,13 +58,15 @@ class PackageCheckCommand extends BasePackageCommand
             || (getenv('GITHUB_ACTIONS') !== false);
         $fix = ! $dryRun;
         $isolated = (bool) $this->option('isolated');
+        $withWorkspaceDeps = (bool) $this->option('with-workspace-deps');
+        $affected = (bool) $this->option('affected');
         $tier = $quick ? 'quick' : 'deep';
 
         $rawOnly = (string) $this->option('only');
         $only = $rawOnly !== '' ? array_map('trim', explode(',', $rawOnly)) : [];
 
         if ($all) {
-            return $this->handleAllPackages($tier, $only, $fix, $isolated);
+            return $this->handleAllPackages($tier, $only, $fix, $isolated, $withWorkspaceDeps);
         }
 
         if ($rawPackage === '') {
@@ -72,7 +78,7 @@ class PackageCheckCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        return $this->handleSinglePackage($rawPackage, $tier, $only, $fix, $isolated);
+        return $this->handleSinglePackage($rawPackage, $tier, $only, $fix, $isolated, $withWorkspaceDeps, $affected);
     }
 
     /**
@@ -80,8 +86,15 @@ class PackageCheckCommand extends BasePackageCommand
      *
      * @param  array<int, string>  $only
      */
-    protected function handleSinglePackage(string $rawPackage, string $tier, array $only, bool $fix, bool $isolated = false): int
-    {
+    protected function handleSinglePackage(
+        string $rawPackage,
+        string $tier,
+        array $only,
+        bool $fix,
+        bool $isolated = false,
+        bool $withWorkspaceDeps = false,
+        bool $affected = false
+    ): int {
         $packagePath = $this->workspace->findPackagePath($rawPackage);
 
         if ($packagePath === null || ! File::isDirectory(base_path($packagePath))) {
@@ -98,7 +111,7 @@ class PackageCheckCommand extends BasePackageCommand
         $this->newLine();
 
         try {
-            $results = $this->verifier->checkAll($packagePath, $package, $tier, $only, $fix, $isolated);
+            $results = $this->verifier->checkAll($packagePath, $package, $tier, $only, $fix, $isolated, $withWorkspaceDeps);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -132,6 +145,50 @@ class PackageCheckCommand extends BasePackageCommand
             }
         }
 
+        // Handle affected dependent packages regression checking
+        if ($affected) {
+            $graph = $this->graph ?? app(PackageGraph::class);
+            $dependents = $graph->getDependents($package, recursive: true);
+
+            if (empty($dependents)) {
+                $this->newLine();
+                $this->info("No other workspace packages depend on [{$package}].");
+            } else {
+                $this->newLine();
+                $this->info('Running regression test suites for '.count($dependents).' dependent package(s)...');
+                $this->newLine();
+
+                $dependentRows = [];
+                foreach ($dependents as $depPackage) {
+                    $depPath = $this->workspace->findPackagePath($depPackage);
+                    if ($depPath === null || ! File::isDirectory(base_path($depPath))) {
+                        continue;
+                    }
+
+                    $testResult = $this->verifier->checkTests(base_path($depPath), $depPackage);
+                    $statusFormatted = CheckStatus::format($testResult->status);
+
+                    if ($testResult->status === 'failed') {
+                        $hasFailure = true;
+                    }
+
+                    $dependentRows[] = [
+                        $depPackage,
+                        $statusFormatted,
+                        number_format($testResult->durationSeconds, 2).'s',
+                    ];
+
+                    if ($testResult->status === 'failed' && ! empty($testResult->output)) {
+                        $this->newLine();
+                        $this->error("Regression failure in dependent package [{$depPackage}]:");
+                        $this->line($testResult->output);
+                    }
+                }
+
+                $this->table(['Dependent Package (Affected)', 'Tests Status', 'Duration'], $dependentRows);
+            }
+        }
+
         $this->newLine();
 
         if ($hasFailure) {
@@ -150,7 +207,7 @@ class PackageCheckCommand extends BasePackageCommand
      *
      * @param  array<int, string>  $only
      */
-    protected function handleAllPackages(string $tier, array $only, bool $fix, bool $isolated = false): int
+    protected function handleAllPackages(string $tier, array $only, bool $fix, bool $isolated = false, bool $withWorkspaceDeps = false): int
     {
         $this->workspace->sync();
         $packagesToVerify = array_filter(
@@ -169,7 +226,7 @@ class PackageCheckCommand extends BasePackageCommand
         $this->newLine();
 
         try {
-            $allResults = $this->verifier->checkAllPackages($packagesToVerify, $tier, $only, $fix, $isolated);
+            $allResults = $this->verifier->checkAllPackages($packagesToVerify, $tier, $only, $fix, $isolated, $withWorkspaceDeps);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
