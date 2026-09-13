@@ -336,14 +336,31 @@ class ManifestRepository
         }
 
         $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
+        $vendor = $data['workspaces'][$cleanWorkspace]['vendor'] ?? null;
         $newPackages = [];
         $found = false;
+
+        $targets = [strtolower($packageName)];
+        if ($vendor !== null) {
+            $prefix = strtolower($vendor).'/';
+            if (str_starts_with(strtolower($packageName), $prefix)) {
+                $targets[] = substr(strtolower($packageName), strlen($prefix));
+            } else {
+                $targets[] = strtolower("{$vendor}/{$packageName}");
+            }
+        } elseif (str_contains($packageName, '/')) {
+            [, $shortName] = explode('/', $packageName, 2);
+            $targets[] = strtolower($shortName);
+        }
 
         foreach ($wsPackages as $item) {
             $existingName = is_array($item) ? $item['name'] : (string) $item;
             $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
 
-            if ($existingName === $packageName || $existingAlias === $packageName) {
+            $isMatch = in_array(strtolower($existingName), $targets, true)
+                || ($existingAlias !== null && in_array(strtolower($existingAlias), $targets, true));
+
+            if ($isMatch) {
                 $found = true;
 
                 continue;

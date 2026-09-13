@@ -282,6 +282,36 @@ class WorkspaceManager
     }
 
     /**
+     * Find the registered workspace path that contains the given package path.
+     */
+    public function findWorkspaceForPath(string $packagePath): ?string
+    {
+        $cleanPath = trim(str_replace('\\', '/', $packagePath), '/');
+        $workspaces = $this->all();
+        $wsKeys = array_keys($workspaces);
+        usort($wsKeys, fn ($a, $b) => strlen($b) <=> strlen($a));
+
+        foreach ($wsKeys as $ws) {
+            $cleanWs = trim(str_replace('\\', '/', (string) $ws), '/');
+            if ($cleanPath === $cleanWs || str_starts_with($cleanPath, "{$cleanWs}/")) {
+                return (string) $ws;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get all local packages mapped as [canonical_name => relative_path].
+     *
+     * @return array<string, string>
+     */
+    public function getAllLocalPackages(): array
+    {
+        return $this->resolver->getAllLocalPackages();
+    }
+
+    /**
      * Resolve package clone URL from template.
      */
     public function resolvePackageCloneUrl(string $packageName): string
@@ -688,17 +718,7 @@ class WorkspaceManager
             );
         }
 
-        $matchedWorkspace = null;
-        $workspaces = $this->all();
-        $wsKeys = array_keys($workspaces);
-        usort($wsKeys, fn ($a, $b) => strlen($b) <=> strlen($a));
-
-        foreach ($wsKeys as $ws) {
-            if ($packagePath === $ws || str_starts_with($packagePath, "{$ws}/")) {
-                $matchedWorkspace = $ws;
-                break;
-            }
-        }
+        $matchedWorkspace = $this->findWorkspaceForPath($packagePath);
 
         if ($matchedWorkspace === null) {
             throw new WorkspaceException(

@@ -289,4 +289,43 @@ class ComposerManager
 
         return $modified;
     }
+
+    /**
+     * Get requirement section ('require' or 'require-dev') for a package in root composer.json, or null if not required.
+     */
+    public function getRequirementType(string $package): ?string
+    {
+        $composerPath = base_path('composer.json');
+        if (! File::exists($composerPath)) {
+            return null;
+        }
+
+        try {
+            $composer = json_decode(File::get($composerPath), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        if (! is_array($composer)) {
+            return null;
+        }
+
+        if (isset($composer['require-dev'][$package])) {
+            return 'require-dev';
+        }
+
+        if (isset($composer['require'][$package])) {
+            return 'require';
+        }
+
+        return null;
+    }
+
+    /**
+     * Determine if a package is required in root composer.json (either require or require-dev).
+     */
+    public function isInstalled(string $package): bool
+    {
+        return $this->getRequirementType($package) !== null;
+    }
 }

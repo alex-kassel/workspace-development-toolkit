@@ -403,6 +403,26 @@ class PackageResolver
     }
 
     /**
+     * Get all local packages mapped as [canonical_name => relative_path].
+     *
+     * @return array<string, string>
+     */
+    public function getAllLocalPackages(): array
+    {
+        $packages = [];
+        foreach ($this->getPackageIndex() as $wsPackages) {
+            foreach ($wsPackages as $relPath => $data) {
+                $name = $data['canonicalName'] ?: $data['shortName'];
+                if ($name !== '') {
+                    $packages[$name] = $relPath;
+                }
+            }
+        }
+
+        return $packages;
+    }
+
+    /**
      * Format URL according to preferred protocol (SSH vs HTTPS).
      */
     public function formatUrlProtocol(string $url, bool $useSsh): string

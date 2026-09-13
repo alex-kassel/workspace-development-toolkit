@@ -146,4 +146,71 @@ class FilesystemHelper
             }
         }
     }
+
+    /**
+     * Compute canonical path resolving ., .., separators, symlinks, and case insensitivity.
+     */
+    public static function canonicalPath(string $path): string
+    {
+        $real = @realpath($path);
+        if ($real !== false) {
+            $path = $real;
+        } else {
+            $normalized = str_replace('\\', '/', $path);
+            $segments = explode('/', $normalized);
+            $resolved = [];
+            foreach ($segments as $segment) {
+                if ($segment === '' || $segment === '.') {
+                    continue;
+                }
+                if ($segment === '..') {
+                    array_pop($resolved);
+                } else {
+                    $resolved[] = $segment;
+                }
+            }
+            $prefix = str_starts_with($normalized, '/') ? '/' : '';
+            $path = $prefix.implode('/', $resolved);
+        }
+
+        $path = rtrim(str_replace('\\', '/', $path), '/');
+
+        return PHP_OS_FAMILY === 'Windows' ? strtolower($path) : $path;
+    }
+
+    /**
+     * Determine if a directory exists and is empty.
+     */
+    public function isEmptyDirectory(string $path): bool
+    {
+        if (! File::isDirectory($path)) {
+            return false;
+        }
+
+        try {
+            $it = new FilesystemIterator($path, FilesystemIterator::KEY_AS_PATHNAME | FilesystemIterator::CURRENT_AS_FILEINFO | FilesystemIterator::SKIP_DOTS);
+
+            return ! $it->valid();
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if a path is strictly inside a base path.
+     */
+    public function isWithinBasePath(string $path, string $basePath): bool
+    {
+        $realPath = @realpath($path);
+        $realBase = @realpath($basePath);
+
+        if ($realPath === false || $realBase === false) {
+            return false;
+        }
+
+        $canonicalPath = $this->canonicalPath($realPath);
+        $canonicalBase = $this->canonicalPath($realBase);
+
+        return str_starts_with($canonicalPath, $canonicalBase.'/');
+    }
 }
