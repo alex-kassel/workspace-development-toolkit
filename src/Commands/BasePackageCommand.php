@@ -4,20 +4,8 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
-use Illuminate\Console\Command;
-
-abstract class BasePackageCommand extends Command
+abstract class BasePackageCommand extends BaseCommand
 {
-    public function __construct(
-        protected WorkspaceManager $workspace,
-        protected ComposerManager $composer,
-    ) {
-        parent::__construct();
-    }
-
     /**
      * Retrieve and validate the required package argument.
      * Zero-ambiguity: provides concrete format example in prompt and error.
@@ -40,19 +28,6 @@ abstract class BasePackageCommand extends Command
         }
 
         return $this->normalizePackageInput($package);
-    }
-
-    /**
-     * Standardized renderer for WorkspaceException errors and their actionable solutions.
-     */
-    protected function handleWorkspaceException(WorkspaceException $e): int
-    {
-        $this->error($e->getMessage());
-        if ($e->getSolution()) {
-            $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
-        }
-
-        return self::FAILURE;
     }
 
     /**
@@ -81,6 +56,6 @@ abstract class BasePackageCommand extends Command
      */
     protected function normalizePackageInput(string $input): string
     {
-        return str_replace('\\', '/', trim($input));
+        return $this->sanitizeInput($input);
     }
 }

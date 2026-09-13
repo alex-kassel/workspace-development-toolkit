@@ -62,7 +62,7 @@ class WorkspaceAddCommand extends BaseWorkspaceCommand
         }
 
         try {
-            $this->workspace->add($rawPath, $vendor, $isDefault);
+            $this->workspace->add($path, $vendor, $isDefault);
         } catch (WorkspaceException $e) {
             return $this->handleWorkspaceException($e);
         }
