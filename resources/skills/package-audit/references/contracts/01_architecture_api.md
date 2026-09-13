@@ -70,6 +70,11 @@ Determine whether the package has a coherent architecture, stable public contrac
   - Keep solutions direct, transparent, and pragmatically simple.
 - **Ecosystem Leverage (No Homegrown Wheels)**:
   - For specialized domain problems (e.g., canonical payload hashing, specific protocol serialization), prefer established, focused, and tested Composer packages over homegrown ad-hoc reimplementations.
+- **Human & Machine UX (Zero-Ambiguity)**:
+  - All CLI commands, interactive prompts, error diagnostics, and documentation are designed for both human developers and autonomous AI agents.
+  - Zero room for fantasy or guesswork: whenever asking for input or reporting errors, always provide the exact expected syntax/shape (e.g. two-part `vendor/package` such as `acme/my-pkg`) and concrete examples.
+  - Never blur terminology (if an entity is a package, call it `package`, never "package or alias"; if an input requires a two-part `vendor/package`, explicitly specify the requirement).
+  - All errors must provide an actionable, copy-pasteable resolution command (`How to fix:`).
 
 ---
 

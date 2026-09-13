@@ -4,12 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\DTOs;
 
-use ArrayAccess;
-
-/**
- * @implements ArrayAccess<string, mixed>
- */
-readonly class PackageAliasResult implements ArrayAccess
+readonly class PackageAliasResult
 {
     /**
      * @param  string  $oldPath  Old relative path on disk (e.g. "app/Cores/scraper-core")
@@ -29,7 +24,7 @@ readonly class PackageAliasResult implements ArrayAccess
     ) {}
 
     /**
-     * Convert to array for backward compatibility.
+     * Convert to array representation.
      *
      * @return array{old_path: string, new_path: string, canonical_name: string, alias: string, workspace: string, was_installed: bool}
      */
@@ -43,25 +38,5 @@ readonly class PackageAliasResult implements ArrayAccess
             'workspace' => $this->workspace,
             'was_installed' => $this->wasInstalled,
         ];
-    }
-
-    public function offsetExists(mixed $offset): bool
-    {
-        return array_key_exists((string) $offset, $this->toArray());
-    }
-
-    public function offsetGet(mixed $offset): mixed
-    {
-        return $this->toArray()[(string) $offset] ?? null;
-    }
-
-    public function offsetSet(mixed $offset, mixed $value): void
-    {
-        throw new \BadMethodCallException('PackageAliasResult is an immutable DTO.');
-    }
-
-    public function offsetUnset(mixed $offset): void
-    {
-        throw new \BadMethodCallException('PackageAliasResult is an immutable DTO.');
     }
 }

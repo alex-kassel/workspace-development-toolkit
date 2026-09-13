@@ -219,9 +219,9 @@ class WorkspaceManagerTest extends TestCase
         $this->assertSame('Scraper', $result->alias);
         $this->assertSame('app/Cores', $result->workspace);
 
-        $this->assertSame('app/Cores/scraper-core', $result['old_path']);
-        $this->assertSame('app/Cores/Scraper', $result['new_path']);
-        $this->assertSame('alex-kassel/scraper-core', $result['canonical_name']);
+        $this->assertSame('app/Cores/scraper-core', $result->toArray()['old_path']);
+        $this->assertSame('app/Cores/Scraper', $result->toArray()['new_path']);
+        $this->assertSame('alex-kassel/scraper-core', $result->toArray()['canonical_name']);
 
         $this->assertDirectoryDoesNotExist(base_path('app/Cores/scraper-core'));
         $this->assertDirectoryExists(base_path('app/Cores/Scraper'));

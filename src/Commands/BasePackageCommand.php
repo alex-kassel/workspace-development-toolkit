@@ -24,6 +24,30 @@ abstract class BasePackageCommand extends Command
     }
 
     /**
+     * Retrieve and validate the required package argument.
+     * Zero-ambiguity: provides concrete format example in prompt and error.
+     */
+    protected function getRequiredPackage(?string $prompt = null): ?string
+    {
+        $package = trim((string) $this->argument('package'));
+
+        if ($package === '' && $this->input->isInteractive()) {
+            $defaultPrompt = 'Please enter the package name (format: vendor/package, e.g. acme/my-pkg):';
+            $package = trim((string) $this->ask($prompt ?? $defaultPrompt));
+        }
+
+        if ($package === '') {
+            $this->error('Package name is required.');
+            $this->line("  <comment>Usage:</comment>   php artisan {$this->getName()} <vendor/package>");
+            $this->line("  <comment>Example:</comment> php artisan {$this->getName()} acme/my-pkg");
+
+            return null;
+        }
+
+        return $this->normalizePackageInput($package);
+    }
+
+    /**
      * Standardized renderer for WorkspaceException errors and their actionable solutions.
      */
     protected function handleWorkspaceException(WorkspaceException $e): int

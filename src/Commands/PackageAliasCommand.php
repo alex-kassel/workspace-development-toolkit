@@ -14,10 +14,8 @@ class PackageAliasCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:alias
-        {package : The package name, short name, or current alias}
-        {alias? : The new directory alias}
-        {--as= : Alternate option to specify the new alias}
-        {--alias= : Alternate option to specify the new alias}';
+        {package : Package name in vendor/package format (e.g. acme/my-pkg)}
+        {alias? : New directory alias name (e.g. MyPackage)}';
 
     /**
      * The console command description.
@@ -31,25 +29,21 @@ class PackageAliasCommand extends BasePackageCommand
      */
     public function handle(): int
     {
-        $package = trim((string) $this->argument('package'));
-        if ($package === '') {
-            $this->error('Package name is required.');
-            $this->line('  <comment>Usage:</comment> php artisan package:alias <package> <alias>');
-
+        $package = $this->getRequiredPackage();
+        if ($package === null) {
             return self::FAILURE;
         }
 
-        $rawAlias = trim((string) ($this->option('as') ?: $this->option('alias') ?: $this->argument('alias')));
+        $rawAlias = trim((string) $this->argument('alias'));
 
         if ($rawAlias === '' && $this->input->isInteractive()) {
-            $rawAlias = trim((string) $this->ask("Please enter the new directory alias for [{$package}]:"));
+            $rawAlias = trim((string) $this->ask("Please enter the new directory alias for [{$package}] (e.g. MyPackage):"));
         }
 
         if ($rawAlias === '') {
             $this->error('Alias is required.');
-            $this->line('  <comment>Usage:</comment>');
-            $this->line("  <info>php artisan package:alias {$package} MyAlias</info>");
-            $this->line("  <info>php artisan package:alias {$package} --as=MyAlias</info>");
+            $this->line("  <comment>Usage:</comment>   php artisan package:alias {$package} <alias>");
+            $this->line("  <comment>Example:</comment> php artisan package:alias {$package} MyPackage");
 
             return self::FAILURE;
         }

@@ -581,7 +581,7 @@ class PackageCommandsTest extends TestCase
         $this->assertSame([['name' => 'scraper-core', 'alias' => 'Scraper']], $packages);
     }
 
-    public function test_package_alias_with_as_and_alias_options(): void
+    public function test_package_alias_renames_existing_alias(): void
     {
         Workspace::add('app/Cores', 'alex-kassel', true);
         $this->createDummyPackage('app/Cores/scraper-core', 'alex-kassel/scraper-core');
@@ -591,24 +591,26 @@ class PackageCommandsTest extends TestCase
             'composer*' => Process::result(output: 'dumped'),
         ]);
 
+        // First alias: scraper-core -> ScraperEngine
         $this->artisan('package:alias', [
             'package' => 'scraper-core',
-            '--as' => 'ScraperEngine',
+            'alias' => 'ScraperEngine',
         ])
             ->expectsOutputToContain('successfully aliased to [ScraperEngine]')
             ->assertSuccessful();
 
         $this->assertDirectoryExists(base_path('app/Cores/ScraperEngine'));
 
-        // Test with --alias option
+        // Second alias: rename ScraperEngine -> Scraper
         $this->artisan('package:alias', [
             'package' => 'ScraperEngine',
-            '--alias' => 'Scraper',
+            'alias' => 'Scraper',
         ])
             ->expectsOutputToContain('successfully aliased to [Scraper]')
             ->assertSuccessful();
 
         $this->assertDirectoryExists(base_path('app/Cores/Scraper'));
+        $this->assertDirectoryDoesNotExist(base_path('app/Cores/ScraperEngine'));
     }
 
     public function test_package_alias_prompts_for_alias_when_omitted(): void
@@ -622,7 +624,7 @@ class PackageCommandsTest extends TestCase
         ]);
 
         $this->artisan('package:alias', ['package' => 'scraper-core'])
-            ->expectsQuestion('Please enter the new directory alias for [scraper-core]:', 'PromptedAlias')
+            ->expectsQuestion('Please enter the new directory alias for [scraper-core] (e.g. MyPackage):', 'PromptedAlias')
             ->expectsOutputToContain('successfully aliased to [PromptedAlias]')
             ->assertSuccessful();
 
