@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReadmeValidator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -61,29 +62,27 @@ class PackageReadmeCommand extends BasePackageCommand
         if ($isJson) {
             $this->line(json_encode($result, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-            return $result['status'] === 'passed' ? self::SUCCESS : self::FAILURE;
+            return $result->isPassed() ? self::SUCCESS : self::FAILURE;
         }
 
-        $this->info("README Verification: {$result['package']} ({$result['path']})");
+        $this->info("README Verification: {$result->package} ({$result->path})");
         $this->newLine();
 
-        foreach ($result['checks'] as $check) {
-            $statusLabel = ($check['status'] === 'passed')
-                ? '<info>[PASS]</info>'
-                : '<error>[FAIL]</error>';
+        foreach ($result->checks as $check) {
+            $statusLabel = CheckStatus::format($check['status'], bracketed: true);
 
             $this->line("  {$statusLabel} <comment>{$check['name']}</comment>: {$check['message']}");
         }
 
         $this->newLine();
 
-        if ($result['status'] === 'passed') {
+        if ($result->isPassed()) {
             $this->info('README verification passed. All checks passed.');
 
             return self::SUCCESS;
         }
 
-        $this->error("README verification failed with {$result['summary']['failed']} issue(s).");
+        $this->error("README verification failed with {$result->failedCount()} issue(s).");
 
         return self::FAILURE;
     }

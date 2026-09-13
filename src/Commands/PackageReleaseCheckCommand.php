@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ReleaseGateResult;
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReleaseChecker;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -60,25 +62,15 @@ class PackageReleaseCheckCommand extends BasePackageCommand
         if ($isJson) {
             $this->line(json_encode($result, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-            return match ($result['verdict']) {
-                'READY' => self::SUCCESS,
-                'ACTION_REQUIRED' => 2,
-                default => self::FAILURE,
-            };
+            return $result->exitCode();
         }
 
-        $this->info("RELEASE-GATE PRE-FLIGHT [{$result['package']}] ({$result['path']})");
-        $this->line("  <comment>Tag:</comment> {$result['latest_tag']}");
+        $this->info("RELEASE-GATE PRE-FLIGHT [{$result->package}] ({$result->path})");
+        $this->line("  <comment>Tag:</comment> {$result->latestTag}");
         $this->newLine();
 
-        foreach ($result['checks'] as $check) {
-            $badge = match ($check['status']) {
-                'passed' => '<info>[PASS]</info>',
-                'failed' => '<error>[FAIL]</error>',
-                'action_required' => '<comment>[WARN]</comment>',
-                'not_configured', 'skipped' => '<fg=gray;options=bold>[SKIP]</>',
-                default => '[UNK]',
-            };
+        foreach ($result->checks as $check) {
+            $badge = CheckStatus::format($check['status'], bracketed: true);
 
             $this->line("  {$badge} <options=bold>{$check['name']}</>");
             if ($check['status'] !== 'passed') {
@@ -88,16 +80,16 @@ class PackageReleaseCheckCommand extends BasePackageCommand
 
         $this->newLine();
 
-        if ($result['verdict'] === 'READY') {
+        if ($result->isReady()) {
             $this->info('  ✔ RELEASE GATE: READY TO PUBLISH');
 
             return self::SUCCESS;
         }
 
-        if ($result['verdict'] === 'ACTION_REQUIRED') {
+        if ($result->isActionRequired()) {
             $this->warn('  ▲ RELEASE GATE: ACTION / DECISION REQUIRED');
 
-            return 2;
+            return ReleaseGateResult::EXIT_ACTION_REQUIRED;
         }
 
         $this->error('  ✖ RELEASE-GATE: BLOCKED (fix failing checks before release)');

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ReleaseGateResult;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
@@ -19,16 +20,8 @@ class ReleaseChecker
 
     /**
      * Run pre-flight release gate checks.
-     *
-     * @return array{
-     *     package: string,
-     *     path: string,
-     *     verdict: string,
-     *     latest_tag: string,
-     *     checks: array<string, array{name: string, status: string, message: string}>
-     * }
      */
-    public function check(string $packageNameOrPath, bool $fast = false): array
+    public function check(string $packageNameOrPath, bool $fast = false): ReleaseGateResult
     {
         $packagePath = $this->packageResolver->findPackagePath($packageNameOrPath);
         if ($packagePath === null) {
@@ -300,13 +293,13 @@ class ReleaseChecker
             $verdict = 'ACTION_REQUIRED';
         }
 
-        return [
-            'package' => $packageName,
-            'path' => $packagePath,
-            'verdict' => $verdict,
-            'latest_tag' => $latestTag,
-            'checks' => $checks,
-        ];
+        return new ReleaseGateResult(
+            package: $packageName,
+            path: $packagePath,
+            verdict: $verdict,
+            latestTag: $latestTag,
+            checks: $checks,
+        );
     }
 
     protected function extractCertifiedCommit(string $content): ?string

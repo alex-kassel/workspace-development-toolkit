@@ -99,15 +99,15 @@ class PackageMakeCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $package = $result['package'];
-        $shortName = $result['shortName'];
-        $displayPath = $result['displayPath'];
+        $package = $result->package;
+        $shortName = $result->shortName;
+        $displayPath = $result->displayPath;
 
         $this->info("Package [{$package}] created successfully in [{$displayPath}].");
         $this->line('  <info>Git repository initialized with initial commit and tag v0.0.1.</info>');
 
         if ($alias !== null) {
-            $this->warnIfDuplicateAlias($alias, $displayPath);
+            $this->warnIfDuplicateAlias($alias, $displayPath, $package);
         }
 
         if ($install) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ReadmeValidationResult;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
 use RuntimeException;
@@ -16,16 +17,8 @@ class ReadmeValidator
 
     /**
      * Validate package README.md compliance.
-     *
-     * @return array{
-     *     package: string,
-     *     path: string,
-     *     status: string,
-     *     summary: array{passed: int, failed: int},
-     *     checks: array<string, array{name: string, status: string, message: string}>
-     * }
      */
-    public function validate(string $packageNameOrPath): array
+    public function validate(string $packageNameOrPath): ReadmeValidationResult
     {
         if (File::isDirectory($packageNameOrPath)) {
             $fullPath = realpath($packageNameOrPath) ?: $packageNameOrPath;
@@ -167,15 +160,15 @@ class ReadmeValidator
             }
         }
 
-        return [
-            'package' => $packageName,
-            'path' => $packagePath,
-            'status' => ($failedCount === 0) ? 'passed' : 'failed',
-            'summary' => [
+        return new ReadmeValidationResult(
+            package: $packageName,
+            path: $packagePath,
+            status: ($failedCount === 0) ? 'passed' : 'failed',
+            summary: [
                 'passed' => $passedCount,
                 'failed' => $failedCount,
             ],
-            'checks' => $checks,
-        ];
+            checks: $checks,
+        );
     }
 }

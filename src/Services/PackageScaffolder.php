@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ScaffoldResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use FilesystemIterator;
@@ -23,18 +24,6 @@ class PackageScaffolder
     /**
      * Scaffold a new package in the given workspace.
      *
-     * @return array{
-     *     name: string,
-     *     package: string,
-     *     vendorName: string,
-     *     packageName: string,
-     *     shortName: string,
-     *     packagePath: string,
-     *     displayPath: string,
-     *     alias: ?string,
-     *     workspace: string
-     * }
-     *
      * @throws WorkspaceException
      */
     public function scaffold(
@@ -43,7 +32,7 @@ class PackageScaffolder
         ?string $alias = null,
         bool $scaffoldSkills = true,
         ?string $skillSlug = null
-    ): array {
+    ): ScaffoldResult {
         // 1. Mandatory Git preflight verification
         $this->ensureGitConfigured();
 
@@ -237,17 +226,17 @@ class PackageScaffolder
 
         $displayPath = trim(str_replace(base_path(), '', $packagePath), '/\\');
 
-        return [
-            'name' => $package,
-            'package' => $package,
-            'vendorName' => $vendorName,
-            'packageName' => $packageName,
-            'shortName' => $shortName,
-            'packagePath' => $packagePath,
-            'displayPath' => $displayPath,
-            'alias' => $cleanAlias !== '' ? $cleanAlias : null,
-            'workspace' => $cleanWorkspace,
-        ];
+        return new ScaffoldResult(
+            name: $package,
+            package: $package,
+            vendorName: $vendorName,
+            packageName: $packageName,
+            shortName: $shortName,
+            packagePath: $packagePath,
+            displayPath: $displayPath,
+            alias: $cleanAlias !== '' ? $cleanAlias : null,
+            workspace: $cleanWorkspace,
+        );
     }
 
     /**
