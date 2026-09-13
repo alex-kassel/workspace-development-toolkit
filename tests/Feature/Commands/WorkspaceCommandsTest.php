@@ -742,4 +742,48 @@ class WorkspaceCommandsTest extends TestCase
 
         $this->assertDirectoryDoesNotExist(base_path('packages/vendor/private-package'));
     }
+
+    public function test_workspace_clone_fails_helpfully_when_target_directory_already_exists(): void
+    {
+        Workspace::add('packages', null, true);
+
+        $dir = base_path('packages/acme/existing-pkg');
+        File::ensureDirectoryExists($dir);
+        File::put("{$dir}/composer.json", json_encode([
+            'name' => 'acme/existing-pkg',
+        ]));
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'acme/existing-pkg',
+        ])
+            ->expectsOutputToContain('Target directory [packages/acme/existing-pkg] already exists')
+            ->expectsOutputToContain('php artisan package:install acme/existing-pkg')
+            ->expectsOutputToContain('git -C packages/acme/existing-pkg pull')
+            ->expectsOutputToContain('php artisan package:delete acme/existing-pkg')
+            ->assertFailed();
+    }
+
+    public function test_workspace_clone_interactive_prompt_triggers_install_on_yes(): void
+    {
+        Workspace::add('packages', null, true);
+        $targetPath = base_path('packages/cool/interactive-pkg');
+
+        Process::fake([
+            '*' => function ($process) use ($targetPath) {
+                File::ensureDirectoryExists($targetPath);
+                File::put("{$targetPath}/composer.json", json_encode([
+                    'name' => 'cool/interactive-pkg',
+                ]));
+
+                return Process::result(output: 'OK');
+            },
+        ]);
+
+        $this->artisan('workspace:clone', [
+            'repository' => 'cool/interactive-pkg',
+        ])
+            ->expectsConfirmation('Would you like to link [cool/interactive-pkg] into Composer now?', 'yes')
+            ->expectsOutputToContain('Repository successfully cloned to [packages/cool/interactive-pkg]')
+            ->assertSuccessful();
+    }
 }

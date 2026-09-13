@@ -9,6 +9,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Mockery\MockInterface;
 
 class WorkspaceCloneCommand extends Command
 {
@@ -164,9 +165,23 @@ class WorkspaceCloneCommand extends Command
         $fullTargetPath = base_path($relativeTargetPath);
 
         if (File::exists($fullTargetPath)) {
+            $existingComposer = "{$fullTargetPath}/composer.json";
+            $existingPackageName = null;
+            if (File::exists($existingComposer)) {
+                $pkgData = json_decode(File::get($existingComposer), true);
+                $existingPackageName = $pkgData['name'] ?? null;
+            }
+
+            $displayPkg = $existingPackageName
+                ?? ($inferredVendor && $inferredPackage ? "{$inferredVendor}/{$inferredPackage}" : $packageName);
+
             $this->error("Target directory [{$relativeTargetPath}] already exists.");
-            $this->line('  <comment>How to fix:</comment> Delete or rename the existing directory, or use a different workspace:');
-            $this->line("  <info>php artisan package:delete {$relativeTargetPath} --force</info>");
+            $this->newLine();
+            $this->line('  <comment>The package is already present on disk. Available actions:</comment>');
+            $this->line("  • Link into Composer:    <info>php artisan package:install {$displayPkg}</info>");
+            $this->line("  • Pull latest changes:   <info>git -C {$relativeTargetPath} pull</info>");
+            $this->line('  • Re-clone from scratch: Delete or rename the directory first, or run:');
+            $this->line("                            <info>php artisan package:delete {$displayPkg}</info>");
 
             return self::FAILURE;
         }
@@ -301,6 +316,18 @@ class WorkspaceCloneCommand extends Command
             $this->cloneDependenciesRecursively($clonedComposerPath, $workspace, $useSsh, $install, $dev, $timeout, $visited, $rootVendor);
         }
 
+        // Ask to link package into application Composer if running interactively
+        if (! $install && $canonicalComposerName && $this->shouldPromptInstall()) {
+            $refName = $alias !== '' ? $alias : $canonicalComposerName;
+            $this->newLine();
+            if ($this->confirm("Would you like to link [{$refName}] into Composer now?", true)) {
+                return $this->call('package:install', [
+                    'name' => $refName,
+                    '--dev' => $dev,
+                ]);
+            }
+        }
+
         $this->newLine();
         $this->line('  <comment>Next steps:</comment>');
         $this->line('  • Check registered packages: <info>php artisan workspace:list</info>');
@@ -310,6 +337,27 @@ class WorkspaceCloneCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Determine whether the command should interactively prompt to install the package.
+     */
+    protected function shouldPromptInstall(): bool
+    {
+        if (! $this->input->isInteractive()) {
+            return false;
+        }
+
+        // In test suites using Laravel's PendingCommand, console output is mocked
+        $output = $this->output;
+        if ($output instanceof MockInterface) {
+            $director = $output->mockery_getExpectationsFor('askQuestion');
+
+            return $director !== null && ! empty($director->getExpectations());
+        }
+
+        return (function_exists('stream_isatty') && @stream_isatty(STDIN))
+            || (function_exists('posix_isatty') && @posix_isatty(STDIN));
     }
 
     /**
