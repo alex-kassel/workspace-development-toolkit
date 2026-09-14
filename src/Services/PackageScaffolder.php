@@ -141,7 +141,12 @@ class PackageScaffolder
             }
 
             if ($isRegisteredPackage) {
-                $errorMessage = "Package directory [{$relDisplayPath}] already exists on disk.";
+                $existingInWorkspace = array_map(
+                    fn ($p) => is_array($p) ? ($p['name'] ?? '') : (string) $p,
+                    Workspace::all()[$cleanWorkspace]['packages'] ?? []
+                );
+                $existingList = ! empty($existingInWorkspace) ? "\nExisting packages in [{$cleanWorkspace}]: ".implode(', ', $existingInWorkspace) : '';
+                $errorMessage = "Package directory [{$relDisplayPath}] already exists on disk.{$existingList}";
                 $solution = "Choose a different package name, or permanently delete the existing package:\n  php artisan package:delete {$shortName} --force";
             } else {
                 $errorMessage = "Target directory [{$relDisplayPath}] already exists on disk and is not a registered workspace package.";

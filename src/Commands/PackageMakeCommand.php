@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\DiagnosticSeverity;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
+use Illuminate\Support\Facades\File;
+use Laravel\Prompts\Prompt;
 
 class PackageMakeCommand extends BasePackageCommand
 {
@@ -17,16 +20,16 @@ class PackageMakeCommand extends BasePackageCommand
      * @var string
      */
     protected $signature = 'package:make
-        {package : Package name in vendor/package format (e.g. acme/my-pkg) or single-word for fixed-vendor workspace}
+        {package? : Package name in vendor/package format (e.g. acme/my-pkg) or single-word for fixed-vendor workspace}
         {--as= : Optional directory alias (flat workspaces only)}
         {--alias= : Optional directory alias (synonym for --as)}
         {--workspace= : The target workspace directory}
         {--install : Install the package via Composer immediately}
         {--dev : When installing, require as a development dependency}
-        {--skills : Scaffold an agent skill in resources/skills}
-        {--no-skills : Skip scaffolding an agent skill}
-        {--skill-name= : Explicit name for the initial agent skill}
-        {--archetype= : Scaffolding archetype preset (library, pest, ddd-module, minimal)}
+        {--skills : Scaffold default agent skills into .agents/skills/ in the new package}
+        {--no-skills : Explicitly skip scaffolding agent skills}
+        {--skill-name= : Explicit custom skill slug to scaffold (e.g. package-custom)}
+        {--archetype= : Package archetype template (standard, domain, service, core, utility)}
         {--type= : Synonym for --archetype}';
 
     /**
@@ -75,7 +78,88 @@ class PackageMakeCommand extends BasePackageCommand
             }
         }
 
-        $rawPackage = (string) $this->argument('package');
+        $rawPackage = trim((string) $this->argument('package'));
+
+        if ($rawPackage === '') {
+            $workspaceVendor = $this->workspace->getWorkspaceVendor($workspace);
+            $existing = array_map(
+                fn ($p) => is_array($p) ? ($p['name'] ?? '') : (string) $p,
+                $this->workspace->all()[$workspace]['packages'] ?? []
+            );
+
+            if ($this->input->isInteractive() && @stream_isatty(STDIN)) {
+                $label = $workspaceVendor !== null
+                    ? "Enter package name for [{$workspace}] (default vendor: {$workspaceVendor}):"
+                    : "Enter package name with vendor for [{$workspace}] (e.g. vendor/my-package):";
+
+                $placeholder = $workspaceVendor !== null ? 'billing' : 'my-vendor/my-package';
+
+                $usePrompt = class_exists(Prompt::class);
+                if ($usePrompt) {
+                    $rawPackage = (string) \Laravel\Prompts\text(
+                        label: $label,
+                        placeholder: $placeholder,
+                        required: true,
+                        validate: function (string $value) use ($workspace, $workspaceVendor, $existing) {
+                            $val = trim($value);
+                            if ($val === '') {
+                                return 'Package name cannot be empty.';
+                            }
+                            $shortName = str_contains($val, '/') ? explode('/', $val)[1] : $val;
+                            $targetDir = $workspaceVendor !== null
+                                ? base_path("{$workspace}/{$shortName}")
+                                : base_path("{$workspace}/{$val}");
+
+                            if (in_array($val, $existing, true) || in_array($shortName, $existing, true) || File::isDirectory($targetDir)) {
+                                $list = ! empty($existing) ? implode(', ', $existing) : 'none';
+
+                                return "Package [{$val}] already exists in workspace [{$workspace}]. Existing packages: [{$list}]. Please enter a different name.";
+                            }
+
+                            return null;
+                        }
+                    );
+                } else {
+                    while (true) {
+                        $entered = (string) $this->ask($label);
+                        $val = trim($entered);
+                        if ($val === '') {
+                            continue;
+                        }
+                        $shortName = str_contains($val, '/') ? explode('/', $val)[1] : $val;
+                        $targetDir = $workspaceVendor !== null
+                            ? base_path("{$workspace}/{$shortName}")
+                            : base_path("{$workspace}/{$val}");
+
+                        if (in_array($val, $existing, true) || in_array($shortName, $existing, true) || File::isDirectory($targetDir)) {
+                            $this->warn("Package [{$val}] already exists in workspace [{$workspace}]. Existing packages: ".implode(', ', $existing));
+
+                            continue;
+                        }
+
+                        $rawPackage = $val;
+                        break;
+                    }
+                }
+            } else {
+                $example = $workspaceVendor !== null ? 'my-package' : 'my-vendor/my-package';
+                $this->dispatchDiagnostic(
+                    code: 'CMD_ARGUMENT_REQUIRED',
+                    message: 'Package name cannot be empty.',
+                    severity: DiagnosticSeverity::Error,
+                    context: [
+                        'Target workspace' => $workspace,
+                        'Existing packages' => empty($existing) ? ['(none)'] : $existing,
+                    ],
+                    remediationSteps: [
+                        "php artisan package:make {$example} --workspace={$workspace}",
+                    ],
+                    agentGuidance: "Provide the package name as the first argument: 'php artisan package:make <name>'."
+                );
+
+                return self::FAILURE;
+            }
+        }
         $rawAlias = (string) ($this->option('as') ?: $this->option('alias'));
         $alias = trim($rawAlias) !== '' ? trim($rawAlias) : null;
 

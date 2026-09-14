@@ -103,4 +103,26 @@ class WorkspaceCommandsChaosTest extends TestCase
         $this->assertArrayHasKey('labs', $decoded['workspaces']);
         $this->assertFileDoesNotExist(base_path('workspace.json.bak'));
     }
+
+    public function test_workspace_register_duplicate_suggests_package_make_remediation(): void
+    {
+        Workspace::add('packages');
+
+        $this->artisan('workspace:register', ['path' => 'packages'])
+            ->expectsOutputToContain('[WS_WORKSPACE_ALREADY_REGISTERED]')
+            ->expectsOutputToContain('php artisan package:make <name> --workspace=packages')
+            ->expectsOutputToContain('php artisan workspace:list')
+            ->assertFailed();
+    }
+
+    public function test_package_make_without_arguments_in_non_interactive_mode_fails_cleanly(): void
+    {
+        Workspace::add('packages', asDefault: true);
+
+        $this->artisan('package:make')
+            ->expectsOutputToContain('[CMD_ARGUMENT_REQUIRED]')
+            ->expectsOutputToContain('Target workspace:')
+            ->expectsOutputToContain('php artisan package:make')
+            ->assertFailed();
+    }
 }

@@ -32,7 +32,7 @@ class WorkspaceRegisterCommand extends BaseWorkspaceCommand
      */
     public function handle(): int
     {
-        $path = $this->getRequiredWorkspacePath(mustExist: false);
+        $path = $this->getRequiredWorkspacePath(mustExist: false, mustNotExist: true);
         if ($path === null) {
             return self::FAILURE;
         }
@@ -66,12 +66,11 @@ class WorkspaceRegisterCommand extends BaseWorkspaceCommand
                         'Registered workspaces' => array_keys($this->workspace->all()),
                     ],
                     remediationSteps: [
-                        'View registered workspaces:            php artisan workspace:list',
-                        "To flatten into single-vendor layout:  php artisan workspace:flatten {$path} <vendor>",
-                        "To unflatten into multi-vendor layout: php artisan workspace:unflatten {$path}",
-                        "To unregister this workspace:          php artisan workspace:unregister {$path}",
+                        "To create a package in this workspace:  php artisan package:make <name> --workspace={$path}",
+                        'To register a different directory:      php artisan workspace:register <different-path>',
+                        'To view all registered workspaces:      php artisan workspace:list',
                     ],
-                    agentGuidance: 'Workspace is already registered. To change its layout or vendor, use workspace:flatten or workspace:unflatten.'
+                    agentGuidance: "Workspace is already registered. You can immediately create packages inside it using 'package:make --workspace={$path}' or register a different directory."
                 );
 
                 return self::FAILURE;

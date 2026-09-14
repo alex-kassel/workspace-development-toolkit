@@ -14,7 +14,7 @@ abstract class BaseWorkspaceCommand extends BaseCommand
      * Retrieve and validate the required workspace path argument.
      * Zero-ambiguity: provides concrete format example in prompt and error.
      */
-    protected function getRequiredWorkspacePath(string $argument = 'path', bool $mustExist = true): ?string
+    protected function getRequiredWorkspacePath(string $argument = 'path', bool $mustExist = true, bool $mustNotExist = false): ?string
     {
         $rawPath = trim((string) $this->argument($argument));
 
@@ -35,12 +35,48 @@ abstract class BaseWorkspaceCommand extends BaseCommand
 
                     if (! $mustExist) {
                         $usePrompt = class_exists(Prompt::class);
-                        $entered = $usePrompt
-                            ? \Laravel\Prompts\text(label: 'Enter the workspace directory path (e.g. packages):', required: true)
-                            : $this->ask('Enter the workspace directory path (e.g. packages):');
+                        if ($usePrompt) {
+                            $entered = \Laravel\Prompts\text(
+                                label: 'Enter the workspace directory path (e.g. packages):',
+                                placeholder: 'packages',
+                                required: true,
+                                validate: function (string $value) use ($mustNotExist, $available) {
+                                    $trimmed = trim(preg_replace('#[/\\\\]+#', '/', $value) ?? '', '/');
+                                    if ($trimmed === '') {
+                                        return 'Workspace path cannot be empty.';
+                                    }
+                                    if (str_contains($trimmed, '..')) {
+                                        return 'Path traversal ("..") is not allowed.';
+                                    }
+                                    if (str_starts_with($value, '/') || str_starts_with($value, '\\')) {
+                                        return 'Absolute paths are not allowed.';
+                                    }
+                                    if ($mustNotExist && in_array($trimmed, $available, true)) {
+                                        $list = implode(', ', $available);
 
-                        if ($entered !== null && trim((string) $entered) !== '') {
+                                        return "Workspace [{$trimmed}] is already registered. Existing workspaces: [{$list}]. Please enter a different path.";
+                                    }
+
+                                    return null;
+                                }
+                            );
+
                             return $this->workspace->normalizeWorkspacePath(trim((string) $entered));
+                        }
+
+                        while (true) {
+                            $entered = $this->ask('Enter the workspace directory path (e.g. packages):');
+                            if ($entered === null || trim((string) $entered) === '') {
+                                break;
+                            }
+                            $trimmed = trim(preg_replace('#[/\\\\]+#', '/', (string) $entered) ?? '', '/');
+                            if ($mustNotExist && in_array($trimmed, $available, true)) {
+                                $this->warn("Workspace [{$trimmed}] is already registered. Existing workspaces: ".implode(', ', $available));
+
+                                continue;
+                            }
+
+                            return $this->workspace->normalizeWorkspacePath($trimmed);
                         }
                     }
                 } catch (\Throwable) {

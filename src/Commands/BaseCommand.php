@@ -11,7 +11,11 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ConsoleUiRenderer;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Console\Command;
+use Illuminate\Console\OutputStyle;
 use Illuminate\Contracts\Events\Dispatcher;
+use Symfony\Component\Console\Exception\ExceptionInterface;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 abstract class BaseCommand extends Command
 {
@@ -20,6 +24,51 @@ abstract class BaseCommand extends Command
         protected ComposerManager $composer,
     ) {
         parent::__construct();
+    }
+
+    /**
+     * Run the console command, capturing any Symfony validation or syntax exceptions.
+     */
+    public function run(InputInterface $input, OutputInterface $output): int
+    {
+        try {
+            return parent::run($input, $output);
+        } catch (ExceptionInterface $e) {
+            $this->input = $input;
+            $this->output = new OutputStyle($input, $output);
+
+            $message = $e->getMessage();
+            if (str_contains($message, 'Too many arguments')) {
+                $this->dispatchDiagnostic(
+                    code: 'CMD_TOO_MANY_ARGUMENTS',
+                    message: "Too many arguments provided to [{$this->getName()}].",
+                    severity: DiagnosticSeverity::Error,
+                    context: [
+                        'Symfony error' => $message,
+                    ],
+                    remediationSteps: [
+                        'Provide only the arguments defined in the command signature.',
+                        'If you used an unquoted shell wildcard (*), quote it or specify a single path: "pattern" or single-directory.',
+                        "View command help and syntax: php artisan help {$this->getName()}",
+                    ],
+                    agentGuidance: "Too many arguments were passed to '{$this->getName()}'. In bash/zsh, unquoted wildcards like '*' expand to all filenames in the working directory before PHP receives them. Quote the argument or provide a single target."
+                );
+
+                return self::FAILURE;
+            }
+
+            $this->dispatchDiagnostic(
+                code: 'CMD_SYNTAX_ERROR',
+                message: $message,
+                severity: DiagnosticSeverity::Error,
+                remediationSteps: [
+                    "View command help and syntax: php artisan help {$this->getName()}",
+                ],
+                agentGuidance: "Command syntax error. Check 'php artisan help {$this->getName()}'."
+            );
+
+            return self::FAILURE;
+        }
     }
 
     /**
