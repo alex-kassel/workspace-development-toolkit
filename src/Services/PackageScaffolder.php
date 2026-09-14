@@ -47,7 +47,7 @@ class PackageScaffolder
             $available = empty($workspaces) ? 'none' : implode(', ', array_keys($workspaces));
             throw new WorkspaceException(
                 "Workspace [{$cleanWorkspace}] is not registered. Available workspaces: [{$available}].",
-                "Register the workspace first:\n  php artisan workspace:add {$cleanWorkspace}"
+                "Register the workspace first:\n  php artisan workspace:register {$cleanWorkspace}"
             );
         }
 

@@ -25,7 +25,7 @@ class WorkspaceStatusCommandTest extends TestCase
     {
         $this->artisan('workspace:status')
             ->expectsOutputToContain('No workspaces registered.')
-            ->expectsOutputToContain('php artisan workspace:add')
+            ->expectsOutputToContain('php artisan workspace:register')
             ->assertSuccessful();
     }
 

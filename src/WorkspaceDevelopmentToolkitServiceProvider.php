@@ -25,17 +25,19 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageReleaseCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageSkillsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageUninstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageWorkflowCommand;
-use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceAddCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceArchetypesCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceCiMatrixCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDashboardCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceFlattenCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
-use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRegisterCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStatusCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStubsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceSyncCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceUnflattenCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceUnregisterCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Events\ConsoleDiagnosticDispatched;
 use AlexKassel\WorkspaceDevelopmentToolkit\Listeners\RenderConsoleDiagnosticListener;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\BinaryResolver;
@@ -173,12 +175,14 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 PackageCloneCommand::class,
                 PackageDepsCommand::class,
                 PackageWorkflowCommand::class,
-                WorkspaceAddCommand::class,
+                WorkspaceRegisterCommand::class,
+                WorkspaceUnregisterCommand::class,
+                WorkspaceFlattenCommand::class,
+                WorkspaceUnflattenCommand::class,
                 WorkspaceCiMatrixCommand::class,
                 WorkspaceDefaultCommand::class,
                 WorkspaceListCommand::class,
                 WorkspaceStatusCommand::class,
-                WorkspaceRemoveCommand::class,
                 WorkspaceSyncCommand::class,
                 WorkspaceHelpCommand::class,
                 WorkspaceStubsCommand::class,

@@ -98,7 +98,7 @@ class PackageCloneCommand extends BasePackageCommand
             if (! $workspace) {
                 $this->error('No default workspace is currently configured.');
                 $this->line('  <comment>How to fix:</comment> Add a workspace first, or specify one via the [--workspace] option:');
-                $this->line('  <info>php artisan workspace:add packages</info>');
+                $this->line('  <info>php artisan workspace:register packages</info>');
                 $this->line('  <info>php artisan package:clone '.($rawPackage ?: '--self').' --workspace=packages</info>');
 
                 return self::FAILURE;
@@ -110,8 +110,8 @@ class PackageCloneCommand extends BasePackageCommand
         $workspaces = $this->workspace->all();
         if (! isset($workspaces[$workspace])) {
             $this->error("Workspace [{$workspace}] does not exist.");
-            $this->line('  <comment>How to fix:</comment> You can add this workspace first using:');
-            $this->line("  <info>php artisan workspace:add {$workspace}</info>");
+            $this->line('  <comment>How to fix:</comment> You can register this workspace first using:');
+            $this->line("  <info>php artisan workspace:register {$workspace}</info>");
 
             return self::FAILURE;
         }

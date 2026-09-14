@@ -39,7 +39,7 @@ class WorkspaceSyncCommand extends BaseWorkspaceCommand
         if (empty($workspaces)) {
             $this->info('No workspaces registered. Nothing to synchronize.');
             $this->line('  <comment>How to fix:</comment> Register a workspace using:');
-            $this->line('  <info>php artisan workspace:add packages</info>');
+            $this->line('  <info>php artisan workspace:register packages</info>');
 
             return self::SUCCESS;
         }

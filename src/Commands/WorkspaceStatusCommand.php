@@ -58,7 +58,7 @@ class WorkspaceStatusCommand extends BaseWorkspaceCommand
 
             $this->info('No workspaces registered.');
             $this->line('  <comment>How to fix:</comment> Register a workspace using:');
-            $this->line('  <info>php artisan workspace:add packages</info>');
+            $this->line('  <info>php artisan workspace:register packages</info>');
 
             return self::SUCCESS;
         }

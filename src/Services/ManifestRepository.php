@@ -271,6 +271,28 @@ class ManifestRepository
     }
 
     /**
+     * Set or clear vendor for a given workspace.
+     *
+     * @throws WorkspaceNotFoundException
+     */
+    public function setWorkspaceVendor(string $workspace, ?string $vendor): bool
+    {
+        $cleanPath = $this->normalizeWorkspacePath($workspace);
+        $cleanVendor = $vendor !== null ? strtolower(trim($vendor)) : null;
+
+        $data = $this->load();
+
+        if (! array_key_exists($cleanPath, $data['workspaces'])) {
+            throw new WorkspaceNotFoundException($cleanPath, array_keys($data['workspaces']));
+        }
+
+        $data['workspaces'][$cleanPath]['vendor'] = $cleanVendor;
+        $this->save($data);
+
+        return true;
+    }
+
+    /**
      * Get repository clone URL template.
      */
     public function getRepositoryTemplate(): string

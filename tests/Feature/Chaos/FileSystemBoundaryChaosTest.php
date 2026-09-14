@@ -54,11 +54,11 @@ class FileSystemBoundaryChaosTest extends TestCase
             // Attempting to delete alien directory not registered as package
             ['command' => 'package:delete', 'args' => ['package' => 'alien-folder', '--force' => true]],
             ['command' => 'package:delete', 'args' => ['package' => 'packages/alien-folder', '--force' => true]],
-            // Attempting invalid workspace removal
-            ['command' => 'workspace:remove', 'args' => ['path' => '.']],
-            ['command' => 'workspace:remove', 'args' => ['path' => '/']],
-            ['command' => 'workspace:remove', 'args' => ['path' => '../../']],
-            ['command' => 'workspace:remove', 'args' => ['path' => 'ghost-workspace']],
+            // Attempting invalid workspace unregistration
+            ['command' => 'workspace:unregister', 'args' => ['path' => '.']],
+            ['command' => 'workspace:unregister', 'args' => ['path' => '/']],
+            ['command' => 'workspace:unregister', 'args' => ['path' => '../../']],
+            ['command' => 'workspace:unregister', 'args' => ['path' => 'ghost-workspace']],
         ];
 
         foreach ($attacks as $attack) {

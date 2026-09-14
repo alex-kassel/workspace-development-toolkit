@@ -8,16 +8,16 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use Laravel\Prompts\Prompt;
 
-class WorkspaceRemoveCommand extends BaseWorkspaceCommand
+class WorkspaceUnregisterCommand extends BaseWorkspaceCommand
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'workspace:remove
+    protected $signature = 'workspace:unregister
         {path? : The workspace directory path}
-        {--detach : Uninstall active workspace packages from root composer.json before removing workspace}
+        {--detach : Uninstall active workspace packages from root composer.json before unregistering workspace}
         {--purge : Uninstall active packages and permanently delete workspace directory from disk}
         {--force : Bypass confirmation prompts}';
 
@@ -26,7 +26,7 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
      *
      * @var string
      */
-    protected $description = 'Remove a workspace from composer.json and workspace.json (directory is preserved by default)';
+    protected $description = 'Unregister a workspace from composer.json and workspace.json (directory is preserved by default)';
 
     /**
      * Execute the console command.
@@ -50,8 +50,8 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
 
                     if ($confirm) {
                         $selected = $usePrompt
-                            ? \Laravel\Prompts\select('Select workspace to remove:', $exception->available)
-                            : $this->choice('Select workspace to remove:', $exception->available, 0);
+                            ? \Laravel\Prompts\select('Select workspace to unregister:', $exception->available)
+                            : $this->choice('Select workspace to unregister:', $exception->available, 0);
 
                         $path = (string) $selected;
                     } else {
@@ -88,8 +88,8 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
                             label: "How would you like to handle active packages in workspace [{$path}]?",
                             options: [
                                 'cancel' => 'Cancel (safe default)',
-                                'detach' => 'Detach & Uninstall (uninstall from composer.json, remove workspace, keep files on disk)',
-                                'purge' => 'Purge (uninstall from composer.json, remove workspace, permanently delete files from disk)',
+                                'detach' => 'Detach & Uninstall (uninstall from composer.json, unregister workspace, keep files on disk)',
+                                'purge' => 'Purge (uninstall from composer.json, unregister workspace, permanently delete files from disk)',
                             ],
                             default: 'cancel'
                         )
@@ -97,14 +97,14 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
                             "How would you like to handle active packages in workspace [{$path}]?",
                             [
                                 'cancel' => 'Cancel (safe default)',
-                                'detach' => 'Detach & Uninstall (uninstall from composer.json, remove workspace, keep files on disk)',
-                                'purge' => 'Purge (uninstall from composer.json, remove workspace, permanently delete files from disk)',
+                                'detach' => 'Detach & Uninstall (uninstall from composer.json, unregister workspace, keep files on disk)',
+                                'purge' => 'Purge (uninstall from composer.json, unregister workspace, permanently delete files from disk)',
                             ],
                             'cancel'
                         );
 
                     if ($choice === 'cancel') {
-                        $this->info('Workspace removal canceled.');
+                        $this->info('Workspace unregistration canceled.');
 
                         return self::SUCCESS;
                     }
@@ -116,7 +116,7 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
                     }
                 } catch (\Throwable $e) {
                     if (str_contains(get_class($e), 'PromptCancelled') || str_contains($e->getMessage(), 'cancel')) {
-                        $this->info('Workspace removal canceled.');
+                        $this->info('Workspace unregistration canceled.');
 
                         return self::SUCCESS;
                     }
@@ -134,17 +134,17 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
 
                 $this->dispatchDiagnostic(
                     code: 'WS_WORKSPACE_CONTAINS_ACTIVE_PACKAGES',
-                    message: "Cannot remove workspace [{$path}]: workspace contains active packages required by root composer.json.\n\nRemoving the workspace path repository without uninstalling them will corrupt Composer autoloading and dependency resolution.",
+                    message: "Cannot unregister workspace [{$path}]: workspace contains active packages required by root composer.json.\n\nRemoving the workspace path repository without uninstalling them will corrupt Composer autoloading and dependency resolution.",
                     context: $packageLines,
                     remediationSteps: [
-                        'To safely detach and uninstall these packages before removing the workspace, run:',
-                        "  php artisan workspace:remove {$path} --detach",
+                        'To safely detach and uninstall these packages before unregistering the workspace, run:',
+                        "  php artisan workspace:unregister {$path} --detach",
                         'To completely purge the workspace and its files from disk, run:',
-                        "  php artisan workspace:remove {$path} --purge",
+                        "  php artisan workspace:unregister {$path} --purge",
                         'Or manually uninstall the active packages first:',
                         ...array_map(fn ($pkg) => "  php artisan package:uninstall {$pkg}", array_keys($activePackages)),
                     ],
-                    agentGuidance: 'Do not remove a workspace containing active dependencies. Re-run with --detach to automatically uninstall the packages from composer.json while preserving physical files, or uninstall active packages first.'
+                    agentGuidance: 'Do not unregister a workspace containing active dependencies. Re-run with --detach to automatically uninstall the packages from composer.json while preserving physical files, or uninstall active packages first.'
                 );
 
                 return self::FAILURE;
@@ -186,10 +186,10 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
             return $this->handleWorkspaceException($e);
         }
 
-        $this->info("Workspace [{$path}] removed from configuration (composer.json and workspace.json).");
+        $this->info("Workspace [{$path}] unregistered from configuration (composer.json and workspace.json).");
 
         $this->newLine();
-        $this->line('  <comment>Hint:</comment> Workspace removal only unregisters the repository.');
+        $this->line('  <comment>Hint:</comment> Workspace unregistration only unregisters the repository.');
         $this->line("  1. The physical directory [{$path}/] was preserved.");
         $this->line("     <fg=yellow;options=bold>CAUTION:</> Before deleting it manually, verify that git working trees inside [{$path}/] are clean and all commits have been pushed!");
         $this->line("  2. The ignore rule [/{$path}] has been cleanly removed from your .gitignore file.");

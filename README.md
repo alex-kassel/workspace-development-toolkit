@@ -79,11 +79,13 @@ WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED=
    - [Interactive Help & CLI Guide](#interactive-help--cli-guide)
 7. [Command Reference](#command-reference)
    - [`workspace:help`](#workspacehelp)
-   - [`workspace:add`](#workspaceadd)
+   - [`workspace:register`](#workspaceregister)
+   - [`workspace:unregister`](#workspaceunregister)
+   - [`workspace:flatten`](#workspaceflatten)
+   - [`workspace:unflatten`](#workspaceunflatten)
    - [`workspace:list`](#workspacelist)
    - [`workspace:default`](#workspacedefault)
    - [`php workspace restore`](#php-workspace-restore-standalone-cli-runner)
-   - [`workspace:remove`](#workspaceremove)
    - [`workspace:sync`](#workspacesync)
    - [`package:make`](#packagemake)
    - [`package:clone`](#packageclone)
@@ -186,7 +188,7 @@ The toolkit supports both multi-vendor libraries and dedicated client or interna
 
 ### Step 1: Create a Flat Workspace with a Fixed Vendor
 ```bash
-php artisan workspace:add labs --vendor=alex-kassel-labs --default
+php artisan workspace:register labs --vendor=alex-kassel-labs --default
 ```
 * Adds `labs/*` path repository to root `composer.json`.
 * Adds `/labs` to `.gitignore`.
@@ -219,7 +221,7 @@ php artisan workspace:help
 You can also view standard Laravel help for any specific command:
 ```bash
 php artisan help package:make
-php artisan help workspace:add
+php artisan help workspace:register
 ```
 
 ---
@@ -235,80 +237,68 @@ php artisan workspace:help
 
 ---
 
-### `workspace:add`
+### `workspace:register`
 Registers a new workspace directory into `composer.json` (as a path repository), `.gitignore`, and `workspace.json`.
 
 ```bash
-# Add a multi-vendor nested workspace:
-php artisan workspace:add packages
+# Register a multi-vendor nested workspace:
+php artisan workspace:register packages
 
-# Add a flat workspace with a fixed vendor:
-php artisan workspace:add labs --vendor=alex-kassel-labs
+# Register a flat workspace with a default vendor:
+php artisan workspace:register labs --vendor=alex-kassel-labs
 
-# Add and set as default:
-php artisan workspace:add modules --vendor=app-core --default
+# Register and set as default:
+php artisan workspace:register modules --vendor=app-core --default
 ```
 
 **Options**:
-* `--vendor=`: Fixed vendor name for flat 1-level package structure.
+* `--vendor=`: Default vendor name for flat 1-level package structure.
 * `--default`: Set this workspace as the default workspace for `package:make`.
 
----
-
-### `workspace:list`
-Lists all registered workspaces, their designated vendor, directory structure mode (Flat vs Nested), package count, and member packages.
-
-```bash
-php artisan workspace:list
-```
-
-**Sample Output**:
-```text
-+-----------+---------+------------------+-----------+----------------+-------------------------------------------+
-| Workspace | Default | Vendor           | Structure | Packages Count | Packages                                  |
-+-----------+---------+------------------+-----------+----------------+-------------------------------------------+
-| labs      | No      | alex-kassel-labs | Flat      | 2              | ai-assistant                              |
-|           |         |                  |           |                | telemetry                                 |
-| packages  | Yes     | (none / multi)   | Nested    | 1              | alex-kassel/workspace-development-toolkit |
-+-----------+---------+------------------+-----------+----------------+-------------------------------------------+
-```
+> [!NOTE]
+> When registering a workspace that already contains subdirectories, the toolkit inspects disk contents and displays a diagnostic warning if unversioned directories are detected (preventing code loss from `.gitignore` exclusions).
 
 ---
 
-### `workspace:default`
-Sets the active default workspace. Any subsequent `package:make` call without `--workspace` will target this workspace.
-
-```bash
-php artisan workspace:default labs
-```
-
-
----
-
-### `php workspace restore` (Standalone CLI Runner)
-Restores and clones missing workspace packages on fresh machines **before** running `composer install` — runs with zero framework dependencies:
-
-```bash
-# Checks workspace.json and git clones any missing packages:
-php workspace restore
-
-# Verify presence of all workspace packages on disk:
-php workspace status
-```
-
-> [!TIP]
-> This command is automatically registered in your root `composer.json` under `pre-install-cmd` and `pre-update-cmd`, ensuring all local workspace repositories exist before Composer resolves path dependencies!
-
----
-
-### `workspace:remove`
+### `workspace:unregister`
 Unregisters a workspace from root `composer.json` and `workspace.json`.
 
 ```bash
-php artisan workspace:remove labs
+# Unregister workspace repository (preserves files on disk):
+php artisan workspace:unregister labs
+
+# Detach and uninstall any active packages required in composer.json:
+php artisan workspace:unregister labs --detach
+
+# Permanently purge workspace files and directory from disk:
+php artisan workspace:unregister labs --purge --force
 ```
+
 > [!NOTE]
-> Physical files and directories on disk are **never deleted** by `workspace:remove`. An actionable hint will remind you how to remove the folder manually if desired.
+> By default, physical files and directories on disk are **never deleted** by `workspace:unregister`. An actionable hint will remind you how to remove the folder manually if desired.
+
+---
+
+### `workspace:flatten`
+Converts an existing workspace into a flat (single-depth) layout and sets its default vendor.
+
+```bash
+php artisan workspace:flatten app/Domains/ISS alex-kassel
+```
+
+* Automatically relocates any existing packages from nested `<vendor>/<pkg>` to single-depth `<pkg>`.
+* Preserves and relocates any foreign-vendor packages cleanly.
+* Updates `composer.json` path repository URL to `path/*` (single-depth).
+* Persists `<workspace>/workspace.json` manifest.
+
+---
+
+### `workspace:unflatten`
+Reverts a flat workspace back into a multi-vendor nested layout (`path/*/*`).
+
+```bash
+php artisan workspace:unflatten app/Domains/ISS
+```
 
 ---
 
@@ -646,8 +636,8 @@ The central registry is stored at the root of your Laravel project:
 ### Pattern A: Agency & Multi-Client Management
 Create separate workspaces for each client project:
 ```bash
-php artisan workspace:add clients/client-alpha --vendor=alpha-corp
-php artisan workspace:add clients/client-beta --vendor=beta-corp
+php artisan workspace:register clients/client-alpha --vendor=alpha-corp
+php artisan workspace:register clients/client-beta --vendor=beta-corp
 
 php artisan package:make payment-gateway --workspace=clients/client-alpha
 php artisan package:make crm-sync --workspace=clients/client-beta
@@ -656,7 +646,7 @@ php artisan package:make crm-sync --workspace=clients/client-beta
 ### Pattern B: Modular Monolith / DDD
 Organize domain modules cleanly in `modules/`:
 ```bash
-php artisan workspace:add modules --vendor=my-app --default
+php artisan workspace:register modules --vendor=my-app --default
 php artisan package:make billing
 php artisan package:make ordering
 php artisan package:make inventory
@@ -665,7 +655,7 @@ php artisan package:make inventory
 ### Pattern C: Open-Source Library Incubator
 Develop public packages ready for GitHub and Packagist:
 ```bash
-php artisan workspace:add packages --default
+php artisan workspace:register packages --default
 php artisan package:make my-handle/laravel-cache-warmer --install --dev
 ```
 
@@ -677,7 +667,7 @@ All exceptions thrown by the toolkit extend `AlexKassel\WorkspaceDevelopmentTool
 
 | Exception Class | Cause | Resolution |
 | :--- | :--- | :--- |
-| `WorkspaceNotFoundException` | Specified workspace path is not registered. | Run `php artisan workspace:add <path>` or check `workspace:list`. |
+| `WorkspaceNotFoundException` | Specified workspace path is not registered. | Run `php artisan workspace:register <path>` or check `workspace:list`. |
 | `PackageNotFoundException` | Target package was not found in any workspace. | Check spelling or create it with `package:make`. |
 | `DefaultWorkspaceNotConfiguredException` | No default workspace is configured. | Run `php artisan workspace:default <path>`. |
 | `ComposerProcessException` | Composer command failed or timed out. | Inspect Composer error output; check dependency conflicts. |

@@ -67,8 +67,8 @@ class PackageMakeCommand extends BasePackageCommand
 
             if (! $workspace) {
                 $this->error('No default workspace is currently configured.');
-                $this->line('  <comment>How to fix:</comment> Add a workspace first, or specify one via the --workspace option:');
-                $this->line('  <info>php artisan workspace:add packages</info>');
+                $this->line('  <comment>How to fix:</comment> Register a workspace first, or specify one via the --workspace option:');
+                $this->line('  <info>php artisan workspace:register packages</info>');
                 $this->line('  <info>php artisan package:make my-vendor/my-package --workspace=packages</info>');
 
                 return self::FAILURE;

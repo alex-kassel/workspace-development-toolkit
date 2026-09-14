@@ -13,7 +13,7 @@ This suite subjects console commands to malicious inputs, path traversal exploit
 2. **Deterministic Reproducibility (`CHAOS_SEED`)**:
    Every randomized state-machine run is driven by a pseudo-random generator with an explicit seed. If a failure occurs on Step 17 of a 30-step sabotage sequence, the test prints an exact copy-paste command to reproduce that identical sequence down to the byte.
 3. **Hermetic Host & Boundary Isolation**:
-   Destructive commands (`package:delete`, `workspace:remove`, `workspace:sync --clean`) are exercised against honey-pot traps (`.env`, project `composer.json`, alien directories). Cryptographic SHA256 snapshots verify that no files outside the targeted package are ever deleted, modified, or polluted.
+   Destructive commands (`package:delete`, `workspace:unregister`, `workspace:sync --clean`) are exercised against honey-pot traps (`.env`, project `composer.json`, alien directories). Cryptographic SHA256 snapshots verify that no files outside the targeted package are ever deleted, modified, or polluted.
 
 ---
 
@@ -91,7 +91,7 @@ CHAOS_SEED=3330443699 ./vendor/bin/phpunit -c packages/alex-kassel/workspace-dev
 
 ### 2. `FileSystemBoundaryChaosTest`
 * **Honey-Pots Planted**: Root `.env`, root `composer.json`, root `.gitignore`, root `README.md`, protected neighbor packages (`packages/acme/protected-pkg`), and alien unmanaged folders.
-* **Attacks Executed**: `package:delete . --force`, `package:delete packages --force`, `package:delete ../ --force`, `workspace:remove /`, `package:delete alien-folder --force`.
+* **Attacks Executed**: `package:delete . --force`, `package:delete packages --force`, `package:delete ../ --force`, `workspace:unregister /`, `package:delete alien-folder --force`.
 * **Assertion Contract**: `FilesystemSnapshot::verifyUntouched()` asserts that every protected file exists with its identical SHA256 hash and no rogue files were created in protected directories.
 
 ### 3. `StateChaosMachineTest`

@@ -98,8 +98,8 @@
 **Сценарий:** Digital-агентство обслуживает 5 клиентов. Каждый клиент — отдельный модуль с собственной бизнес-логикой.
 
 ```bash
-php artisan workspace:add clients/alpha --vendor=alpha-corp
-php artisan workspace:add clients/beta --vendor=beta-corp
+php artisan workspace:register clients/alpha --vendor=alpha-corp
+php artisan workspace:register clients/beta --vendor=beta-corp
 
 php artisan package:make payment-gateway --workspace=clients/alpha
 php artisan package:make crm-sync --workspace=clients/beta --install
@@ -114,7 +114,7 @@ php artisan package:make crm-sync --workspace=clients/beta --install
 **Сценарий:** E-commerce платформа разбита на домены: Billing, Inventory, Notifications, User Management.
 
 ```bash
-php artisan workspace:add modules --vendor=my-app --default
+php artisan workspace:register modules --vendor=my-app --default
 php artisan package:make billing --install
 php artisan package:make inventory --install
 php artisan package:make notifications --install
@@ -130,7 +130,7 @@ php artisan package:make user-management --install
 **Сценарий:** Разработчик строит 3 публичных пакета одновременно, все на стадии MVP.
 
 ```bash
-php artisan workspace:add packages --default
+php artisan workspace:register packages --default
 php artisan package:make my-handle/laravel-cache-warmer --install --dev
 php artisan package:make my-handle/laravel-health-check --install --dev
 php artisan package:make my-handle/laravel-feature-flags --install --dev

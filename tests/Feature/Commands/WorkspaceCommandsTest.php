@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\Process;
 
 class WorkspaceCommandsTest extends TestCase
 {
-    public function test_workspace_add_registers_multi_vendor_workspace(): void
+    public function test_workspace_register_registers_multi_vendor_workspace(): void
     {
-        $this->artisan('workspace:add', ['path' => 'packages'])
-            ->expectsOutputToContain('Workspace [packages] added successfully')
+        $this->artisan('workspace:register', ['path' => 'packages'])
+            ->expectsOutputToContain('Workspace [packages] registered successfully')
             ->assertSuccessful();
 
         $workspaceData = $this->getSandboxWorkspace();
@@ -43,14 +43,14 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertTrue($found, 'Expected path repository for packages/*/* was not registered in composer.json.');
     }
 
-    public function test_workspace_add_registers_fixed_vendor_workspace(): void
+    public function test_workspace_register_registers_fixed_vendor_workspace(): void
     {
-        $this->artisan('workspace:add', [
+        $this->artisan('workspace:register', [
             'path' => 'labs',
             '--vendor' => 'alex-kassel-labs',
             '--default' => true,
         ])
-            ->expectsOutputToContain('Workspace [labs] added successfully')
+            ->expectsOutputToContain('Workspace [labs] registered successfully')
             ->assertSuccessful();
 
         $workspaceData = $this->getSandboxWorkspace();
@@ -75,32 +75,32 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertTrue($found, 'Expected path repository for labs/* was not registered in composer.json.');
     }
 
-    public function test_workspace_add_rejects_duplicate_workspace(): void
+    public function test_workspace_register_rejects_duplicate_workspace(): void
     {
         Workspace::add('packages');
 
-        $this->artisan('workspace:add', ['path' => 'packages'])
+        $this->artisan('workspace:register', ['path' => 'packages'])
             ->expectsOutputToContain('Workspace [packages] is already registered.')
             ->assertFailed();
     }
 
-    public function test_workspace_add_rejects_empty_path(): void
+    public function test_workspace_register_rejects_empty_path(): void
     {
-        $this->artisan('workspace:add', ['path' => ''])
+        $this->artisan('workspace:register', ['path' => ''])
             ->expectsOutputToContain('Workspace path cannot be empty.')
             ->assertFailed();
     }
 
-    public function test_workspace_add_rejects_path_traversal(): void
+    public function test_workspace_register_rejects_path_traversal(): void
     {
-        $this->artisan('workspace:add', ['path' => '../external'])
+        $this->artisan('workspace:register', ['path' => '../external'])
             ->expectsOutputToContain('Path traversal ("..") is not allowed')
             ->assertFailed();
     }
 
-    public function test_workspace_add_rejects_absolute_paths(): void
+    public function test_workspace_register_rejects_absolute_paths(): void
     {
-        $this->artisan('workspace:add', ['path' => '/var/evil'])
+        $this->artisan('workspace:register', ['path' => '/var/evil'])
             ->expectsOutputToContain('Absolute paths are not allowed')
             ->assertFailed();
     }
@@ -170,12 +170,12 @@ class WorkspaceCommandsTest extends TestCase
             ->assertFailed();
     }
 
-    public function test_workspace_remove_unregisters_workspace_and_warns_about_git(): void
+    public function test_workspace_unregister_unregisters_workspace_and_warns_about_git(): void
     {
         Workspace::add('packages');
 
-        $this->artisan('workspace:remove', ['path' => 'packages'])
-            ->expectsOutputToContain('Workspace [packages] removed from configuration')
+        $this->artisan('workspace:unregister', ['path' => 'packages'])
+            ->expectsOutputToContain('Workspace [packages] unregistered from configuration')
             ->expectsOutputToContain('CAUTION:')
             ->assertSuccessful();
 
@@ -195,13 +195,13 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertDirectoryExists(base_path('packages'));
     }
 
-    public function test_workspace_remove_switches_default_workspace_to_next_available(): void
+    public function test_workspace_unregister_switches_default_workspace_to_next_available(): void
     {
         Workspace::add('primary');
         Workspace::add('secondary');
         $this->assertSame('primary', Workspace::getDefault());
 
-        $this->artisan('workspace:remove', ['path' => 'primary'])
+        $this->artisan('workspace:unregister', ['path' => 'primary'])
             ->assertSuccessful();
 
         // Default must automatically switch to 'secondary'
@@ -209,14 +209,14 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertSame('secondary', Workspace::getDefault());
     }
 
-    public function test_workspace_add_and_package_make_with_nested_path(): void
+    public function test_workspace_register_and_package_make_with_nested_path(): void
     {
         // Test client-specific nested workspace e.g. clients/acme
-        $this->artisan('workspace:add', [
+        $this->artisan('workspace:register', [
             'path' => 'clients/acme',
             '--vendor' => 'acme-corp',
         ])
-            ->expectsOutputToContain('Workspace [clients/acme] added successfully')
+            ->expectsOutputToContain('Workspace [clients/acme] registered successfully')
             ->assertSuccessful();
 
         $this->artisan('package:make', [
@@ -240,9 +240,9 @@ class WorkspaceCommandsTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function test_workspace_remove_without_args_in_non_interactive_mode(): void
+    public function test_workspace_unregister_without_args_in_non_interactive_mode(): void
     {
-        $this->artisan('workspace:remove')
+        $this->artisan('workspace:unregister')
             ->expectsOutputToContain('[CMD_ARGUMENT_REQUIRED]')
             ->expectsOutputToContain('Available workspaces:')
             ->assertFailed();
@@ -256,15 +256,15 @@ class WorkspaceCommandsTest extends TestCase
             ->assertFailed();
     }
 
-    public function test_workspace_remove_with_invalid_workspace_displays_available_workspaces(): void
+    public function test_workspace_unregister_with_invalid_workspace_displays_available_workspaces(): void
     {
-        $this->artisan('workspace:remove', ['path' => 'non-existent-ws'])
+        $this->artisan('workspace:unregister', ['path' => 'non-existent-ws'])
             ->expectsOutputToContain('[WS_WORKSPACE_NOT_FOUND]')
             ->expectsOutputToContain('Available workspaces:')
             ->assertFailed();
     }
 
-    public function test_workspace_remove_with_active_packages_fails_in_non_interactive_mode(): void
+    public function test_workspace_unregister_with_active_packages_fails_in_non_interactive_mode(): void
     {
         Workspace::add('packages');
         $this->createDummyPackage('packages/acme/active-pkg', 'acme/active-pkg');
@@ -274,7 +274,7 @@ class WorkspaceCommandsTest extends TestCase
         $composer['require-dev']['acme/active-pkg'] = '@dev';
         File::put(base_path('composer.json'), json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-        $this->artisan('workspace:remove', ['path' => 'packages'])
+        $this->artisan('workspace:unregister', ['path' => 'packages'])
             ->expectsOutputToContain('[WS_WORKSPACE_CONTAINS_ACTIVE_PACKAGES]')
             ->expectsOutputToContain('acme/active-pkg (require-dev)')
             ->expectsOutputToContain('--detach')
@@ -284,7 +284,7 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertArrayHasKey('packages', Workspace::all());
     }
 
-    public function test_workspace_remove_with_detach_uninstalls_active_packages(): void
+    public function test_workspace_unregister_with_detach_uninstalls_active_packages(): void
     {
         Process::fake(['*' => Process::result('ok')]);
 
@@ -295,8 +295,8 @@ class WorkspaceCommandsTest extends TestCase
         $composer['require-dev']['acme/active-pkg'] = '@dev';
         File::put(base_path('composer.json'), json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-        $this->artisan('workspace:remove', ['path' => 'packages', '--detach' => true])
-            ->expectsOutputToContain('Workspace [packages] removed from configuration')
+        $this->artisan('workspace:unregister', ['path' => 'packages', '--detach' => true])
+            ->expectsOutputToContain('Workspace [packages] unregistered from configuration')
             ->expectsOutputToContain('Active packages were uninstalled from root composer.json')
             ->assertSuccessful();
 
@@ -304,14 +304,14 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertDirectoryExists(base_path('packages'));
     }
 
-    public function test_workspace_remove_with_purge_deletes_directory_and_unregisters(): void
+    public function test_workspace_unregister_with_purge_deletes_directory_and_unregisters(): void
     {
         Process::fake(['*' => Process::result('ok')]);
 
         Workspace::add('packages');
         $this->createDummyPackage('packages/acme/purge-pkg', 'acme/purge-pkg');
 
-        $this->artisan('workspace:remove', ['path' => 'packages', '--purge' => true, '--force' => true])
+        $this->artisan('workspace:unregister', ['path' => 'packages', '--purge' => true, '--force' => true])
             ->expectsOutputToContain('permanently purged from disk and configuration')
             ->assertSuccessful();
 
@@ -319,7 +319,7 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertDirectoryDoesNotExist(base_path('packages'));
     }
 
-    public function test_workspace_remove_with_purge_blocks_dirty_git_repo_without_force(): void
+    public function test_workspace_unregister_with_purge_blocks_dirty_git_repo_without_force(): void
     {
         Workspace::add('packages');
         $this->createDummyPackage('packages/acme/dirty-pkg', 'acme/dirty-pkg');
@@ -334,7 +334,7 @@ class WorkspaceCommandsTest extends TestCase
             return Process::result('OK');
         });
 
-        $this->artisan('workspace:remove', ['path' => 'packages', '--purge' => true])
+        $this->artisan('workspace:unregister', ['path' => 'packages', '--purge' => true])
             ->expectsOutputToContain('packages have uncommitted changes or unpushed commits')
             ->assertFailed();
 
@@ -368,9 +368,9 @@ class WorkspaceCommandsTest extends TestCase
         Workspace::remove('labs');
         $this->assertArrayNotHasKey('labs', Workspace::all());
 
-        // Re-add workspace and verify auto-restoration
-        $this->artisan('workspace:add', ['path' => 'labs', '--vendor' => 'acme'])
-            ->expectsOutputToContain('Workspace [labs] added successfully')
+        // Re-register workspace and verify auto-restoration
+        $this->artisan('workspace:register', ['path' => 'labs', '--vendor' => 'acme'])
+            ->expectsOutputToContain('Workspace [labs] registered successfully')
             ->expectsOutputToContain('Discovered and registered 1 existing package(s)')
             ->assertSuccessful();
 
@@ -380,5 +380,62 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertSame('foo', $restoredPackages[0]['name']);
         $this->assertSame('FooBar', $restoredPackages[0]['alias']);
         $this->assertSame(['package-audit', 'testing'], $restoredPackages[0]['skills']);
+    }
+
+    public function test_workspace_flatten_and_unflatten_commands(): void
+    {
+        Workspace::add('modules');
+        $this->assertNull(Workspace::getWorkspaceVendor('modules'));
+
+        // Flatten workspace to default vendor 'my-corp'
+        $this->artisan('workspace:flatten', ['path' => 'modules', 'vendor' => 'my-corp'])
+            ->expectsOutputToContain('Workspace [modules] flattened successfully for default vendor [my-corp]')
+            ->assertSuccessful();
+
+        Workspace::clearCache();
+        $this->assertSame('my-corp', Workspace::getWorkspaceVendor('modules'));
+
+        // Check composer.json repository is now modules/* (flat)
+        $composer = $this->getSandboxComposer();
+        $foundFlat = false;
+        foreach ($composer['repositories'] ?? [] as $repo) {
+            if (($repo['url'] ?? '') === 'modules/*') {
+                $foundFlat = true;
+                break;
+            }
+        }
+        $this->assertTrue($foundFlat, 'Path repository modules/* was not updated in composer.json');
+
+        // Unflatten workspace
+        $this->artisan('workspace:unflatten', ['path' => 'modules'])
+            ->expectsOutputToContain('Workspace [modules] unflattened successfully')
+            ->assertSuccessful();
+
+        Workspace::clearCache();
+        $this->assertNull(Workspace::getWorkspaceVendor('modules'));
+
+        // Check composer.json repository is back to modules/*/* (nested)
+        $composer = $this->getSandboxComposer();
+        $foundNested = false;
+        foreach ($composer['repositories'] ?? [] as $repo) {
+            if (($repo['url'] ?? '') === 'modules/*/*') {
+                $foundNested = true;
+                break;
+            }
+        }
+        $this->assertTrue($foundNested, 'Path repository modules/*/* was not restored in composer.json');
+    }
+
+    public function test_workspace_register_warns_about_unversioned_directories(): void
+    {
+        // Create an unversioned monolithic directory inside workspace path
+        File::ensureDirectoryExists(base_path('app/Domains/ISS/Billing'));
+        File::put(base_path('app/Domains/ISS/Billing/BillingService.php'), '<?php class BillingService {}');
+
+        $this->artisan('workspace:register', ['path' => 'app/Domains/ISS', '--vendor' => 'alex-kassel'])
+            ->expectsOutputToContain('[WS_UNVERSIONED_DIRECTORIES_DETECTED]')
+            ->expectsOutputToContain('Billing')
+            ->expectsOutputToContain('excluded by root .gitignore')
+            ->assertSuccessful();
     }
 }

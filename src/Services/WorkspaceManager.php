@@ -14,6 +14,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use JsonException;
 
 class WorkspaceManager
@@ -248,6 +249,321 @@ class WorkspaceManager
         $this->deleteDirectoryRecursively($fullPath);
 
         return $removed;
+    }
+
+    /**
+     * Flatten a workspace into a single-vendor (flat) structure.
+     * Moves packages from depth 2 (workspace/vendor/package) to depth 1 (workspace/package).
+     *
+     * @return array{flattened: array<int, string>, foreign: array<int, string>}
+     *
+     * @throws WorkspaceException
+     */
+    public function flatten(string $workspace, string $vendor): array
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+        $cleanVendor = Str::slug($vendor);
+        if ($cleanVendor === '') {
+            throw new WorkspaceException("Invalid vendor name [{$vendor}]. Vendor must be alphanumeric.");
+        }
+
+        $all = $this->all();
+        if (! array_key_exists($cleanPath, $all)) {
+            throw new WorkspaceNotFoundException($cleanPath, array_keys($all));
+        }
+
+        $fullPath = base_path($cleanPath);
+        if (! File::isDirectory($fullPath)) {
+            throw new WorkspaceException("Workspace directory [{$cleanPath}] does not exist on disk.");
+        }
+
+        $flattened = [];
+        $foreign = [];
+
+        // 1. Scan all existing depth-2 packages (workspace/*/*/composer.json)
+        $depth2Files = File::glob("{$fullPath}/*/*/composer.json") ?: [];
+
+        foreach ($depth2Files as $composerFile) {
+            $pkgDir = dirname($composerFile);
+            $parentVendorDir = dirname($pkgDir);
+            $parentVendorName = basename($parentVendorDir);
+            $pkgBaseName = basename($pkgDir);
+
+            // Read composer.json
+            try {
+                $pkgComposer = json_decode(File::get($composerFile), true, 512, JSON_THROW_ON_ERROR);
+                $canonicalName = $pkgComposer['name'] ?? "{$parentVendorName}/{$pkgBaseName}";
+            } catch (\Throwable) {
+                $canonicalName = "{$parentVendorName}/{$pkgBaseName}";
+            }
+
+            $isTargetVendor = str_starts_with($canonicalName, "{$cleanVendor}/") || $parentVendorName === $cleanVendor;
+
+            // Target directory at depth 1
+            $targetDirName = $isTargetVendor ? $pkgBaseName : "{$parentVendorName}-{$pkgBaseName}";
+            $targetFullPath = "{$fullPath}/{$targetDirName}";
+
+            if (File::exists($targetFullPath) && realpath($targetFullPath) !== realpath($pkgDir)) {
+                throw new WorkspaceException(
+                    "Cannot flatten package [{$canonicalName}]: target directory [{$cleanPath}/{$targetDirName}] already exists on disk.",
+                    "Rename or remove [{$cleanPath}/{$targetDirName}] before flattening."
+                );
+            }
+
+            // Move package directory to depth 1
+            File::move($pkgDir, $targetFullPath);
+
+            $oldRelPath = trim(str_replace(base_path(), '', $pkgDir), '/\\');
+            $newRelPath = trim(str_replace(base_path(), '', $targetFullPath), '/\\');
+
+            // Update composer path references and symlinks
+            $this->updateComposerPathReferences($canonicalName, $oldRelPath, $newRelPath);
+            $this->updateVendorSymlink($canonicalName, $targetFullPath);
+
+            if ($isTargetVendor) {
+                $flattened[] = $canonicalName;
+            } else {
+                $foreign[] = $canonicalName;
+            }
+
+            // If parent vendor dir is now empty, delete it
+            if (File::isDirectory($parentVendorDir) && $this->filesystem->isEmptyDirectory($parentVendorDir)) {
+                $this->deleteDirectoryRecursively($parentVendorDir);
+            }
+        }
+
+        // 2. Set vendor in manifest
+        $this->manifest->setWorkspaceVendor($cleanPath, $cleanVendor);
+
+        // 3. Rescan packages under flat structure
+        $scanned = $this->scanPackages($cleanPath, $cleanVendor);
+        $data = $this->manifest->load();
+        $data['workspaces'][$cleanPath]['packages'] = $scanned;
+        $this->manifest->save($data);
+
+        // 4. Update root composer.json path repository pattern to workspace/*
+        $this->composer->syncRepositories($this->manifest->all());
+
+        // 5. Save workspace-level workspace.json
+        $this->saveWorkspaceManifest($cleanPath);
+
+        // 6. Clear resolver cache
+        $this->resolver->clearCache();
+
+        return [
+            'flattened' => $flattened,
+            'foreign' => $foreign,
+        ];
+    }
+
+    /**
+     * Unflatten a workspace into a multi-vendor (nested) structure.
+     * Moves packages from depth 1 (workspace/package) to depth 2 (workspace/vendor/package).
+     *
+     * @return array<int, string> List of unflattened packages
+     *
+     * @throws WorkspaceException
+     */
+    public function unflatten(string $workspace): array
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+
+        $all = $this->all();
+        if (! array_key_exists($cleanPath, $all)) {
+            throw new WorkspaceNotFoundException($cleanPath, array_keys($all));
+        }
+
+        $currentVendor = $this->getWorkspaceVendor($cleanPath);
+        $fullPath = base_path($cleanPath);
+        if (! File::isDirectory($fullPath)) {
+            throw new WorkspaceException("Workspace directory [{$cleanPath}] does not exist on disk.");
+        }
+
+        $unflattened = [];
+
+        // 1. Scan all depth-1 packages (workspace/*/composer.json)
+        $depth1Files = File::glob("{$fullPath}/*/composer.json") ?: [];
+
+        foreach ($depth1Files as $composerFile) {
+            $pkgDir = dirname($composerFile);
+            $pkgBaseName = basename($pkgDir);
+
+            // Read composer.json to determine true vendor
+            $targetVendor = $currentVendor ?: 'acme';
+            try {
+                $pkgComposer = json_decode(File::get($composerFile), true, 512, JSON_THROW_ON_ERROR);
+                if (! empty($pkgComposer['name']) && str_contains($pkgComposer['name'], '/')) {
+                    $parts = explode('/', $pkgComposer['name']);
+                    $targetVendor = $parts[0];
+                    $canonicalName = $pkgComposer['name'];
+                } else {
+                    $canonicalName = "{$targetVendor}/{$pkgBaseName}";
+                }
+            } catch (\Throwable) {
+                $canonicalName = "{$targetVendor}/{$pkgBaseName}";
+            }
+
+            // Target directory at depth 2
+            $vendorDirPath = "{$fullPath}/{$targetVendor}";
+            File::ensureDirectoryExists($vendorDirPath);
+
+            $targetFullPath = "{$vendorDirPath}/{$pkgBaseName}";
+
+            if (File::exists($targetFullPath) && realpath($targetFullPath) !== realpath($pkgDir)) {
+                throw new WorkspaceException(
+                    "Cannot unflatten package [{$canonicalName}]: target directory [{$cleanPath}/{$targetVendor}/{$pkgBaseName}] already exists on disk.",
+                    'Rename or remove the conflicting directory before unflattening.'
+                );
+            }
+
+            // Move package directory to depth 2
+            File::move($pkgDir, $targetFullPath);
+
+            $oldRelPath = trim(str_replace(base_path(), '', $pkgDir), '/\\');
+            $newRelPath = trim(str_replace(base_path(), '', $targetFullPath), '/\\');
+
+            // Update composer path references and symlinks
+            $this->updateComposerPathReferences($canonicalName, $oldRelPath, $newRelPath);
+            $this->updateVendorSymlink($canonicalName, $targetFullPath);
+
+            $unflattened[] = $canonicalName;
+        }
+
+        // 2. Clear vendor in manifest
+        $this->manifest->setWorkspaceVendor($cleanPath, null);
+
+        // 3. Rescan packages under nested structure
+        $scanned = $this->scanPackages($cleanPath, null);
+        $data = $this->manifest->load();
+        $data['workspaces'][$cleanPath]['packages'] = $scanned;
+        $this->manifest->save($data);
+
+        // 4. Update root composer.json path repository pattern to workspace/*/*
+        $this->composer->syncRepositories($this->manifest->all());
+
+        // 5. Save workspace-level workspace.json
+        $this->saveWorkspaceManifest($cleanPath);
+
+        // 6. Clear resolver cache
+        $this->resolver->clearCache();
+
+        return $unflattened;
+    }
+
+    /**
+     * Set or clear fixed default vendor for a workspace and re-sync.
+     *
+     * @throws WorkspaceNotFoundException
+     */
+    public function setWorkspaceVendor(string $workspace, ?string $vendor): bool
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+        $cleanVendor = $vendor !== null ? Str::slug($vendor) : null;
+        if ($cleanVendor === '') {
+            $cleanVendor = null;
+        }
+
+        $this->manifest->setWorkspaceVendor($cleanPath, $cleanVendor);
+
+        $scanned = $this->scanPackages($cleanPath, $cleanVendor);
+        $data = $this->manifest->load();
+        $data['workspaces'][$cleanPath]['packages'] = $scanned;
+        $this->manifest->save($data);
+
+        $this->composer->syncRepositories($this->manifest->all());
+        $this->saveWorkspaceManifest($cleanPath);
+        $this->resolver->clearCache();
+
+        return true;
+    }
+
+    /**
+     * Save workspace-level workspace.json in the workspace directory.
+     */
+    public function saveWorkspaceManifest(string $workspace): void
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+        $data = $this->manifest->load();
+        $wsConfig = $data['workspaces'][$cleanPath] ?? null;
+        if ($wsConfig === null) {
+            return;
+        }
+
+        $fullPath = base_path($cleanPath);
+        if (! File::isDirectory($fullPath)) {
+            return;
+        }
+
+        $manifestPath = $fullPath.DIRECTORY_SEPARATOR.'workspace.json';
+        $content = json_encode($wsConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n";
+        File::put($manifestPath, $content);
+    }
+
+    /**
+     * Load workspace-level workspace.json if present.
+     *
+     * @return array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}|null
+     */
+    public function loadWorkspaceManifest(string $workspace): ?array
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+        $fullPath = base_path($cleanPath);
+        $manifestPath = $fullPath.DIRECTORY_SEPARATOR.'workspace.json';
+
+        if (! File::exists($manifestPath)) {
+            return null;
+        }
+
+        try {
+            $json = json_decode(File::get($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+            if (is_array($json)) {
+                return $json;
+            }
+        } catch (\Throwable) {
+            // Ignore corrupted local manifest
+        }
+
+        return null;
+    }
+
+    /**
+     * Detect subdirectories in a workspace that are not packages (no composer.json) or lack Git repositories.
+     *
+     * @return array<int, string> List of directory names
+     */
+    public function detectUnversionedDirectories(string $workspace): array
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+        $fullPath = base_path($cleanPath);
+        if (! File::isDirectory($fullPath)) {
+            return [];
+        }
+
+        $dirs = File::directories($fullPath);
+        $unversioned = [];
+
+        foreach ($dirs as $dir) {
+            $hasComposer = File::exists($dir.DIRECTORY_SEPARATOR.'composer.json');
+            $hasGit = File::isDirectory($dir.DIRECTORY_SEPARATOR.'.git');
+
+            if (! $hasComposer && ! $hasGit) {
+                // Check if it's a vendor folder containing subpackages
+                $subDirs = File::directories($dir);
+                $hasSubPackage = false;
+                foreach ($subDirs as $sub) {
+                    if (File::exists($sub.DIRECTORY_SEPARATOR.'composer.json')) {
+                        $hasSubPackage = true;
+                        break;
+                    }
+                }
+
+                if (! $hasSubPackage) {
+                    $unversioned[] = basename($dir);
+                }
+            }
+        }
+
+        return $unversioned;
     }
 
     /**

@@ -26,7 +26,7 @@ class ConsoleUiRendererTest extends TestCase
                 'Available workspaces' => ['app/Cores', 'packages'],
             ],
             remediationSteps: [
-                'php artisan workspace:add pupok',
+                'php artisan workspace:register pupok',
                 'php artisan workspace:list',
             ],
             agentGuidance: 'Choose an existing workspace.',
@@ -43,7 +43,7 @@ class ConsoleUiRendererTest extends TestCase
         $this->assertStringContainsString('app/Cores', $rendered);
         $this->assertStringContainsString('packages', $rendered);
         $this->assertStringContainsString('How to fix:', $rendered);
-        $this->assertStringContainsString('php artisan workspace:add pupok', $rendered);
+        $this->assertStringContainsString('php artisan workspace:register pupok', $rendered);
         $this->assertStringContainsString('Agent guidance:', $rendered);
         $this->assertStringContainsString('Choose an existing workspace.', $rendered);
     }

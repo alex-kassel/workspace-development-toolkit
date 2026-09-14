@@ -41,7 +41,7 @@ class WorkspaceListCommand extends BaseWorkspaceCommand
         if (empty($workspaces)) {
             $this->info('No workspaces registered.');
             $this->line('  <comment>How to fix:</comment> Register a workspace using:');
-            $this->line('  <info>php artisan workspace:add packages</info>');
+            $this->line('  <info>php artisan workspace:register packages</info>');
 
             return self::SUCCESS;
         }
@@ -108,7 +108,7 @@ class WorkspaceListCommand extends BaseWorkspaceCommand
 
         $this->newLine();
         $this->line('  <comment>Hint:</comment> To create a new package: <info>php artisan package:make my-vendor/my-package</info>');
-        $this->line('  To add another workspace: <info>php artisan workspace:add &lt;path&gt;</info>');
+        $this->line('  To register another workspace: <info>php artisan workspace:register &lt;path&gt;</info>');
 
         return self::SUCCESS;
     }

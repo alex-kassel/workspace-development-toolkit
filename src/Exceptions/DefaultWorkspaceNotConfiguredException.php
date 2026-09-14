@@ -9,7 +9,7 @@ class DefaultWorkspaceNotConfiguredException extends WorkspaceException
     public function __construct()
     {
         $message = 'No default workspace is currently configured.';
-        $solution = "Add a workspace using 'php artisan workspace:add packages' or set an existing one as default using 'php artisan workspace:default packages'.";
+        $solution = "Register a workspace using 'php artisan workspace:register packages' or set an existing one as default using 'php artisan workspace:default packages'.";
 
         parent::__construct($message, $solution);
     }
@@ -21,6 +21,6 @@ class DefaultWorkspaceNotConfiguredException extends WorkspaceException
 
     public function agentInstructions(): ?string
     {
-        return "Configure a default workspace using 'php artisan workspace:default <workspace>' or create one with 'php artisan workspace:add <workspace> --default'.";
+        return "Configure a default workspace using 'php artisan workspace:default <workspace>' or register one with 'php artisan workspace:register <workspace> --default'.";
     }
 }

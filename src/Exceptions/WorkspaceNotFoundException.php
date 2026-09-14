@@ -14,7 +14,7 @@ class WorkspaceNotFoundException extends WorkspaceException
         public readonly array $available = [],
     ) {
         $message = "Workspace [{$workspace}] is not registered.";
-        $solution = "Register the workspace using 'php artisan workspace:add {$workspace}' or choose from the available workspaces in 'php artisan workspace:list'.";
+        $solution = "Register the workspace using 'php artisan workspace:register {$workspace}' or choose from the available workspaces in 'php artisan workspace:list'.";
 
         parent::__construct($message, $solution);
     }
@@ -26,7 +26,7 @@ class WorkspaceNotFoundException extends WorkspaceException
 
     public function agentInstructions(): ?string
     {
-        return "Register the workspace using 'php artisan workspace:add {$this->workspace}' or inspect valid workspaces with 'php artisan workspace:list'.";
+        return "Register the workspace using 'php artisan workspace:register {$this->workspace}' or inspect valid workspaces with 'php artisan workspace:list'.";
     }
 
     /**

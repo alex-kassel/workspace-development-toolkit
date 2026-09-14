@@ -34,13 +34,13 @@ class WorkspaceHelpCommand extends BaseWorkspaceCommand
         $this->line('');
         $this->line('  <comment>TWO WORKSPACE PARADIGMS:</comment>');
         $this->line('  <info>1. Multi-Vendor Workspace</info> (Nested Structure)');
-        $this->line('     • Command:   <fg=yellow>php artisan workspace:add packages</>');
+        $this->line('     • Command:   <fg=yellow>php artisan workspace:register packages</>');
         $this->line('     • On Disk:   <fg=cyan>packages/{vendor}/{package}/</> (2 levels)');
         $this->line('     • Use Case:  Public libraries, third-party forks, or multiple vendors.');
         $this->line('     • Creation:  <fg=yellow>php artisan package:make my-vendor/my-package --workspace=packages</>');
         $this->line('');
         $this->line('  <info>2. Fixed-Vendor Workspace</info> (Flat Structure)');
-        $this->line('     • Command:   <fg=yellow>php artisan workspace:add labs --vendor=alex-kassel-labs</>');
+        $this->line('     • Command:   <fg=yellow>php artisan workspace:register labs --vendor=alex-kassel-labs</>');
         $this->line('     • On Disk:   <fg=cyan>labs/{package}/</> (1 level, no redundant vendor folder!)');
         $this->line('     • Use Case:  Internal company modules, customer apps, or domain services.');
         $this->line('     • Creation:  <fg=yellow>php artisan package:make my-module --workspace=labs</>');
@@ -49,10 +49,12 @@ class WorkspaceHelpCommand extends BaseWorkspaceCommand
         $this->line('  <comment>AVAILABLE COMMANDS:</comment>');
 
         $commands = [
-            ['workspace:add <path> [--vendor=] [--default]', 'Register a new workspace directory into composer and gitignore.'],
+            ['workspace:register <path> [--vendor=] [--default]', 'Register a new workspace directory into composer and gitignore.'],
+            ['workspace:unregister <path> [--detach] [--purge] [--force]', 'Unregister workspace repository from Composer and manifest.'],
+            ['workspace:flatten <path> <vendor>', 'Convert an existing workspace to flat single-depth layout with default vendor.'],
+            ['workspace:unflatten <path>', 'Revert a flat workspace back to nested multi-vendor layout.'],
             ['workspace:list', 'Display all registered workspaces, their vendors, structure mode, and packages.'],
             ['workspace:default <path>', 'Set the default workspace for creating new packages.'],
-            ['workspace:remove <path>', 'Unregister workspace repository from Composer and manifest (files kept).'],
             ['workspace:help', 'Display this interactive guide and cheat sheet.'],
             ['package:make <name> [--workspace=] [--install] [--dev]', 'Scaffold a new local Laravel package with ServiceProvider and manifest.'],
             ['package:clone [package] [--self] [--workspace=]', 'Clone a Git/GitHub package into workspace and optionally symlink.'],
@@ -74,12 +76,12 @@ class WorkspaceHelpCommand extends BaseWorkspaceCommand
         $this->line('  <fg=yellow>php artisan package:make my-vendor/my-package --install --dev</>');
         $this->line('');
         $this->line('  <fg=gray># Create a client-specific workspace and flat module:</>');
-        $this->line('  <fg=yellow>php artisan workspace:add clients/acme --vendor=acme-corp</>');
+        $this->line('  <fg=yellow>php artisan workspace:register clients/acme --vendor=acme-corp</>');
         $this->line('  <fg=yellow>php artisan package:make billing --workspace=clients/acme --install</>');
         $this->line('');
         $this->line('  <fg=gray># View detailed help for any specific command:</>');
         $this->line('  <fg=yellow>php artisan help package:make</>');
-        $this->line('  <fg=yellow>php artisan help workspace:add</>');
+        $this->line('  <fg=yellow>php artisan help workspace:register</>');
         $this->line('');
 
         return self::SUCCESS;

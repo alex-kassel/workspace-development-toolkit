@@ -10,40 +10,40 @@ use Illuminate\Support\Facades\File;
 
 class WorkspaceCommandsChaosTest extends TestCase
 {
-    public function test_workspace_add_duplicate_fails_gracefully_with_actionable_hint(): void
+    public function test_workspace_register_duplicate_fails_gracefully_with_actionable_hint(): void
     {
         // First execution creates workspace
-        $this->artisan('workspace:add', ['path' => 'packages'])
-            ->expectsOutputToContain('Workspace [packages] added successfully')
+        $this->artisan('workspace:register', ['path' => 'packages'])
+            ->expectsOutputToContain('Workspace [packages] registered successfully')
             ->assertSuccessful();
 
         // Duplicate execution must not crash; must provide actionable guidance
-        $this->artisan('workspace:add', ['path' => 'packages'])
+        $this->artisan('workspace:register', ['path' => 'packages'])
             ->expectsOutputToContain('Workspace [packages] is already registered.')
             ->expectsOutputToContain('How to fix:')
             ->expectsOutputToContain('php artisan workspace:list')
             ->assertFailed();
     }
 
-    public function test_workspace_remove_non_existent_workspace_fails_with_actionable_hint(): void
+    public function test_workspace_unregister_non_existent_workspace_fails_with_actionable_hint(): void
     {
-        $this->artisan('workspace:remove', ['path' => 'ghost-workspace'])
+        $this->artisan('workspace:unregister', ['path' => 'ghost-workspace'])
             ->expectsOutputToContain('Workspace [ghost-workspace] is not registered.')
             ->expectsOutputToContain('How to fix:')
             ->assertFailed();
     }
 
-    public function test_workspace_remove_duplicate_execution_fails_gracefully(): void
+    public function test_workspace_unregister_duplicate_execution_fails_gracefully(): void
     {
         Workspace::add('packages');
 
         // First remove succeeds
-        $this->artisan('workspace:remove', ['path' => 'packages'])
-            ->expectsOutputToContain('Workspace [packages] removed')
+        $this->artisan('workspace:unregister', ['path' => 'packages'])
+            ->expectsOutputToContain('Workspace [packages] unregistered')
             ->assertSuccessful();
 
         // Second duplicate remove fails with clear actionable error
-        $this->artisan('workspace:remove', ['path' => 'packages'])
+        $this->artisan('workspace:unregister', ['path' => 'packages'])
             ->expectsOutputToContain('Workspace [packages] is not registered.')
             ->expectsOutputToContain('How to fix:')
             ->assertFailed();
@@ -90,12 +90,12 @@ class WorkspaceCommandsChaosTest extends TestCase
         $this->assertFileDoesNotExist(base_path('workspace.json.bak'));
     }
 
-    public function test_workspace_add_with_corrupted_workspace_json_self_heals_and_adds_workspace(): void
+    public function test_workspace_register_with_corrupted_workspace_json_self_heals_and_registers_workspace(): void
     {
         File::put(base_path('workspace.json'), '{ invalid json syntax !!!');
 
-        $this->artisan('workspace:add', ['path' => 'labs'])
-            ->expectsOutputToContain('Workspace [labs] added successfully')
+        $this->artisan('workspace:register', ['path' => 'labs'])
+            ->expectsOutputToContain('Workspace [labs] registered successfully')
             ->assertSuccessful();
 
         $decoded = json_decode(File::get(base_path('workspace.json')), true);
