@@ -45,7 +45,7 @@ class WorkspaceManager
     /**
      * Load configuration from workspace.json.
      *
-     * @return array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}
+     * @return array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}
      *
      * @throws InvalidJsonException
      */
@@ -57,7 +57,7 @@ class WorkspaceManager
     /**
      * Save configuration to workspace.json.
      *
-     * @param  array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}  $data
+     * @param  array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}  $data
      */
     public function save(array $data): void
     {
@@ -449,7 +449,7 @@ class WorkspaceManager
     /**
      * Synchronize workspaces, packages, and composer.json repositories.
      *
-     * @return array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}
+     * @return array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string}>}>}
      */
     public function sync(): array
     {

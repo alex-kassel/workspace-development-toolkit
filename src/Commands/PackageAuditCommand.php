@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\CheckResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageAuditor;
@@ -61,7 +62,12 @@ class PackageAuditCommand extends BasePackageCommand
         }
 
         // Verify package existence
-        $path = $this->workspace->findPackagePath($rawPackage);
+        try {
+            $path = $this->workspace->findPackagePath($rawPackage);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
+
         if ($path === null && ! File::isDirectory(base_path($rawPackage)) && ! File::isDirectory($rawPackage)) {
             $this->error("Package [{$rawPackage}] not found.");
             $this->line('  <comment>How to fix:</comment> View registered packages using:');

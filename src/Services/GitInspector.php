@@ -254,4 +254,91 @@ class GitInspector
 
         return $result->successful() ? trim($result->output()) : '';
     }
+
+    /**
+     * Get a human-readable summary of the git working tree state.
+     * e.g. "Clean", "2 modified", "1 untracked", "2 modified, 1 untracked", "No git repo".
+     */
+    public function getWorkingTreeSummary(string $path): string
+    {
+        if (! $this->hasGitRepository($path)) {
+            return 'No git repo';
+        }
+
+        $result = Process::path($path)->run(['git', 'status', '--porcelain']);
+        if (! $result->successful()) {
+            return 'Unknown';
+        }
+
+        $output = trim($result->output());
+        if ($output === '') {
+            return 'Clean';
+        }
+
+        $lines = array_filter(explode("\n", $output), fn (string $line) => trim($line) !== '');
+        $modifiedCount = 0;
+        $untrackedCount = 0;
+
+        foreach ($lines as $line) {
+            if (str_starts_with($line, '??')) {
+                $untrackedCount++;
+            } else {
+                $modifiedCount++;
+            }
+        }
+
+        $parts = [];
+        if ($modifiedCount > 0) {
+            $parts[] = "{$modifiedCount} modified";
+        }
+        if ($untrackedCount > 0) {
+            $parts[] = "{$untrackedCount} untracked";
+        }
+
+        return ! empty($parts) ? implode(', ', $parts) : 'Clean';
+    }
+
+    /**
+     * Get upstream branch tracking status.
+     * e.g. "Synced", "Ahead (↑2)", "Behind (↓1)", "Diverged (↑2 ↓1)", "No upstream", "No git repo".
+     */
+    public function getUpstreamStatus(string $path): string
+    {
+        if (! $this->hasGitRepository($path)) {
+            return 'No git repo';
+        }
+
+        $upstreamResult = Process::path($path)->run(['git', 'rev-parse', '--abbrev-ref', '@{u}']);
+        if (! $upstreamResult->successful() || trim($upstreamResult->output()) === '') {
+            $commitCountResult = Process::path($path)->run(['git', 'rev-list', '--count', 'HEAD']);
+            if ($commitCountResult->successful() && (int) trim($commitCountResult->output()) > 0) {
+                return 'Unpublished';
+            }
+
+            return 'No upstream';
+        }
+
+        $revListResult = Process::path($path)->run(['git', 'rev-list', '--left-right', '--count', 'HEAD...@{u}']);
+        if (! $revListResult->successful()) {
+            return 'No upstream';
+        }
+
+        $parts = preg_split('/\s+/', trim($revListResult->output()));
+        $ahead = isset($parts[0]) ? (int) $parts[0] : 0;
+        $behind = isset($parts[1]) ? (int) $parts[1] : 0;
+
+        if ($ahead === 0 && $behind === 0) {
+            return 'Synced';
+        }
+
+        if ($ahead > 0 && $behind === 0) {
+            return "Ahead (↑{$ahead})";
+        }
+
+        if ($ahead === 0 && $behind > 0) {
+            return "Behind (↓{$behind})";
+        }
+
+        return "Diverged (↑{$ahead} ↓{$behind})";
+    }
 }

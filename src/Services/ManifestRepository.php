@@ -10,14 +10,13 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathExcept
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
 use Illuminate\Support\Facades\File;
-use JsonException;
 
 class ManifestRepository
 {
     /**
      * In-memory cache for workspace configuration.
      *
-     * @var array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}|null
+     * @var array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}|null
      */
     protected ?array $cache = null;
 
@@ -40,7 +39,7 @@ class ManifestRepository
     /**
      * Load configuration from workspace.json.
      *
-     * @return array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}
+     * @return array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}
      *
      * @throws InvalidJsonException
      */
@@ -69,26 +68,72 @@ class ManifestRepository
 
         try {
             $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw new InvalidJsonException($path, "Invalid JSON in {$path}: {$e->getMessage()}", $e);
+            if (! is_array($data)) {
+                throw new \RuntimeException("Expected JSON object in {$path}");
+            }
+            $this->validateWorkspaceJson($data, $path);
+        } catch (\Throwable) {
+            return $this->heal();
         }
 
-        if (! is_array($data)) {
-            throw new InvalidJsonException($path, "Expected JSON object in {$path}");
-        }
-
-        $this->validateWorkspaceJson($data, $path);
-
-        /** @var array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>} $data */
+        /** @var array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>} $data */
         $this->cache = $data;
 
         return $data;
     }
 
     /**
+     * Self-heal and reconstruct workspace.json without creating any backup files.
+     *
+     * @return array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}
+     */
+    public function heal(): array
+    {
+        $configuredTemplate = (string) config('workspace.repository_url_template', 'git@github.com:{package}.git');
+        $defaultData = [
+            'default' => null,
+            'repository_url_template' => trim($configuredTemplate) !== '' ? trim($configuredTemplate) : 'git@github.com:{package}.git',
+            'workspaces' => [],
+        ];
+
+        // Attempt to reconstruct workspaces from root composer.json path repositories
+        $composerPath = base_path('composer.json');
+        if (File::exists($composerPath)) {
+            try {
+                $composer = json_decode(File::get($composerPath), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($composer) && ! empty($composer['repositories']) && is_array($composer['repositories'])) {
+                    foreach ($composer['repositories'] as $repo) {
+                        if (is_array($repo) && ($repo['type'] ?? '') === 'path' && ! empty($repo['url'])) {
+                            $url = (string) $repo['url'];
+                            if (str_ends_with($url, '/*/*')) {
+                                $wsPath = substr($url, 0, -4);
+                                $defaultData['workspaces'][$wsPath] = ['vendor' => null, 'packages' => []];
+                            } elseif (str_ends_with($url, '/*')) {
+                                $wsPath = substr($url, 0, -2);
+                                $defaultData['workspaces'][$wsPath] = ['vendor' => null, 'packages' => []];
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable) {
+                // Ignore errors reading composer.json during healing
+            }
+        }
+
+        if (! empty($defaultData['workspaces'])) {
+            $defaultData['default'] = array_key_first($defaultData['workspaces']);
+        }
+
+        $this->save($defaultData);
+        $this->cache = $defaultData;
+
+        return $defaultData;
+    }
+
+    /**
      * Save configuration to workspace.json.
      *
-     * @param  array{default: ?string, repository_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}  $data
+     * @param  array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>}  $data
      */
     public function save(array $data): void
     {
@@ -228,7 +273,7 @@ class ManifestRepository
         $configured = (string) config('workspace.repository_url_template', 'git@github.com:{package}.git');
         $default = trim($configured) !== '' ? trim($configured) : 'git@github.com:{package}.git';
 
-        return $data['repository_url_template'] ?? $default;
+        return $data['repository_url_template'] ?? $data['repository_template'] ?? $default;
     }
 
     /**

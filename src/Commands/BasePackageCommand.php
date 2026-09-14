@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
+
 abstract class BasePackageCommand extends BaseCommand
 {
     /**
@@ -37,7 +39,14 @@ abstract class BasePackageCommand extends BaseCommand
     protected function resolveAndValidatePackage(string $rawPackage): ?string
     {
         $normalizedInput = $this->sanitizeInput($rawPackage);
-        $canonical = $this->workspace->resolveCanonicalPackageName($normalizedInput);
+
+        try {
+            $canonical = $this->workspace->resolveCanonicalPackageName($normalizedInput);
+        } catch (WorkspaceException $e) {
+            $this->handleWorkspaceException($e);
+
+            return null;
+        }
 
         $validation = $this->workspace->validatePackageName($canonical);
         if (! $validation['isValid']) {

@@ -9,7 +9,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\CheckResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\VerificationResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\VerificationPipeline;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -47,15 +47,19 @@ class PackageAuditCommandTest extends TestCase
         Workspace::add('packages', null, true);
         $this->scaffoldPackage('packages/acme/my-pkg', 'acme/my-pkg');
 
-        // Stub PackageVerifier so checks return passed
-        $stub = $this->createStub(PackageVerifier::class);
-        $stub->method('checkComposer')->willReturn(new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkPint')->willReturn(new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkPhpstan')->willReturn(new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkTests')->willReturn(new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkIsolated')->willReturn(new CheckResult('isolated', 'acme/my-pkg', 'passed', 'OK'));
+        // Stub VerificationPipeline so audit checks return passed
+        $stub = $this->createStub(VerificationPipeline::class);
+        $stub->method('run')->willReturn([
+            'composer' => new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'),
+            'pint' => new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'),
+            'phpstan' => new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'),
+            'tests' => new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'),
+            'git_cleanliness' => new CheckResult('git_cleanliness', 'acme/my-pkg', 'passed', 'OK'),
+            'readme' => new CheckResult('readme', 'acme/my-pkg', 'passed', 'OK'),
+            'export_ignore' => new CheckResult('export_ignore', 'acme/my-pkg', 'passed', 'OK'),
+        ]);
 
-        $this->app->instance(PackageVerifier::class, $stub);
+        $this->app->instance(VerificationPipeline::class, $stub);
         $this->app->forgetInstance(PackageAuditor::class);
 
         Process::fake(function ($process) {
@@ -91,14 +95,18 @@ class PackageAuditCommandTest extends TestCase
         Workspace::add('packages', null, true);
         $this->scaffoldPackage('packages/acme/my-pkg', 'acme/my-pkg');
 
-        $stub = $this->createStub(PackageVerifier::class);
-        $stub->method('checkComposer')->willReturn(new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkPint')->willReturn(new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkPhpstan')->willReturn(new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkTests')->willReturn(new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'));
-        $stub->method('checkIsolated')->willReturn(new CheckResult('isolated', 'acme/my-pkg', 'passed', 'OK'));
+        $stub = $this->createStub(VerificationPipeline::class);
+        $stub->method('run')->willReturn([
+            'composer' => new CheckResult('composer', 'acme/my-pkg', 'passed', 'OK'),
+            'pint' => new CheckResult('pint', 'acme/my-pkg', 'passed', 'OK'),
+            'phpstan' => new CheckResult('phpstan', 'acme/my-pkg', 'passed', 'OK'),
+            'tests' => new CheckResult('tests', 'acme/my-pkg', 'passed', 'OK'),
+            'git_cleanliness' => new CheckResult('git_cleanliness', 'acme/my-pkg', 'passed', 'OK'),
+            'readme' => new CheckResult('readme', 'acme/my-pkg', 'passed', 'OK'),
+            'export_ignore' => new CheckResult('export_ignore', 'acme/my-pkg', 'passed', 'OK'),
+        ]);
 
-        $this->app->instance(PackageVerifier::class, $stub);
+        $this->app->instance(VerificationPipeline::class, $stub);
         $this->app->forgetInstance(PackageAuditor::class);
 
         Process::fake(function ($process) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageGraph;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -45,7 +46,12 @@ class PackageDepsCommand extends BasePackageCommand
         $graph->clearCache();
 
         $rawPackage = (string) $this->argument('package');
-        $packagePath = $this->workspace->findPackagePath($rawPackage);
+
+        try {
+            $packagePath = $this->workspace->findPackagePath($rawPackage);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         if ($packagePath === null || ! File::isDirectory(base_path($packagePath))) {
             $this->error("Package [{$rawPackage}] not found.");
@@ -55,7 +61,11 @@ class PackageDepsCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+        try {
+            $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         if ((bool) $this->option('mermaid')) {
             $this->line($graph->renderMermaid());
@@ -72,7 +82,7 @@ class PackageDepsCommand extends BasePackageCommand
                 'all_dependents' => $graph->getDependents($package, recursive: true),
                 'cycles' => $graph->detectCycles(),
             ];
-            $this->line(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->line((string) json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
             return self::SUCCESS;
         }

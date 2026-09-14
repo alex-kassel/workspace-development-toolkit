@@ -119,18 +119,33 @@ class PackageScaffolder
         $relDisplayPath = trim(str_replace(base_path(), '', $packagePath), '/\\');
 
         if (File::isDirectory($packagePath)) {
-            $errorMessage = $cleanAlias !== ''
-                ? "Cannot use alias [{$cleanAlias}]: target directory [{$relDisplayPath}] already exists on disk."
-                : "Package directory [{$relDisplayPath}] already exists on disk.";
+            $inspectCmd = Platform::inspectDirectoryCommand($relDisplayPath);
+            $deleteCmd = Platform::deleteDirectoryCommand($relDisplayPath);
 
-            $solution = $cleanAlias !== ''
-                ? 'Choose a different alias name, or permanently delete the existing package:'
-                : 'Choose a different package name, or permanently delete the existing package:';
+            if ($cleanAlias !== '') {
+                $errorMessage = "Cannot use alias [{$cleanAlias}]: target directory [{$relDisplayPath}] already exists on disk.";
+                $solution = "Choose a different alias name, or remove the conflicting directory manually:\n  {$deleteCmd}";
 
-            throw new WorkspaceException(
-                $errorMessage,
-                "{$solution}\n  php artisan package:delete {$shortName} --force"
-            );
+                throw new WorkspaceException($errorMessage, $solution);
+            }
+
+            $isRegisteredPackage = false;
+            try {
+                $isRegisteredPackage = Workspace::findPackagePath($shortName) !== null
+                    || Workspace::findPackagePath($package) !== null;
+            } catch (\Throwable) {
+                $isRegisteredPackage = false;
+            }
+
+            if ($isRegisteredPackage) {
+                $errorMessage = "Package directory [{$relDisplayPath}] already exists on disk.";
+                $solution = "Choose a different package name, or permanently delete the existing package:\n  php artisan package:delete {$shortName} --force";
+            } else {
+                $errorMessage = "Target directory [{$relDisplayPath}] already exists on disk and is not a registered workspace package.";
+                $solution = "Choose a different package name, or inspect and remove the existing directory manually:\n  • Inspect folder contents: {$inspectCmd}\n  • Delete folder manually:  {$deleteCmd}";
+            }
+
+            throw new WorkspaceException($errorMessage, $solution);
         }
 
         // 3. Prepare replacement tokens

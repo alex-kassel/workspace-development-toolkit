@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ReleaseGateResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReleaseChecker;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -49,11 +50,21 @@ class PackageReleaseCheckCommand extends BasePackageCommand
 
         try {
             $result = $this->checker->check($rawPackage, $fast);
+        } catch (WorkspaceException $e) {
+            if ($isJson) {
+                $this->line(json_encode(['status' => 'error', 'error' => $e->getMessage()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+                return self::FAILURE;
+            }
+
+            return $this->handleWorkspaceException($e);
         } catch (RuntimeException $e) {
             if ($isJson) {
                 $this->line(json_encode(['status' => 'error', 'error' => $e->getMessage()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
             } else {
                 $this->error('Error: '.$e->getMessage());
+                $this->line('  <comment>How to fix:</comment> Check registered packages using:');
+                $this->line('  <info>php artisan workspace:list</info>');
             }
 
             return self::FAILURE;

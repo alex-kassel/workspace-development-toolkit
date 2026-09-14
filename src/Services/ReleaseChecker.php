@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ReleaseGateResult;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
@@ -31,7 +32,10 @@ class ReleaseChecker
             } elseif (File::isDirectory($packageNameOrPath)) {
                 $packagePath = $packageNameOrPath;
             } else {
-                throw new RuntimeException("Package [{$packageNameOrPath}] not found in any registered workspace.");
+                throw new WorkspaceException(
+                    "Package [{$packageNameOrPath}] not found in any registered workspace.",
+                    "Check registered packages using:\n  php artisan workspace:list"
+                );
             }
         }
 

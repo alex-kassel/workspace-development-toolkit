@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ReadmeValidationResult;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
-use RuntimeException;
 
 class ReadmeValidator
 {
@@ -31,7 +31,10 @@ class ReadmeValidator
                     $packagePath = $normalized;
                     $fullPath = base_path($packagePath);
                 } else {
-                    throw new RuntimeException("Package [{$packageNameOrPath}] not found in any registered workspace.");
+                    throw new WorkspaceException(
+                        "Package [{$packageNameOrPath}] not found in any registered workspace.",
+                        "Check registered packages using:\n  php artisan workspace:list"
+                    );
                 }
             } else {
                 $fullPath = base_path($packagePath);

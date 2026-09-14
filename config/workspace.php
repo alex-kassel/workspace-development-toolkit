@@ -95,4 +95,15 @@ return [
     |
     */
     'scaffold_agent_skills' => (bool) env('WORKSPACE_SCAFFOLD_AGENT_SKILLS', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Custom Verification Pipeline Checks
+    |--------------------------------------------------------------------------
+    |
+    | Additional custom check classes implementing PackageCheckInterface to be
+    | registered in the VerificationPipeline.
+    |
+    */
+    'checks' => [],
 ];

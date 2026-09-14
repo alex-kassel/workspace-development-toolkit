@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
@@ -50,13 +51,18 @@ class PackageDeleteCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $packagePath = $this->workspace->findPackagePath($package);
+        $packagePath = null;
+        try {
+            $packagePath = $this->workspace->findPackagePath($package);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         if (! $packagePath) {
             $this->error("Package [{$package}] was not found in any registered workspace.");
-            $this->line('  <comment>How to fix:</comment> Check existing packages using:');
+            $this->line('  <comment>How to fix:</comment> View all registered packages across workspaces using:');
             $this->line('  <info>php artisan workspace:list</info>');
-            $this->line('  If the package is not local, remove it directly with Composer:');
+            $this->line('  If the package is a remote Composer dependency (not a local workspace package), uninstall it via:');
             $this->line("  <info>composer remove {$package}</info>");
 
             return self::FAILURE;

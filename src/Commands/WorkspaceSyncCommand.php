@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
+
 class WorkspaceSyncCommand extends BaseWorkspaceCommand
 {
     /**
@@ -27,7 +29,12 @@ class WorkspaceSyncCommand extends BaseWorkspaceCommand
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
-        $workspaces = $this->workspace->all();
+
+        try {
+            $workspaces = $this->workspace->all();
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         if (empty($workspaces)) {
             $this->info('No workspaces registered. Nothing to synchronize.');

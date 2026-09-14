@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use Composer\InstalledVersions;
 
@@ -28,7 +29,11 @@ class WorkspaceListCommand extends BaseWorkspaceCommand
      */
     public function handle(): int
     {
-        $data = $this->option('sync') ? $this->workspace->sync() : $this->workspace->load();
+        try {
+            $data = $this->option('sync') ? $this->workspace->sync() : $this->workspace->load();
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         $workspaces = $data['workspaces'];
         $default = $data['default'];

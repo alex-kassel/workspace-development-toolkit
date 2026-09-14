@@ -31,12 +31,12 @@ final readonly class ReadmeValidationResult implements ArrayAccess, JsonSerializ
 
     public function failedCount(): int
     {
-        return $this->summary['failed'] ?? 0;
+        return $this->summary['failed'];
     }
 
     public function passedCount(): int
     {
-        return $this->summary['passed'] ?? 0;
+        return $this->summary['passed'];
     }
 
     /**

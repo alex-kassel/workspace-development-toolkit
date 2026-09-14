@@ -31,20 +31,24 @@ class WorkspaceManagerTest extends TestCase
         $this->assertArrayHasKey('default', $data);
     }
 
-    public function test_load_throws_invalid_json_exception_on_corrupted_file(): void
+    public function test_load_self_heals_on_corrupted_file(): void
     {
         File::put(base_path('workspace.json'), '{ invalid json content ...');
 
-        $this->expectException(InvalidJsonException::class);
-        Workspace::load();
+        $data = Workspace::load();
+
+        $this->assertArrayHasKey('workspaces', $data);
+        $this->assertArrayHasKey('default', $data);
     }
 
-    public function test_load_throws_invalid_json_exception_when_workspaces_key_is_missing(): void
+    public function test_load_self_heals_when_workspaces_key_is_missing(): void
     {
         File::put(base_path('workspace.json'), json_encode(['default' => null]));
 
-        $this->expectException(InvalidJsonException::class);
-        Workspace::load();
+        $data = Workspace::load();
+
+        $this->assertArrayHasKey('workspaces', $data);
+        $this->assertArrayHasKey('default', $data);
     }
 
     public function test_set_default_updates_default_workspace(): void

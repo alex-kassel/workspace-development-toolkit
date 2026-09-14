@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -46,11 +47,17 @@ class PackageSkillsCommand extends BasePackageCommand
         $force = (bool) $this->option('force');
         $remove = (bool) $this->option('remove');
 
-        $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
-        $packagePath = $this->workspace->findPackagePath($package);
+        try {
+            $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+            $packagePath = $this->workspace->findPackagePath($package);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         if ($packagePath === null) {
             $this->error("Package [{$rawPackage}] not found in any registered workspace.");
+            $this->line('  <comment>How to fix:</comment> Check registered packages using:');
+            $this->line('  <info>php artisan workspace:list</info>');
 
             return self::FAILURE;
         }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\CiMatrixGenerator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
@@ -29,6 +31,7 @@ class PackageWorkflowCommand extends BasePackageCommand
     public function __construct(
         WorkspaceManager $workspace,
         ComposerManager $composer,
+        protected readonly CiMatrixGenerator $matrixGenerator,
     ) {
         parent::__construct($workspace, $composer);
     }
@@ -41,7 +44,12 @@ class PackageWorkflowCommand extends BasePackageCommand
         $rawPackage = (string) $this->argument('package');
         $force = (bool) $this->option('force');
 
-        $packagePath = $this->workspace->findPackagePath($rawPackage);
+        try {
+            $packagePath = $this->workspace->findPackagePath($rawPackage);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
+
         if ($packagePath === null || ! File::isDirectory(base_path($packagePath))) {
             $this->error("Package [{$rawPackage}] not found.");
             $this->line('  <comment>How to fix:</comment> View registered packages using:');
@@ -50,7 +58,11 @@ class PackageWorkflowCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+        try {
+            $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
         $fullPath = base_path($packagePath);
         $workflowDir = $fullPath.DIRECTORY_SEPARATOR.'.github'.DIRECTORY_SEPARATOR.'workflows';
         $targetFile = $workflowDir.DIRECTORY_SEPARATOR.'run-tests.yml';
@@ -63,15 +75,10 @@ class PackageWorkflowCommand extends BasePackageCommand
             return self::SUCCESS;
         }
 
-        $stubFile = dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'package'.DIRECTORY_SEPARATOR.'run-tests.yml.stub';
-        if (! File::exists($stubFile)) {
-            $this->error("Workflow stub not found at: {$stubFile}");
-
-            return self::FAILURE;
-        }
+        $yaml = $this->matrixGenerator->generatePackageWorkflowYaml($fullPath);
 
         File::ensureDirectoryExists($workflowDir);
-        File::copy($stubFile, $targetFile);
+        File::put($targetFile, $yaml);
 
         $this->info("✔ GitHub Actions test matrix generated for [{$package}]:");
         $this->line("  <comment>Location:</comment> {$packagePath}/.github/workflows/run-tests.yml");

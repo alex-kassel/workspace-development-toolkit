@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReadmeValidator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -46,6 +47,17 @@ class PackageReadmeCommand extends BasePackageCommand
 
         try {
             $result = $this->validator->validate($rawPackage);
+        } catch (WorkspaceException $e) {
+            if ($isJson) {
+                $this->line(json_encode([
+                    'status' => 'error',
+                    'error' => $e->getMessage(),
+                ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+                return self::FAILURE;
+            }
+
+            return $this->handleWorkspaceException($e);
         } catch (RuntimeException $e) {
             if ($isJson) {
                 $this->line(json_encode([
@@ -54,6 +66,8 @@ class PackageReadmeCommand extends BasePackageCommand
                 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
             } else {
                 $this->error('Error: '.$e->getMessage());
+                $this->line('  <comment>How to fix:</comment> Check registered packages using:');
+                $this->line('  <info>php artisan workspace:list</info>');
             }
 
             return self::FAILURE;

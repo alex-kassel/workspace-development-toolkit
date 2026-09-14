@@ -99,19 +99,20 @@ class PackageGraph
             );
 
             foreach ($reqs as $req) {
-                if (isset($workspacePackages[$req]) && $req !== $name) {
-                    $this->dependencies[$name][] = $req;
-                    $this->dependents[$req][] = $name;
+                $reqStr = (string) $req;
+                if (isset($workspacePackages[$reqStr]) && $reqStr !== $name) {
+                    $this->dependencies[$name][] = $reqStr;
+                    $this->dependents[$reqStr][] = $name;
                 }
             }
         }
 
         foreach ($this->dependencies as $name => $deps) {
-            $this->dependencies[$name] = array_unique($deps);
+            $this->dependencies[$name] = array_values(array_unique($deps));
         }
 
         foreach ($this->dependents as $name => $deps) {
-            $this->dependents[$name] = array_unique($deps);
+            $this->dependents[$name] = array_values(array_unique($deps));
         }
     }
 
