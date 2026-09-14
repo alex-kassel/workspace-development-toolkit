@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\CheckStatus;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageGraph;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
@@ -96,7 +97,11 @@ class PackageCheckCommand extends BasePackageCommand
         bool $withWorkspaceDeps = false,
         bool $affected = false
     ): int {
-        $packagePath = $this->workspace->findPackagePath($rawPackage);
+        try {
+            $packagePath = $this->workspace->findPackagePath($rawPackage);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         if ($packagePath === null || ! File::isDirectory(base_path($packagePath))) {
             $this->error("Package [{$rawPackage}] not found.");
@@ -106,7 +111,11 @@ class PackageCheckCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+        try {
+            $package = $this->workspace->resolveCanonicalPackageName($rawPackage);
+        } catch (WorkspaceException $e) {
+            return $this->handleWorkspaceException($e);
+        }
 
         $this->info("Verifying package [{$package}] in [{$packagePath}]...");
         $this->newLine();

@@ -64,7 +64,12 @@ Determine whether the package has a coherent architecture, stable public contrac
   - Commands should only handle input parsing, service invocation, and terminal output formatting.
 - **Reusability by Design**:
   - Service classes and utilities must be designed for independent reusability across commands, background jobs, or external consumer code without coupling to `Command` or `Request` instances.
-  - Use structured, typed DTOs to return rich results instead of mixing data generation with terminal printing.
+- **Sequential Processing & Pipeline Pattern**:
+  - Whenever multiple operations, validations, or quality checks execute in series (e.g. audit steps, release gates, verification checks, scaffolding workflows), prefer the Pipeline pattern (`Illuminate\Pipeline\Pipeline` or dedicated pipeline runners with typed step contracts).
+  - Each step MUST be an isolated, single-responsibility class adhering to a common interface, keeping the coordinator thin and ensuring the system is open for extension without modifying the caller.
+- **Active Development Stage (Zero Backward Compatibility Overhead)**:
+  - During the pre-1.0 active local development stage, DO NOT maintain backward compatibility shims, legacy facades, adapter wrappers, or deprecated method proxies.
+  - Aggressively remove superseded code and refactor callers directly to avoid bloat and dead weight.
 - **Anti-Overengineering (KISS & YAGNI)**:
   - Avoid speculative abstractions. Do not introduce interfaces, factories, or strategy patterns for simple operations that have only one implementation and no boundary mocking requirement.
   - Keep solutions direct, transparent, and pragmatically simple.
