@@ -238,4 +238,28 @@ class WorkspaceCommandsTest extends TestCase
             ->expectsOutputToContain('package:clone')
             ->assertSuccessful();
     }
+
+    public function test_workspace_remove_without_args_in_non_interactive_mode(): void
+    {
+        $this->artisan('workspace:remove')
+            ->expectsOutputToContain('[CMD_ARGUMENT_REQUIRED]')
+            ->expectsOutputToContain('Available workspaces:')
+            ->assertFailed();
+    }
+
+    public function test_workspace_default_without_args_in_non_interactive_mode(): void
+    {
+        $this->artisan('workspace:default')
+            ->expectsOutputToContain('[CMD_ARGUMENT_REQUIRED]')
+            ->expectsOutputToContain('Available workspaces:')
+            ->assertFailed();
+    }
+
+    public function test_workspace_remove_with_invalid_workspace_displays_available_workspaces(): void
+    {
+        $this->artisan('workspace:remove', ['path' => 'non-existent-ws'])
+            ->expectsOutputToContain('[WS_WORKSPACE_NOT_FOUND]')
+            ->expectsOutputToContain('Available workspaces:')
+            ->assertFailed();
+    }
 }

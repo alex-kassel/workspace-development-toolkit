@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Events;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\DiagnosticSeverity;
+use Illuminate\Console\OutputStyle;
 use Symfony\Component\Console\Output\OutputInterface;
 
 final readonly class ConsoleDiagnosticDispatched
@@ -20,6 +21,6 @@ final readonly class ConsoleDiagnosticDispatched
         public array $context = [],
         public array $remediationSteps = [],
         public ?string $agentGuidance = null,
-        public ?OutputInterface $output = null,
+        public OutputStyle|OutputInterface|null $output = null,
     ) {}
 }

@@ -20,7 +20,7 @@ class PackageDeleteCommand extends BasePackageCommand
      *
      * @var string
      */
-    protected $signature = 'package:delete {package : Package name in vendor/package format (e.g. acme/my-pkg)} {--force : Delete without interactive confirmation}';
+    protected $signature = 'package:delete {package? : Package name in vendor/package format (e.g. acme/my-pkg)} {--force : Delete without interactive confirmation}';
 
     /**
      * The console command description.

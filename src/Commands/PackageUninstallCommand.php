@@ -15,7 +15,7 @@ class PackageUninstallCommand extends BasePackageCommand
      *
      * @var string
      */
-    protected $signature = 'package:uninstall {package : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Uninstall from require-dev}';
+    protected $signature = 'package:uninstall {package? : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Uninstall from require-dev}';
 
     /**
      * The console command description.

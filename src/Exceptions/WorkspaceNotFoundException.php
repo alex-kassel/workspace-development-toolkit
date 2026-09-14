@@ -13,8 +13,7 @@ class WorkspaceNotFoundException extends WorkspaceException
         public readonly string $workspace,
         public readonly array $available = [],
     ) {
-        $availableStr = empty($available) ? 'none' : implode(', ', $available);
-        $message = "Workspace [{$workspace}] is not registered. Available workspaces: [{$availableStr}].";
+        $message = "Workspace [{$workspace}] is not registered.";
         $solution = "Register the workspace using 'php artisan workspace:add {$workspace}' or choose from the available workspaces in 'php artisan workspace:list'.";
 
         parent::__construct($message, $solution);

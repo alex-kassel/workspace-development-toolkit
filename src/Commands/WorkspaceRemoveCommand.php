@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
+use Laravel\Prompts\Prompt;
 
 class WorkspaceRemoveCommand extends BaseWorkspaceCommand
 {
@@ -13,7 +15,7 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
      *
      * @var string
      */
-    protected $signature = 'workspace:remove {path : The workspace directory path}';
+    protected $signature = 'workspace:remove {path? : The workspace directory path}';
 
     /**
      * The console command description.
@@ -34,6 +36,30 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
 
         try {
             $this->workspace->remove($path);
+        } catch (WorkspaceNotFoundException $e) {
+            if ($this->input->isInteractive() && @stream_isatty(STDIN) && ! empty($e->available)) {
+                try {
+                    $usePrompt = class_exists(Prompt::class);
+                    $confirm = $usePrompt
+                        ? \Laravel\Prompts\confirm("Workspace [{$path}] is not registered. Choose from available workspaces instead?", true)
+                        : $this->confirm("Workspace [{$path}] is not registered. Choose from available workspaces instead?", true);
+
+                    if ($confirm) {
+                        $selected = $usePrompt
+                            ? \Laravel\Prompts\select('Select workspace to remove:', $e->available)
+                            : $this->choice('Select workspace to remove:', $e->available, 0);
+
+                        $path = (string) $selected;
+                        $this->workspace->remove($path);
+                    } else {
+                        return $this->handleWorkspaceException($e);
+                    }
+                } catch (\Throwable) {
+                    return $this->handleWorkspaceException($e);
+                }
+            } else {
+                return $this->handleWorkspaceException($e);
+            }
         } catch (WorkspaceException $e) {
             return $this->handleWorkspaceException($e);
         }

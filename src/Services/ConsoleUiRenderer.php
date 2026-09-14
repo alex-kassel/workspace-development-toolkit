@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Events\ConsoleDiagnosticDispatched;
+use Illuminate\Console\OutputStyle;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class ConsoleUiRenderer
@@ -12,7 +13,7 @@ class ConsoleUiRenderer
     /**
      * Render a structured diagnostic card to the console output.
      */
-    public function render(ConsoleDiagnosticDispatched $event, ?OutputInterface $output = null): void
+    public function render(ConsoleDiagnosticDispatched $event, OutputStyle|OutputInterface|null $output = null): void
     {
         $out = $output ?? $event->output;
         if ($out === null) {

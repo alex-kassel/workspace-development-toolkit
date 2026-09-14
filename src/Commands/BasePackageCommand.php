@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\DiagnosticSeverity;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 
 abstract class BasePackageCommand extends BaseCommand
@@ -16,15 +17,24 @@ abstract class BasePackageCommand extends BaseCommand
     {
         $package = trim((string) $this->argument('package'));
 
-        if ($package === '' && $this->input->isInteractive()) {
+        if ($package === '' && $this->input->isInteractive() && @stream_isatty(STDIN)) {
             $defaultPrompt = 'Please enter the package name (format: vendor/package, e.g. acme/my-pkg):';
             $package = trim((string) $this->ask($prompt ?? $defaultPrompt));
         }
 
         if ($package === '') {
-            $this->error('Package name is required.');
-            $this->line("  <comment>Usage:</comment>   php artisan {$this->getName()} <vendor/package>");
-            $this->line("  <comment>Example:</comment> php artisan {$this->getName()} acme/my-pkg");
+            $this->dispatchDiagnostic(
+                code: 'CMD_ARGUMENT_REQUIRED',
+                message: 'Package name argument is required.',
+                severity: DiagnosticSeverity::Error,
+                context: [
+                    'Expected format' => 'vendor/package (e.g. acme/my-pkg)',
+                ],
+                remediationSteps: [
+                    "php artisan {$this->getName()} acme/my-pkg",
+                ],
+                agentGuidance: "Provide the target package as an argument: 'php artisan {$this->getName()} <vendor/package>'."
+            );
 
             return null;
         }
@@ -38,6 +48,10 @@ abstract class BasePackageCommand extends BaseCommand
      */
     protected function resolveAndValidatePackage(string $rawPackage): ?string
     {
+        if (trim($rawPackage) === '') {
+            return $this->getRequiredPackage();
+        }
+
         $normalizedInput = $this->sanitizeInput($rawPackage);
 
         try {
@@ -50,15 +64,21 @@ abstract class BasePackageCommand extends BaseCommand
 
         $validation = $this->workspace->validatePackageName($canonical);
         if (! $validation['isValid']) {
-            $this->error($validation['error'] ?? "Invalid package name [{$rawPackage}].");
-            if ($validation['suggestion'] !== null) {
-                $this->line('  <comment>How to fix:</comment> Did you mean:');
-                $this->line("  <info>php artisan {$this->getName()} {$validation['suggestion']}</info>");
-            } else {
-                $this->line('  <comment>How to fix:</comment> Specify the full package name:');
-                $this->line("  <info>php artisan {$this->getName()} my-vendor/my-package</info>");
-                $this->line('  Or check registered workspaces: <info>php artisan workspace:list</info>');
-            }
+            $suggestion = $validation['suggestion'] ?? null;
+            $remediation = $suggestion !== null
+                ? ["php artisan {$this->getName()} {$suggestion}"]
+                : [
+                    "php artisan {$this->getName()} my-vendor/my-package",
+                    'php artisan workspace:list',
+                ];
+
+            $this->dispatchDiagnostic(
+                code: 'CMD_INVALID_ARGUMENT',
+                message: $validation['error'] ?? "Invalid package name [{$rawPackage}].",
+                severity: DiagnosticSeverity::Error,
+                remediationSteps: $remediation,
+                agentGuidance: 'Package name must be in vendor/package format using lowercase alphanumeric characters and hyphens.'
+            );
 
             return null;
         }

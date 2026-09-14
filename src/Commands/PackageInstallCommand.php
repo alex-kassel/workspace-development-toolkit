@@ -16,7 +16,7 @@ class PackageInstallCommand extends BasePackageCommand
      *
      * @var string
      */
-    protected $signature = 'package:install {package : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Install package into require-dev} {--remote : Allow installing non-local package from Composer remote repositories}';
+    protected $signature = 'package:install {package? : Package name in vendor/package format (e.g. acme/my-pkg)} {--dev : Install package into require-dev} {--remote : Allow installing non-local package from Composer remote repositories}';
 
     /**
      * The console command description.

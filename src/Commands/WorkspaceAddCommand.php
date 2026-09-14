@@ -14,7 +14,7 @@ class WorkspaceAddCommand extends BaseWorkspaceCommand
      *
      * @var string
      */
-    protected $signature = 'workspace:add {path : The workspace directory path} {--vendor= : Optional fixed vendor name for flat single-word packages} {--default : Set as default workspace}';
+    protected $signature = 'workspace:add {path? : The workspace directory path} {--vendor= : Optional fixed vendor name for flat single-word packages} {--default : Set as default workspace}';
 
     /**
      * The console command description.
@@ -28,7 +28,7 @@ class WorkspaceAddCommand extends BaseWorkspaceCommand
      */
     public function handle(): int
     {
-        $path = $this->getRequiredWorkspacePath();
+        $path = $this->getRequiredWorkspacePath(mustExist: false);
         if ($path === null) {
             return self::FAILURE;
         }
