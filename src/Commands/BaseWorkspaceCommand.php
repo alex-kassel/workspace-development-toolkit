@@ -45,16 +45,17 @@ abstract class BaseWorkspaceCommand extends BaseCommand
                                     if ($trimmed === '') {
                                         return 'Workspace path cannot be empty.';
                                     }
-                                    if (str_contains($trimmed, '..')) {
-                                        return 'Path traversal ("..") is not allowed.';
+
+                                    try {
+                                        $normalized = $this->workspace->normalizeWorkspacePath($trimmed);
+                                    } catch (WorkspaceException $e) {
+                                        return $e->getMessage();
                                     }
-                                    if (str_starts_with($value, '/') || str_starts_with($value, '\\')) {
-                                        return 'Absolute paths are not allowed.';
-                                    }
-                                    if ($mustNotExist && in_array($trimmed, $available, true)) {
+
+                                    if ($mustNotExist && in_array($normalized, $available, true)) {
                                         $list = implode(', ', $available);
 
-                                        return "Workspace [{$trimmed}] is already registered. Existing workspaces: [{$list}]. Please enter a different path.";
+                                        return "Workspace [{$normalized}] is already registered. Existing workspaces: [{$list}]. Please enter a different path.";
                                     }
 
                                     return null;
@@ -70,21 +71,39 @@ abstract class BaseWorkspaceCommand extends BaseCommand
                                 break;
                             }
                             $trimmed = trim(preg_replace('#[/\\\\]+#', '/', (string) $entered) ?? '', '/');
-                            if ($mustNotExist && in_array($trimmed, $available, true)) {
-                                $this->warn("Workspace [{$trimmed}] is already registered. Existing workspaces: ".implode(', ', $available));
+
+                            try {
+                                $normalized = $this->workspace->normalizeWorkspacePath($trimmed);
+                            } catch (WorkspaceException $e) {
+                                $this->error($e->getMessage());
 
                                 continue;
                             }
 
-                            return $this->workspace->normalizeWorkspacePath($trimmed);
+                            if ($mustNotExist && in_array($normalized, $available, true)) {
+                                $this->warn("Workspace [{$normalized}] is already registered. Existing workspaces: ".implode(', ', $available));
+
+                                continue;
+                            }
+
+                            return $normalized;
                         }
                     }
                 } catch (\Throwable) {
-                    // Fall through to non-interactive diagnostic dispatch
+                    return null;
                 }
+
+                return null;
             }
 
-            $example = ! empty($available) ? $available[0] : 'packages';
+            if ($mustNotExist) {
+                $example = 'packages';
+                if (in_array('packages', $available, true)) {
+                    $example = in_array('modules', $available, true) ? 'labs' : 'modules';
+                }
+            } else {
+                $example = ! empty($available) ? $available[0] : 'packages';
+            }
 
             $this->dispatchDiagnostic(
                 code: 'CMD_ARGUMENT_REQUIRED',

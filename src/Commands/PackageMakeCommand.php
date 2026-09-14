@@ -105,6 +105,12 @@ class PackageMakeCommand extends BasePackageCommand
                             if ($val === '') {
                                 return 'Package name cannot be empty.';
                             }
+
+                            $validation = $this->workspace->validatePackageName($val, $workspaceVendor);
+                            if (! $validation['isValid']) {
+                                return $validation['error'];
+                            }
+
                             $shortName = str_contains($val, '/') ? explode('/', $val)[1] : $val;
                             $targetDir = $workspaceVendor !== null
                                 ? base_path("{$workspace}/{$shortName}")
@@ -126,6 +132,14 @@ class PackageMakeCommand extends BasePackageCommand
                         if ($val === '') {
                             continue;
                         }
+
+                        $validation = $this->workspace->validatePackageName($val, $workspaceVendor);
+                        if (! $validation['isValid']) {
+                            $this->error($validation['error']);
+
+                            continue;
+                        }
+
                         $shortName = str_contains($val, '/') ? explode('/', $val)[1] : $val;
                         $targetDir = $workspaceVendor !== null
                             ? base_path("{$workspace}/{$shortName}")
@@ -140,6 +154,10 @@ class PackageMakeCommand extends BasePackageCommand
                         $rawPackage = $val;
                         break;
                     }
+                }
+
+                if ($rawPackage === '') {
+                    return self::SUCCESS;
                 }
             } else {
                 $example = $workspaceVendor !== null ? 'my-package' : 'my-vendor/my-package';
