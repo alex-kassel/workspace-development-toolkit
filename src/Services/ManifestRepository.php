@@ -630,23 +630,34 @@ class ManifestRepository
             throw new InvalidWorkspacePathException($path, 'Absolute paths are not allowed. Workspace must be a path relative to application root.');
         }
 
-        $segments = explode('/', $normalized);
-        foreach ($segments as $segment) {
-            if ($segment === '..') {
-                throw new InvalidWorkspacePathException($path, 'Path traversal ("..") is not allowed.');
-            }
+        $cleanPath = trim(preg_replace('#/+#', '/', $normalized) ?? '', '/');
+        $rawSegments = explode('/', $cleanPath);
+        $segments = [];
+
+        foreach ($rawSegments as $segment) {
             if ($segment === '' || $segment === '.') {
                 continue;
+            }
+            if ($segment === '..' || str_contains($segment, '..')) {
+                throw new InvalidWorkspacePathException($path, 'Path traversal ("..") is not allowed.');
             }
             if (strlen($segment) > 255) {
                 throw new InvalidWorkspacePathException($path, 'Path segment exceeds maximum filesystem length of 255 characters.');
             }
-            if (! preg_match('/^[a-zA-Z0-9_\-\.]+$/', $segment)) {
-                throw new InvalidWorkspacePathException($path, "Invalid path segment [{$segment}]. Only alphanumeric characters, dashes, underscores, and dots are allowed.");
+            if (! preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9_\-\.]*[a-zA-Z0-9])?$/', $segment)) {
+                throw new InvalidWorkspacePathException(
+                    $path,
+                    "Invalid path segment [{$segment}]. Workspace folder names must start and end with an alphanumeric character and contain only letters, numbers, dashes, underscores, and single dots."
+                );
             }
+            $segments[] = $segment;
         }
 
-        return trim(preg_replace('#/+#', '/', $normalized) ?? '', '/');
+        if (empty($segments)) {
+            throw new InvalidWorkspacePathException($path, 'Workspace path cannot be empty or root directory.');
+        }
+
+        return implode('/', $segments);
     }
 
     /**

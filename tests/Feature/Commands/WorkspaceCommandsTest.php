@@ -105,6 +105,26 @@ class WorkspaceCommandsTest extends TestCase
             ->assertFailed();
     }
 
+    public function test_workspace_register_rejects_dot_only_or_special_segments(): void
+    {
+        $this->artisan('workspace:register', ['path' => '...'])
+            ->expectsOutputToContain('Path traversal ("..") is not allowed')
+            ->assertFailed();
+
+        $this->artisan('workspace:register', ['path' => '.hidden'])
+            ->expectsOutputToContain('Invalid path segment [.hidden]')
+            ->assertFailed();
+    }
+
+    public function test_workspace_register_normalizes_redundant_dot_segments(): void
+    {
+        $this->artisan('workspace:register', ['path' => 'labs/./area'])
+            ->expectsOutputToContain('Workspace [labs/area] registered successfully')
+            ->assertSuccessful();
+
+        $this->assertArrayHasKey('labs/area', Workspace::all());
+    }
+
     public function test_workspace_list_renders_table(): void
     {
         Workspace::add('packages');
