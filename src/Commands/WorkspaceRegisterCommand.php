@@ -54,6 +54,12 @@ class WorkspaceRegisterCommand extends BaseWorkspaceCommand
             if ($vendor !== $rawVendor) {
                 $this->line("  <comment>Notice:</comment> Converted vendor [{$rawVendor}] to normalized Composer format [{$vendor}].");
             }
+        } else {
+            $wsManifest = $this->workspace->loadWorkspaceManifest($path);
+            if (! empty($wsManifest['vendor']) && is_string($wsManifest['vendor'])) {
+                $vendor = Str::slug($wsManifest['vendor']);
+                $this->line("  <comment>Notice:</comment> Detected default vendor [{$vendor}] from existing [{$path}/workspace.json].");
+            }
         }
 
         try {

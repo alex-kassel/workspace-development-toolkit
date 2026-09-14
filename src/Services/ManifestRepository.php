@@ -110,12 +110,28 @@ class ManifestRepository
                     foreach ($composer['repositories'] as $repo) {
                         if (is_array($repo) && ($repo['type'] ?? '') === 'path' && ! empty($repo['url'])) {
                             $url = (string) $repo['url'];
+                            $wsPath = null;
                             if (str_ends_with($url, '/*/*')) {
                                 $wsPath = substr($url, 0, -4);
-                                $defaultData['workspaces'][$wsPath] = ['vendor' => null, 'packages' => []];
                             } elseif (str_ends_with($url, '/*')) {
                                 $wsPath = substr($url, 0, -2);
-                                $defaultData['workspaces'][$wsPath] = ['vendor' => null, 'packages' => []];
+                            }
+
+                            if ($wsPath !== null && $wsPath !== '') {
+                                $vendor = null;
+                                $localManifestPath = base_path($wsPath.DIRECTORY_SEPARATOR.'workspace.json');
+                                if (File::exists($localManifestPath)) {
+                                    try {
+                                        $localJson = json_decode(File::get($localManifestPath), true, 512, JSON_THROW_ON_ERROR);
+                                        if (is_array($localJson) && ! empty($localJson['vendor']) && is_string($localJson['vendor'])) {
+                                            $vendor = $localJson['vendor'];
+                                        }
+                                    } catch (\Throwable) {
+                                        // Ignore corrupted local manifest
+                                    }
+                                }
+
+                                $defaultData['workspaces'][$wsPath] = ['vendor' => $vendor, 'packages' => []];
                             }
                         }
                     }

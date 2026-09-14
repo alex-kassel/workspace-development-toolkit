@@ -458,4 +458,52 @@ class WorkspaceCommandsTest extends TestCase
             ->expectsOutputToContain('excluded by root .gitignore')
             ->assertSuccessful();
     }
+
+    public function test_workspace_register_adopts_vendor_from_existing_workspace_manifest(): void
+    {
+        File::ensureDirectoryExists(base_path('modules'));
+        File::put(base_path('modules/workspace.json'), json_encode(['vendor' => 'acme-corp', 'packages' => []]));
+
+        $this->artisan('workspace:register', ['path' => 'modules'])
+            ->expectsOutputToContain('Detected default vendor [acme-corp] from existing [modules/workspace.json]')
+            ->assertSuccessful();
+
+        Workspace::clearCache();
+        $this->assertSame('acme-corp', Workspace::getWorkspaceVendor('modules'));
+
+        $composer = $this->getSandboxComposer();
+        $foundFlat = false;
+        foreach ($composer['repositories'] ?? [] as $repo) {
+            if (($repo['url'] ?? '') === 'modules/*') {
+                $foundFlat = true;
+                break;
+            }
+        }
+        $this->assertTrue($foundFlat, 'Path repository modules/* was not created in composer.json');
+    }
+
+    public function test_workspace_sync_reconciles_vendor_from_existing_workspace_manifest(): void
+    {
+        Workspace::add('modules');
+        $this->assertNull(Workspace::getWorkspaceVendor('modules'));
+
+        // Manually place workspace.json with default vendor
+        File::put(base_path('modules/workspace.json'), json_encode(['vendor' => 'acme-corp', 'packages' => []]));
+
+        $this->artisan('workspace:sync')
+            ->assertSuccessful();
+
+        Workspace::clearCache();
+        $this->assertSame('acme-corp', Workspace::getWorkspaceVendor('modules'));
+
+        $composer = $this->getSandboxComposer();
+        $foundFlat = false;
+        foreach ($composer['repositories'] ?? [] as $repo) {
+            if (($repo['url'] ?? '') === 'modules/*') {
+                $foundFlat = true;
+                break;
+            }
+        }
+        $this->assertTrue($foundFlat, 'Path repository modules/* was not updated after sync');
+    }
 }

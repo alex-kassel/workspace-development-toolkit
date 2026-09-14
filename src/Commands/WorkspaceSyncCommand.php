@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
+use Illuminate\Support\Facades\File;
 
 class WorkspaceSyncCommand extends BaseWorkspaceCommand
 {
@@ -51,9 +52,13 @@ class WorkspaceSyncCommand extends BaseWorkspaceCommand
             return self::SUCCESS;
         }
 
-        $modified = $this->composer->syncRepositories($workspaces);
-        $this->composer->ensureComposerHooks();
-        $this->composer->ensureWorkspaceScript();
+        $composerPath = base_path('composer.json');
+        $composerBefore = File::exists($composerPath) ? File::get($composerPath) : '';
+
+        $this->workspace->sync();
+
+        $composerAfter = File::exists($composerPath) ? File::get($composerPath) : '';
+        $modified = ($composerBefore !== $composerAfter);
 
         if ($modified) {
             $this->info('✔ Root composer.json path repositories synchronized successfully.');

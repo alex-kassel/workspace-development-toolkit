@@ -121,6 +121,13 @@ class WorkspaceManager
         }
         $this->addToGitignore($cleanPath);
 
+        if ($vendor === null) {
+            $wsManifest = $this->loadWorkspaceManifest($cleanPath);
+            if (! empty($wsManifest['vendor']) && is_string($wsManifest['vendor'])) {
+                $vendor = $wsManifest['vendor'];
+            }
+        }
+
         $result = $this->manifest->add($cleanPath, $vendor, $asDefault);
         if ($result) {
             $this->resolver->clearCache();
@@ -131,6 +138,7 @@ class WorkspaceManager
                 $this->save($data);
                 $this->syncLocalPackageManifestsForWorkspace($cleanPath);
             }
+            $this->saveWorkspaceManifest($cleanPath);
             $this->composer->syncRepositories($this->manifest->all());
         }
 
@@ -1020,7 +1028,17 @@ class WorkspaceManager
         }
 
         foreach ($data['workspaces'] as $path => $config) {
-            $data['workspaces'][$path]['packages'] = $this->scanPackages($path, $config['vendor'] ?? null);
+            $vendor = $config['vendor'] ?? null;
+            $wsManifest = $this->loadWorkspaceManifest($path);
+
+            if ($vendor === null && ! empty($wsManifest['vendor']) && is_string($wsManifest['vendor'])) {
+                $vendor = $wsManifest['vendor'];
+                $data['workspaces'][$path]['vendor'] = $vendor;
+            } elseif ($vendor !== null && (empty($wsManifest['vendor']) || $wsManifest['vendor'] !== $vendor)) {
+                $this->saveWorkspaceManifest($path);
+            }
+
+            $data['workspaces'][$path]['packages'] = $this->scanPackages($path, $vendor);
         }
 
         $this->save($data);
