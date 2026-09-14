@@ -88,6 +88,8 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
         if (! empty($activePackages) && ! $detach && ! $purge) {
             if ($isInteractive) {
                 try {
+                    $usePrompt = class_exists(Prompt::class);
+
                     $this->newLine();
                     $this->warn("Workspace [{$path}] contains active packages installed in root composer.json:");
                     foreach ($activePackages as $pkg => $reqType) {
@@ -126,7 +128,13 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
                     } elseif ($choice === 'purge') {
                         $purge = true;
                     }
-                } catch (\Throwable) {
+                } catch (\Throwable $e) {
+                    if (str_contains(get_class($e), 'PromptCancelled') || str_contains($e->getMessage(), 'cancel')) {
+                        $this->info('Workspace removal canceled.');
+
+                        return self::SUCCESS;
+                    }
+
                     $detach = false;
                     $purge = false;
                 }
