@@ -31,6 +31,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDashboardCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceFlattenCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRegisterCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStatusCommand;
@@ -61,6 +62,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReadmeValidator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReleaseChecker;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\VerificationPipeline;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceStatusCollector;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -123,6 +125,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(PackageGraph::class);
         $this->app->singleton(CiMatrixGenerator::class);
         $this->app->singleton(WorkspaceStatusCollector::class);
+        $this->app->singleton(WorkspaceInstaller::class);
     }
 
     /**
@@ -185,6 +188,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 WorkspaceStatusCommand::class,
                 WorkspaceSyncCommand::class,
                 WorkspaceHelpCommand::class,
+                WorkspaceInstallCommand::class,
                 WorkspaceStubsCommand::class,
                 WorkspaceArchetypesCommand::class,
                 WorkspaceDashboardCommand::class,

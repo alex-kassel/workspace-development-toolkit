@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Custom Workspace Post-Install Hook
+ *
+ * This hook is executed at the end of `php artisan workspace:install`.
+ *
+ * Available variables:
+ * - $context: AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext
+ *
+ * Example usage:
+ * // Remove unwanted files:
+ * // if (file_exists(base_path('SOME_UNUSED_FILE.md'))) {
+ * //     unlink(base_path('SOME_UNUSED_FILE.md'));
+ * // }
+ * //
+ * // Perform custom artisan calls:
+ * // Illuminate\Support\Facades\Artisan::call('migrate');
+ */
+
+// Add your custom project initialization logic here.
