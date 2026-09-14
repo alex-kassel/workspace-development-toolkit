@@ -72,6 +72,12 @@ class WorkspaceAddCommand extends BaseWorkspaceCommand
         $vendorMsg = $vendor ? " with fixed vendor [{$vendor}] (flat structure)" : ' (multi-vendor nested structure)';
         $this->info("Workspace [{$path}] added successfully{$defaultMsg}{$vendorMsg}.");
 
+        $packages = $this->workspace->all()[$path]['packages'] ?? [];
+        $packageCount = count($packages);
+        if ($packageCount > 0) {
+            $this->line("  <info>Discovered and registered {$packageCount} existing package(s) from disk.</info>");
+        }
+
         $this->newLine();
         $this->line('  <comment>Hint:</comment> You can now create packages in this workspace:');
         if ($vendor) {

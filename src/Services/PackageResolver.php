@@ -69,7 +69,18 @@ class PackageResolver
             try {
                 $json = json_decode(File::get($file), true, 512, JSON_THROW_ON_ERROR);
                 $name = $json['name'] ?? null;
-                $dirName = basename(dirname($file));
+                $pkgDir = dirname($file);
+                $dirName = basename($pkgDir);
+
+                $localManifestPath = $pkgDir.DIRECTORY_SEPARATOR.'workspace.json';
+                $localManifest = [];
+                if (File::exists($localManifestPath)) {
+                    try {
+                        $localManifest = json_decode(File::get($localManifestPath), true, 512, JSON_THROW_ON_ERROR) ?: [];
+                    } catch (Throwable) {
+                        $localManifest = [];
+                    }
+                }
 
                 if (! empty($name)) {
                     if ($vendor !== null) {
@@ -82,6 +93,17 @@ class PackageResolver
                         $existingAlias = is_array($existing) ? ($existing['alias'] ?? null) : null;
                         $existingUrl = is_array($existing) ? ($existing['url'] ?? null) : null;
                         $existingSkills = is_array($existing) ? ($existing['skills'] ?? null) : null;
+
+                        // Local workspace.json takes precedence or fills missing metadata
+                        if (! empty($localManifest['alias'])) {
+                            $existingAlias = (string) $localManifest['alias'];
+                        }
+                        if (! empty($localManifest['url'])) {
+                            $existingUrl = (string) $localManifest['url'];
+                        }
+                        if (! empty($localManifest['skills']) && is_array($localManifest['skills'])) {
+                            $existingSkills = $localManifest['skills'];
+                        }
 
                         $discoveredNames[$baseShort] = true;
                         if ($existingAlias !== null) {
@@ -107,13 +129,31 @@ class PackageResolver
                         }
                     } else {
                         $existing = $configuredPackages[$name] ?? null;
+                        $existingAlias = is_array($existing) ? ($existing['alias'] ?? null) : null;
                         $existingUrl = is_array($existing) ? ($existing['url'] ?? null) : null;
                         $existingSkills = is_array($existing) ? ($existing['skills'] ?? null) : null;
 
-                        $discoveredNames[$name] = true;
+                        // Local workspace.json takes precedence or fills missing metadata
+                        if (! empty($localManifest['alias'])) {
+                            $existingAlias = (string) $localManifest['alias'];
+                        }
+                        if (! empty($localManifest['url'])) {
+                            $existingUrl = (string) $localManifest['url'];
+                        }
+                        if (! empty($localManifest['skills']) && is_array($localManifest['skills'])) {
+                            $existingSkills = $localManifest['skills'];
+                        }
 
-                        if ($existingUrl !== null || ! empty($existingSkills)) {
+                        $discoveredNames[$name] = true;
+                        if ($existingAlias !== null) {
+                            $discoveredNames[$existingAlias] = true;
+                        }
+
+                        if ($existingAlias !== null || $existingUrl !== null || ! empty($existingSkills)) {
                             $entry = ['name' => $name];
+                            if ($existingAlias !== null) {
+                                $entry['alias'] = $existingAlias;
+                            }
                             if ($existingUrl !== null) {
                                 $entry['url'] = $existingUrl;
                             }
@@ -355,11 +395,23 @@ class PackageResolver
                 try {
                     $json = json_decode(File::get($file), true, 512, JSON_THROW_ON_ERROR);
                     $canonicalName = $json['name'] ?? '';
-                    $dirName = basename(dirname($file));
-                    $relPath = trim(str_replace([base_path(), '\\'], ['', '/'], dirname($file)), '/');
+                    $pkgDir = dirname($file);
+                    $dirName = basename($pkgDir);
+                    $relPath = trim(str_replace([base_path(), '\\'], ['', '/'], $pkgDir), '/');
                     $shortName = str_starts_with($canonicalName, "{$vendor}/")
                         ? substr($canonicalName, strlen("{$vendor}/"))
                         : (str_contains($canonicalName, '/') ? explode('/', $canonicalName, 2)[1] : $canonicalName);
+
+                    $localManifestFile = $pkgDir.DIRECTORY_SEPARATOR.'workspace.json';
+                    $localAlias = null;
+                    if (File::exists($localManifestFile)) {
+                        try {
+                            $localJson = json_decode(File::get($localManifestFile), true, 512, JSON_THROW_ON_ERROR);
+                            $localAlias = is_array($localJson) && ! empty($localJson['alias']) ? (string) $localJson['alias'] : null;
+                        } catch (Throwable) {
+                            $localAlias = null;
+                        }
+                    }
 
                     $index[$ws][$relPath] = [
                         'relPath' => $relPath,
@@ -368,7 +420,7 @@ class PackageResolver
                         'dirName' => $dirName,
                         'vendor' => $vendor,
                         'workspace' => $ws,
-                        'alias' => strcasecmp($dirName, $shortName) !== 0 ? $dirName : null,
+                        'alias' => (strcasecmp($dirName, $shortName) !== 0) ? $dirName : $localAlias,
                     ];
                 } catch (JsonException $e) {
                     Log::warning(

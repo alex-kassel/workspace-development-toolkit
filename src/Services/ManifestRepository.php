@@ -531,23 +531,41 @@ class ManifestRepository
         }
 
         $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
+        $vendor = $data['workspaces'][$cleanWorkspace]['vendor'] ?? null;
         $newPackages = [];
         $found = false;
 
+        $targets = [strtolower($packageName)];
+        if ($vendor !== null) {
+            $prefix = strtolower($vendor).'/';
+            if (str_starts_with(strtolower($packageName), $prefix)) {
+                $targets[] = substr(strtolower($packageName), strlen($prefix));
+            } else {
+                $targets[] = strtolower("{$vendor}/{$packageName}");
+            }
+        } elseif (str_contains($packageName, '/')) {
+            [, $shortName] = explode('/', $packageName, 2);
+            $targets[] = strtolower($shortName);
+        }
+
         foreach ($wsPackages as $item) {
             $existingName = is_array($item) ? $item['name'] : (string) $item;
-            if ($existingName === $packageName) {
+            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
+
+            $isMatch = in_array(strtolower($existingName), $targets, true)
+                || ($existingAlias !== null && in_array(strtolower($existingAlias), $targets, true));
+
+            if ($isMatch) {
                 $found = true;
-                $entry = is_array($item) ? $item : ['name' => $packageName];
+                $entry = is_array($item) ? $item : ['name' => $existingName];
                 if (! empty($skills)) {
                     $entry['skills'] = array_values(array_unique($skills));
                 } elseif (isset($entry['skills'])) {
                     unset($entry['skills']);
                 }
 
-                // If only name remains, flatten to string if preferred, or keep as array
-                if (count($entry) === 1) {
-                    $newPackages[] = $packageName;
+                if (count($entry) === 1 && ! isset($entry['alias']) && ! isset($entry['url'])) {
+                    $newPackages[] = $existingName;
                 } else {
                     $newPackages[] = $entry;
                 }
@@ -557,8 +575,12 @@ class ManifestRepository
         }
 
         if (! $found && ! empty($skills)) {
+            $storeName = ($vendor !== null && str_starts_with(strtolower($packageName), strtolower($vendor).'/'))
+                ? substr($packageName, strlen($vendor) + 1)
+                : $packageName;
+
             $newPackages[] = [
-                'name' => $packageName,
+                'name' => $storeName,
                 'skills' => array_values(array_unique($skills)),
             ];
         }

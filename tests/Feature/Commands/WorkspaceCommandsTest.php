@@ -7,6 +7,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature\Commands;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 
 class WorkspaceCommandsTest extends TestCase
 {
@@ -261,5 +262,100 @@ class WorkspaceCommandsTest extends TestCase
             ->expectsOutputToContain('[WS_WORKSPACE_NOT_FOUND]')
             ->expectsOutputToContain('Available workspaces:')
             ->assertFailed();
+    }
+
+    public function test_workspace_remove_with_active_packages_fails_in_non_interactive_mode(): void
+    {
+        Workspace::add('packages');
+        $this->createDummyPackage('packages/acme/active-pkg', 'acme/active-pkg');
+
+        // Mark package as active in root composer.json require-dev
+        $composer = $this->getSandboxComposer();
+        $composer['require-dev']['acme/active-pkg'] = '@dev';
+        File::put(base_path('composer.json'), json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        $this->artisan('workspace:remove', ['path' => 'packages'])
+            ->expectsOutputToContain('[WS_WORKSPACE_CONTAINS_ACTIVE_PACKAGES]')
+            ->expectsOutputToContain('acme/active-pkg (require-dev)')
+            ->expectsOutputToContain('--detach')
+            ->assertFailed();
+
+        // Workspace must still exist
+        $this->assertArrayHasKey('packages', Workspace::all());
+    }
+
+    public function test_workspace_remove_with_detach_uninstalls_active_packages(): void
+    {
+        Process::fake(['*' => Process::result('ok')]);
+
+        Workspace::add('packages');
+        $this->createDummyPackage('packages/acme/active-pkg', 'acme/active-pkg');
+
+        $composer = $this->getSandboxComposer();
+        $composer['require-dev']['acme/active-pkg'] = '@dev';
+        File::put(base_path('composer.json'), json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        $this->artisan('workspace:remove', ['path' => 'packages', '--detach' => true])
+            ->expectsOutputToContain('Workspace [packages] removed from configuration')
+            ->expectsOutputToContain('Active packages were uninstalled from root composer.json')
+            ->assertSuccessful();
+
+        $this->assertArrayNotHasKey('packages', Workspace::all());
+        $this->assertDirectoryExists(base_path('packages'));
+    }
+
+    public function test_workspace_remove_with_purge_deletes_directory_and_unregisters(): void
+    {
+        Process::fake(['*' => Process::result('ok')]);
+
+        Workspace::add('packages');
+        $this->createDummyPackage('packages/acme/purge-pkg', 'acme/purge-pkg');
+
+        $this->artisan('workspace:remove', ['path' => 'packages', '--purge' => true, '--force' => true])
+            ->expectsOutputToContain('permanently purged from disk and configuration')
+            ->assertSuccessful();
+
+        $this->assertArrayNotHasKey('packages', Workspace::all());
+        $this->assertDirectoryDoesNotExist(base_path('packages'));
+    }
+
+    public function test_workspace_local_manifest_persistence_and_auto_restoration(): void
+    {
+        Workspace::add('labs', 'acme', true);
+        $this->createDummyPackage('labs/foo', 'acme/foo');
+
+        // Add alias and skills
+        Workspace::aliasPackage('foo', 'FooBar');
+        Workspace::updatePackageSkills('labs', 'acme/foo', ['package-audit', 'testing']);
+
+        // Assert local workspace.json exists in package directory
+        $localManifest = base_path('labs/FooBar/workspace.json');
+        $this->assertFileExists($localManifest);
+
+        $json = json_decode(File::get($localManifest), true);
+        $this->assertSame('acme/foo', $json['name']);
+        $this->assertSame('FooBar', $json['alias']);
+        $this->assertSame(['package-audit', 'testing'], $json['skills']);
+
+        // Assert .gitignore inside package contains /workspace.json
+        $pkgGitignore = File::get(base_path('labs/FooBar/.gitignore'));
+        $this->assertStringContainsString('/workspace.json', $pkgGitignore);
+
+        // Remove workspace
+        Workspace::remove('labs');
+        $this->assertArrayNotHasKey('labs', Workspace::all());
+
+        // Re-add workspace and verify auto-restoration
+        $this->artisan('workspace:add', ['path' => 'labs', '--vendor' => 'acme'])
+            ->expectsOutputToContain('Workspace [labs] added successfully')
+            ->expectsOutputToContain('Discovered and registered 1 existing package(s)')
+            ->assertSuccessful();
+
+        // Check root workspace.json has restored package with its alias and skills
+        $restoredPackages = Workspace::all()['labs']['packages'];
+        $this->assertCount(1, $restoredPackages);
+        $this->assertSame('foo', $restoredPackages[0]['name']);
+        $this->assertSame('FooBar', $restoredPackages[0]['alias']);
+        $this->assertSame(['package-audit', 'testing'], $restoredPackages[0]['skills']);
     }
 }

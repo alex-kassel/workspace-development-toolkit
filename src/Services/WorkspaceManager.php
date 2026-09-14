@@ -121,6 +121,13 @@ class WorkspaceManager
         $result = $this->manifest->add($cleanPath, $vendor, $asDefault);
         if ($result) {
             $this->resolver->clearCache();
+            $scanned = $this->scanPackages($cleanPath, $vendor);
+            if (! empty($scanned)) {
+                $data = $this->load();
+                $data['workspaces'][$cleanPath]['packages'] = $scanned;
+                $this->save($data);
+                $this->syncLocalPackageManifestsForWorkspace($cleanPath);
+            }
             $this->composer->syncRepositories($this->manifest->all());
         }
 
@@ -149,10 +156,23 @@ class WorkspaceManager
      * Remove a workspace.
      *
      * @throws WorkspaceNotFoundException
+     * @throws WorkspaceException
      */
-    public function remove(string $path): bool
+    public function remove(string $path, bool $force = false): bool
     {
         $cleanPath = $this->manifest->normalizeWorkspacePath($path);
+
+        if (! $force) {
+            $active = $this->getActivePackagesInWorkspace($cleanPath);
+            if (! empty($active)) {
+                $pkgList = implode(', ', array_keys($active));
+                throw new WorkspaceException(
+                    "Cannot remove workspace [{$cleanPath}]: contains active packages required by root composer.json ({$pkgList}).",
+                    'Uninstall active packages first, or remove with --detach.'
+                );
+            }
+        }
+
         $result = $this->manifest->remove($cleanPath);
         if ($result) {
             $this->removeFromGitignore($cleanPath);
@@ -161,6 +181,55 @@ class WorkspaceManager
         }
 
         return $result;
+    }
+
+    /**
+     * Find all packages in a given workspace that are currently required in root composer.json.
+     *
+     * @return array<string, string> Map of canonical package name => requirement type ('require'|'require-dev')
+     */
+    public function getActivePackagesInWorkspace(string $workspace): array
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+        $active = [];
+
+        $all = $this->all();
+        $wsConfig = $all[$cleanPath] ?? null;
+        if ($wsConfig === null) {
+            return [];
+        }
+
+        $vendor = $wsConfig['vendor'] ?? null;
+
+        // Collect from manifest
+        $packages = $wsConfig['packages'] ?? [];
+        foreach ($packages as $item) {
+            $name = is_array($item) ? $item['name'] : (string) $item;
+            if ($name === '') {
+                continue;
+            }
+            $canonical = $this->resolveCanonicalPackageName($name, $cleanPath);
+            $type = $this->composer->getRequirementType($canonical);
+            if ($type !== null) {
+                $active[$canonical] = $type;
+            }
+        }
+
+        // Also check physical directories on disk
+        $scanned = $this->scanPackages($cleanPath, $vendor);
+        foreach ($scanned as $item) {
+            $name = is_array($item) ? $item['name'] : (string) $item;
+            if ($name === '') {
+                continue;
+            }
+            $canonical = $this->resolveCanonicalPackageName($name, $cleanPath);
+            $type = $this->composer->getRequirementType($canonical);
+            if ($type !== null) {
+                $active[$canonical] = $type;
+            }
+        }
+
+        return $active;
     }
 
     /**
@@ -204,6 +273,7 @@ class WorkspaceManager
     {
         $this->manifest->registerPackageAlias($workspace, $packageName, $alias);
         $this->resolver->clearCache();
+        $this->syncLocalPackageManifestsForWorkspace($workspace);
     }
 
     /**
@@ -213,6 +283,7 @@ class WorkspaceManager
     {
         $this->manifest->recordPackage($workspace, $packageName, $alias, $url);
         $this->resolver->clearCache();
+        $this->syncLocalPackageManifestsForWorkspace($workspace);
     }
 
     /**
@@ -224,6 +295,7 @@ class WorkspaceManager
     {
         $this->manifest->updatePackageSkills($workspace, $packageName, $skills);
         $this->resolver->clearCache();
+        $this->syncLocalPackageManifestsForWorkspace($workspace);
     }
 
     /**
@@ -470,12 +542,150 @@ class WorkspaceManager
         }
 
         $this->save($data);
+        $this->syncLocalPackageManifests();
         $this->composer->syncRepositories($data['workspaces']);
         $this->composer->ensureComposerHooks();
         $this->composer->ensureWorkspaceScript();
         $this->composer->ensureMinimumStability();
 
         return $data;
+    }
+
+    /**
+     * Save local workspace.json inside a package directory and ensure it is gitignored.
+     *
+     * @param  array{name: string, alias?: ?string, url?: ?string, skills?: ?array<int, string>}  $metadata
+     */
+    public function saveLocalPackageManifest(string $packageRelativePath, array $metadata): void
+    {
+        $cleanPath = trim(str_replace(['\\', '//'], '/', $packageRelativePath), '/');
+        $fullDir = base_path($cleanPath);
+        if (! File::isDirectory($fullDir)) {
+            return;
+        }
+
+        $manifestPath = $fullDir.DIRECTORY_SEPARATOR.'workspace.json';
+        $payload = ['name' => $metadata['name']];
+
+        if (! empty($metadata['alias'])) {
+            $payload['alias'] = (string) $metadata['alias'];
+        }
+        if (! empty($metadata['url'])) {
+            $payload['url'] = (string) $metadata['url'];
+        }
+        if (! empty($metadata['skills']) && is_array($metadata['skills'])) {
+            $payload['skills'] = array_values(array_unique($metadata['skills']));
+        }
+
+        File::put($manifestPath, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+        $this->ensureLocalPackageGitignore($cleanPath);
+    }
+
+    /**
+     * Read local workspace.json from package directory if present.
+     *
+     * @return array{name?: string, alias?: string, url?: string, skills?: array<int, string>}|null
+     */
+    public function readLocalPackageManifest(string $packageRelativePath): ?array
+    {
+        $cleanPath = trim(str_replace(['\\', '//'], '/', $packageRelativePath), '/');
+        $manifestPath = base_path($cleanPath.DIRECTORY_SEPARATOR.'workspace.json');
+        if (! File::exists($manifestPath)) {
+            return null;
+        }
+
+        try {
+            $data = json_decode(File::get($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($data) ? $data : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Ensure workspace.json is listed in the package's local .gitignore file.
+     */
+    public function ensureLocalPackageGitignore(string $packageRelativePath): void
+    {
+        $cleanPath = trim(str_replace(['\\', '//'], '/', $packageRelativePath), '/');
+        $fullDir = base_path($cleanPath);
+        if (! File::isDirectory($fullDir)) {
+            return;
+        }
+
+        $gitignorePath = $fullDir.DIRECTORY_SEPARATOR.'.gitignore';
+        $entry = '/workspace.json';
+
+        if (! File::exists($gitignorePath)) {
+            File::put($gitignorePath, "{$entry}\n");
+
+            return;
+        }
+
+        $content = File::get($gitignorePath);
+        $lines = preg_split('/\r\n|\r|\n/', $content) ?: [];
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === 'workspace.json' || $trimmed === '/workspace.json') {
+                return;
+            }
+        }
+
+        File::append($gitignorePath, "{$entry}\n");
+    }
+
+    /**
+     * Synchronize local workspace.json for all packages in a specific workspace.
+     */
+    public function syncLocalPackageManifestsForWorkspace(string $workspace): void
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($workspace);
+        $all = $this->all();
+        $wsConfig = $all[$cleanPath] ?? null;
+        if (! $wsConfig) {
+            return;
+        }
+
+        $packages = $wsConfig['packages'] ?? [];
+        foreach ($packages as $item) {
+            $name = is_array($item) ? $item['name'] : (string) $item;
+            if ($name === '') {
+                continue;
+            }
+
+            try {
+                $packagePath = $this->findPackagePath($name, $cleanPath);
+                if ($packagePath === null) {
+                    continue;
+                }
+
+                $canonicalName = $this->resolveCanonicalPackageName($name, $cleanPath);
+                $metadata = [
+                    'name' => $canonicalName,
+                    'alias' => is_array($item) ? ($item['alias'] ?? null) : null,
+                    'url' => is_array($item) ? ($item['url'] ?? null) : null,
+                    'skills' => is_array($item) ? ($item['skills'] ?? null) : null,
+                ];
+
+                $this->saveLocalPackageManifest($packagePath, $metadata);
+            } catch (\Throwable) {
+                // Continue with remaining packages
+            }
+        }
+
+        $this->resolver->clearCache();
+    }
+
+    /**
+     * Synchronize local workspace.json for all packages across all workspaces.
+     */
+    public function syncLocalPackageManifests(): void
+    {
+        foreach (array_keys($this->all()) as $ws) {
+            $this->syncLocalPackageManifestsForWorkspace((string) $ws);
+        }
     }
 
     /**

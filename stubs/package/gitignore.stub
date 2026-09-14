@@ -4,3 +4,4 @@
 /build/
 .env
 composer.lock
+/workspace.json
