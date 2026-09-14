@@ -6,6 +6,7 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CiMatrixGenerator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
 
@@ -81,6 +82,15 @@ class WorkspaceCiMatrixCommand extends BaseCommand
             : '.github/workflows/packages-matrix.yml';
 
         $targetPath = base_path($targetRelative);
+        $targetCanonical = FilesystemHelper::canonicalPath($targetPath);
+        $baseCanonical = FilesystemHelper::canonicalPath(base_path());
+
+        if (! str_starts_with($targetCanonical, $baseCanonical.'/')) {
+            $this->error("Security violation: Workflow file path [{$targetRelative}] resolves outside the application root.");
+
+            return self::FAILURE;
+        }
+
         $targetDir = dirname($targetPath);
 
         if (File::exists($targetPath) && ! $force) {

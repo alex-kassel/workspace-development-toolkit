@@ -111,7 +111,11 @@ class WorkspaceManager
     public function add(string $path, ?string $vendor = null, bool $asDefault = false): bool
     {
         $cleanPath = $this->manifest->normalizeWorkspacePath($path);
-        File::ensureDirectoryExists(base_path($cleanPath));
+        try {
+            File::ensureDirectoryExists(base_path($cleanPath));
+        } catch (\Throwable $e) {
+            throw new InvalidWorkspacePathException($cleanPath, "Could not create workspace directory: {$e->getMessage()}");
+        }
         $this->addToGitignore($cleanPath);
 
         $result = $this->manifest->add($cleanPath, $vendor, $asDefault);

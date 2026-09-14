@@ -157,8 +157,30 @@ class FilesystemHelper
             $path = $real;
         } else {
             $normalized = str_replace('\\', '/', $path);
-            $segments = explode('/', $normalized);
-            $resolved = [];
+            $parts = explode('/', $normalized);
+            $existingAncestor = '';
+            $subParts = [];
+
+            for ($i = count($parts) - 1; $i > 0; $i--) {
+                $candidate = implode('/', array_slice($parts, 0, $i));
+                if (is_dir($candidate)) {
+                    $realCandidate = @realpath($candidate);
+                    if ($realCandidate !== false) {
+                        $existingAncestor = $realCandidate;
+                        $subParts = array_slice($parts, $i);
+                        break;
+                    }
+                }
+            }
+
+            if ($existingAncestor !== '') {
+                $segments = $subParts;
+                $resolved = explode('/', str_replace('\\', '/', $existingAncestor));
+            } else {
+                $segments = $parts;
+                $resolved = [];
+            }
+
             foreach ($segments as $segment) {
                 if ($segment === '' || $segment === '.') {
                     continue;
@@ -169,8 +191,9 @@ class FilesystemHelper
                     $resolved[] = $segment;
                 }
             }
-            $prefix = str_starts_with($normalized, '/') ? '/' : '';
-            $path = $prefix.implode('/', $resolved);
+
+            $prefix = (str_starts_with($normalized, '/') || str_starts_with($existingAncestor, '/')) ? '/' : '';
+            $path = $prefix.ltrim(implode('/', $resolved), '/');
         }
 
         $path = rtrim(str_replace('\\', '/', $path), '/');

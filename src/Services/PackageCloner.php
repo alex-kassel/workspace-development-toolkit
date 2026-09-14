@@ -23,9 +23,45 @@ class PackageCloner
      */
     public function cloneRepository(string $repoUrl, string $targetFullPath, int $timeout = 300): ?GitDiagnosticResult
     {
-        File::ensureDirectoryExists(dirname($targetFullPath));
+        if (str_contains($repoUrl, "\0") || str_contains($targetFullPath, "\0")) {
+            return new GitDiagnosticResult(
+                type: 'invalid_characters',
+                title: 'Invalid Characters in Repository URL or Target Path',
+                explanation: 'The specified repository URL or target path contains forbidden null bytes.',
+                actionableSteps: ['Verify the package name or URL and remove any control characters.']
+            );
+        }
 
-        $cloneResult = Process::timeout($timeout)->run(['git', 'clone', '--', $repoUrl, $targetFullPath]);
+        if (strlen($targetFullPath) > 1024 || strlen(basename($targetFullPath)) > 255) {
+            return new GitDiagnosticResult(
+                type: 'path_too_long',
+                title: 'Path Exceeds Filesystem Limits',
+                explanation: 'The target directory path exceeds maximum filesystem length limits.',
+                actionableSteps: ['Specify a shorter package name or directory alias.']
+            );
+        }
+
+        try {
+            File::ensureDirectoryExists(dirname($targetFullPath));
+        } catch (\Throwable $e) {
+            return new GitDiagnosticResult(
+                type: 'directory_creation_failed',
+                title: 'Directory Creation Failed',
+                explanation: "Could not create target directory: {$e->getMessage()}",
+                actionableSteps: ['Check directory permissions and verify the target path is valid.']
+            );
+        }
+
+        try {
+            $cloneResult = Process::timeout($timeout)->run(['git', 'clone', '--', $repoUrl, $targetFullPath]);
+        } catch (\Throwable $e) {
+            return new GitDiagnosticResult(
+                type: 'process_execution_failed',
+                title: 'Git Clone Process Failed',
+                explanation: "Process execution failed: {$e->getMessage()}",
+                actionableSteps: ['Verify that Git is installed and that the parameters are valid.']
+            );
+        }
 
         if ($cloneResult->successful()) {
             return null;

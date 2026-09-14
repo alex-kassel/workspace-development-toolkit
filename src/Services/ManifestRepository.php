@@ -20,6 +20,8 @@ class ManifestRepository
      */
     protected ?array $cache = null;
 
+    protected ?int $cacheMtime = null;
+
     /**
      * Get path to workspace.json.
      */
@@ -34,6 +36,7 @@ class ManifestRepository
     public function clearCache(): void
     {
         $this->cache = null;
+        $this->cacheMtime = null;
     }
 
     /**
@@ -45,11 +48,12 @@ class ManifestRepository
      */
     public function load(): array
     {
-        if ($this->cache !== null) {
+        $path = $this->workspaceJsonPath();
+        $currentMtime = File::exists($path) ? File::lastModified($path) : null;
+
+        if ($this->cache !== null && $this->cacheMtime !== null && $currentMtime === $this->cacheMtime) {
             return $this->cache;
         }
-
-        $path = $this->workspaceJsonPath();
 
         if (! File::exists($path)) {
             $configuredTemplate = (string) config('workspace.repository_url_template', 'git@github.com:{package}.git');
@@ -78,6 +82,7 @@ class ManifestRepository
 
         /** @var array{default: ?string, repository_template?: ?string, repository_url_template?: ?string, workspaces: array<string, array{vendor: ?string, packages: array<int, string|array{name: string, alias?: string, url?: string, skills?: array<int, string>}>}>} $data */
         $this->cache = $data;
+        $this->cacheMtime = $currentMtime;
 
         return $data;
     }
@@ -141,6 +146,7 @@ class ManifestRepository
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n";
         File::put($path, $json, true);
         $this->cache = $data;
+        $this->cacheMtime = File::exists($path) ? File::lastModified($path) : null;
     }
 
     /**
@@ -587,6 +593,9 @@ class ManifestRepository
             }
             if ($segment === '' || $segment === '.') {
                 continue;
+            }
+            if (strlen($segment) > 255) {
+                throw new InvalidWorkspacePathException($path, 'Path segment exceeds maximum filesystem length of 255 characters.');
             }
             if (! preg_match('/^[a-zA-Z0-9_\-\.]+$/', $segment)) {
                 throw new InvalidWorkspacePathException($path, "Invalid path segment [{$segment}]. Only alphanumeric characters, dashes, underscores, and dots are allowed.");
