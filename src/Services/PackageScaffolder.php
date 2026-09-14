@@ -19,6 +19,7 @@ class PackageScaffolder
     public function __construct(
         public readonly GitInspector $gitInspector,
         public readonly SkillInstaller $skillInstaller,
+        public readonly StubResolver $stubResolver,
     ) {}
 
     /**
@@ -31,8 +32,10 @@ class PackageScaffolder
         string $rawPackage,
         ?string $alias = null,
         bool $scaffoldSkills = true,
-        ?string $skillSlug = null
+        ?string $skillSlug = null,
+        ?string $archetype = null,
     ): ScaffoldResult {
+
         // 1. Mandatory Git preflight verification
         $this->ensureGitConfigured();
 
@@ -182,7 +185,7 @@ class PackageScaffolder
 
         try {
             // 4. Render all stubs dynamically into the package directory
-            $this->renderStubsIntoPackage($packagePath, $replacements, $providerClass, $package);
+            $this->renderStubsIntoPackage($packagePath, $replacements, $cleanWorkspace, $archetype);
 
             // 5. Scaffold agent skill if requested
             if ($scaffoldSkills) {
@@ -298,61 +301,20 @@ class PackageScaffolder
     protected function renderStubsIntoPackage(
         string $packagePath,
         array $replacements,
-        string $providerClass,
-        string $package
+        string $cleanWorkspace,
+        ?string $archetype = null,
     ): void {
         File::ensureDirectoryExists($packagePath);
 
-        $defaultStubsDir = dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'package';
-        $customStubsDir = base_path('stubs'.DIRECTORY_SEPARATOR.'workspace');
+        $stubResolution = $this->stubResolver->resolve($cleanWorkspace, $archetype);
+        $finalReplacements = array_merge($replacements, $stubResolution->extraReplacements);
 
-        // Known canonical relative mappings for root stubs
-        $standardMappings = [
-            'composer.json.stub' => 'composer.json',
-            'LICENSE.stub' => 'LICENSE',
-            'README.md.stub' => 'README.md',
-            'CHANGELOG.md.stub' => 'CHANGELOG.md',
-            'gitattributes.stub' => '.gitattributes',
-            '.gitattributes.stub' => '.gitattributes',
-            'gitignore.stub' => '.gitignore',
-            '.gitignore.stub' => '.gitignore',
-            'phpunit.xml.stub' => 'phpunit.xml',
-            'phpstan.neon.stub' => 'phpstan.neon',
-            'TestCase.php.stub' => 'tests/TestCase.php',
-            'bootstrap.php.stub' => 'tests/bootstrap.php',
-            'ExampleTest.php.stub' => 'tests/Unit/ExampleTest.php',
-            'ServiceProvider.php.stub' => "src/{$providerClass}.php",
-            'config.php.stub' => "config/{$package}.php",
-            'gitkeep.stub' => 'tests/Unit/.gitkeep',
-            'run-tests.yml.stub' => '.github/workflows/run-tests.yml',
-        ];
+        foreach ($stubResolution->fileMap as $targetRelPath => $fullStubPath) {
+            $content = (string) File::get($fullStubPath);
+            $renderedContent = str_replace(array_keys($finalReplacements), array_values($finalReplacements), $content);
+            $renderedRelPath = str_replace(array_keys($finalReplacements), array_values($finalReplacements), $targetRelPath);
 
-        // 1. Gather all stub files from default stubs
-        $stubFiles = [];
-        if (File::isDirectory($defaultStubsDir)) {
-            $stubFiles = $this->scanStubFiles($defaultStubsDir);
-        }
-
-        // 2. Overlay custom stub files if published
-        if (File::isDirectory($customStubsDir)) {
-            $customFiles = $this->scanStubFiles($customStubsDir);
-            $stubFiles = array_merge($stubFiles, $customFiles);
-        }
-
-        foreach ($stubFiles as $relStubPath => $fullStubPath) {
-            $content = File::get($fullStubPath);
-            $renderedContent = str_replace(array_keys($replacements), array_values($replacements), $content);
-
-            // Determine target relative path
-            if (isset($standardMappings[$relStubPath])) {
-                $targetRelPath = $standardMappings[$relStubPath];
-            } else {
-                // Strip .stub extension
-                $cleaned = preg_replace('/\.stub$/i', '', $relStubPath) ?? $relStubPath;
-                $targetRelPath = str_replace(array_keys($replacements), array_values($replacements), $cleaned);
-            }
-
-            $targetFullPath = $packagePath.DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $targetRelPath);
+            $targetFullPath = $packagePath.DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $renderedRelPath);
             File::ensureDirectoryExists(dirname($targetFullPath));
             File::put($targetFullPath, rtrim($renderedContent)."\n");
         }

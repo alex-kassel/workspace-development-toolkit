@@ -25,7 +25,9 @@ class PackageMakeCommand extends BasePackageCommand
         {--dev : When installing, require as a development dependency}
         {--skills : Scaffold an agent skill in resources/skills}
         {--no-skills : Skip scaffolding an agent skill}
-        {--skill-name= : Explicit name for the initial agent skill}';
+        {--skill-name= : Explicit name for the initial agent skill}
+        {--archetype= : Scaffolding archetype preset (library, pest, ddd-module, minimal)}
+        {--type= : Synonym for --archetype}';
 
     /**
      * The console command description.
@@ -82,6 +84,8 @@ class PackageMakeCommand extends BasePackageCommand
             : ($this->option('skills') || config('workspace.scaffold_agent_skills', true));
 
         $skillSlug = (string) $this->option('skill-name');
+        $rawArchetype = (string) ($this->option('archetype') ?: $this->option('type'));
+        $archetype = trim($rawArchetype) !== '' ? trim($rawArchetype) : null;
 
         try {
             $result = $this->scaffolder->scaffold(
@@ -89,9 +93,11 @@ class PackageMakeCommand extends BasePackageCommand
                 rawPackage: $rawPackage,
                 alias: $alias,
                 scaffoldSkills: $scaffoldSkills,
-                skillSlug: $skillSlug !== '' ? $skillSlug : null
+                skillSlug: $skillSlug !== '' ? $skillSlug : null,
+                archetype: $archetype
             );
         } catch (WorkspaceException $e) {
+
             return $this->handleWorkspaceException($e);
         } catch (\Throwable $e) {
             $this->error("Failed to scaffold package: {$e->getMessage()}");

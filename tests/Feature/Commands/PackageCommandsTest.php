@@ -887,4 +887,64 @@ class PackageCommandsTest extends TestCase
         $this->assertNotContains('acme/broken-pkg', $names,
             'Package must not remain in manifest after rollback');
     }
+
+    public function test_package_make_with_minimal_archetype(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result('ok'),
+        ]);
+
+        $this->artisan('package:make', [
+            'package' => 'acme/mini-pkg',
+            '--type' => 'minimal',
+        ])->assertSuccessful();
+
+        $dir = base_path('packages/acme/mini-pkg');
+        $this->assertFileExists("{$dir}/composer.json");
+        $this->assertFileExists("{$dir}/src/MiniPkgServiceProvider.php");
+        $this->assertFileDoesNotExist("{$dir}/LICENSE");
+        $this->assertFileDoesNotExist("{$dir}/phpunit.xml");
+        $this->assertFileDoesNotExist("{$dir}/.github/workflows/run-tests.yml");
+    }
+
+    public function test_package_make_with_pest_archetype(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result('ok'),
+        ]);
+
+        $this->artisan('package:make', [
+            'package' => 'acme/pest-pkg',
+            '--archetype' => 'pest',
+        ])->assertSuccessful();
+
+        $dir = base_path('packages/acme/pest-pkg');
+        $this->assertFileExists("{$dir}/tests/Pest.php");
+        $this->assertFileExists("{$dir}/tests/Feature/ExampleTest.php");
+        $this->assertFileDoesNotExist("{$dir}/tests/Unit/ExampleTest.php");
+    }
+
+    public function test_package_make_with_ddd_module_archetype(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result('ok'),
+        ]);
+
+        $this->artisan('package:make', [
+            'package' => 'acme/ddd-pkg',
+            '--type' => 'ddd-module',
+        ])->assertSuccessful();
+
+        $dir = base_path('packages/acme/ddd-pkg');
+        $this->assertDirectoryExists("{$dir}/src/Domain");
+        $this->assertDirectoryExists("{$dir}/src/Actions");
+        $this->assertDirectoryExists("{$dir}/src/DTOs");
+        $this->assertDirectoryExists("{$dir}/src/Contracts");
+    }
 }

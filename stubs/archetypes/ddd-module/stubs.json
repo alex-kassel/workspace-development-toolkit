@@ -1,0 +1,4 @@
+{
+    "description": "Domain-driven design module with Actions, DTOs, Domain, and Contracts",
+    "exclude_default_files": []
+}

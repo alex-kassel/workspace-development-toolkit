@@ -1,0 +1,43 @@
+{
+    "name": "{{ vendor }}/{{ package }}",
+    "description": "{{ packageNamespace }} package for Laravel.",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "{{ vendorNamespace }}",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "{{ illuminate_constraint }}"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "{{ vendorNamespace }}\\{{ packageNamespace }}\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "{{ vendorNamespace }}\\{{ packageNamespace }}\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "{{ vendorNamespace }}\\{{ packageNamespace }}\\{{ providerClass }}"
+            ]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}

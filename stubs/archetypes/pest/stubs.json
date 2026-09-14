@@ -1,0 +1,8 @@
+{
+    "description": "Package pre-configured for Pest PHP test suite",
+    "exclude_default_files": [
+        "tests/bootstrap.php",
+        "tests/Unit/ExampleTest.php",
+        "tests/Unit/.gitkeep"
+    ]
+}

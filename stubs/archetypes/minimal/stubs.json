@@ -1,0 +1,15 @@
+{
+    "description": "Minimal package with composer.json and ServiceProvider only",
+    "exclude_default_files": [
+        "LICENSE",
+        "CHANGELOG.md",
+        "README.md",
+        "phpunit.xml",
+        "phpstan.neon",
+        "tests/TestCase.php",
+        "tests/bootstrap.php",
+        "tests/Unit/ExampleTest.php",
+        "tests/Unit/.gitkeep",
+        ".github/workflows/run-tests.yml"
+    ]
+}
