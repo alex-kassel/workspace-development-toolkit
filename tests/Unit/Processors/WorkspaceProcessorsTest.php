@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Unit\Actions;
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Unit\Processors;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\CleanupHostArtifactsAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\PublishWorkspaceRunnerAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\RunCustomHookAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupAgentsGuidelineAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupBoostConfigAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupWorkspaceManifestAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\AgentsGuidelineWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\BoostConfigWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\CleanupArtifactsWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\CustomHookWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\RunnerWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\SetupManifestWorkspaceProcessor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 
-class ActionsTest extends TestCase
+class WorkspaceProcessorsTest extends TestCase
 {
     protected string $testDir;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->testDir = base_path('test_actions_env');
+        $this->testDir = base_path('test_proc_env');
         File::ensureDirectoryExists($this->testDir);
     }
 
@@ -33,12 +33,12 @@ class ActionsTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_setup_workspace_manifest_action_creates_and_skips(): void
+    public function test_setup_manifest_workspace_processor(): void
     {
-        $action = new SetupWorkspaceManifestAction();
-        $context = new InstallContext(rootPath: $this->testDir, defaultWorkspace: 'custom_pkgs');
+        $processor = new SetupManifestWorkspaceProcessor();
+        $context = new WorkspaceContext(rootPath: $this->testDir, defaultWorkspace: 'custom_pkgs');
 
-        $action->execute($context);
+        $processor->process($context);
 
         $manifestFile = $this->testDir.'/workspace.json';
         $this->assertFileExists($manifestFile);
@@ -46,20 +46,20 @@ class ActionsTest extends TestCase
 
         $data = json_decode((string) File::get($manifestFile), true);
         $this->assertArrayHasKey('custom_pkgs', $data['workspaces']);
-        $this->assertTrue($data['workspaces']['custom_pkgs']['is_default']);
+        $this->assertSame('custom_pkgs', $data['default']);
 
         // Running again without force should skip
-        $context2 = new InstallContext(rootPath: $this->testDir, defaultWorkspace: 'custom_pkgs');
-        $action->execute($context2);
+        $context2 = new WorkspaceContext(rootPath: $this->testDir, defaultWorkspace: 'custom_pkgs');
+        $processor->process($context2);
         $this->assertSame('skipped', $context2->steps[0]['status']);
     }
 
-    public function test_setup_agents_guideline_action_standalone(): void
+    public function test_agents_guideline_workspace_processor_standalone(): void
     {
-        $action = new SetupAgentsGuidelineAction();
-        $context = new InstallContext(rootPath: $this->testDir);
+        $processor = new AgentsGuidelineWorkspaceProcessor();
+        $context = new WorkspaceContext(rootPath: $this->testDir);
 
-        $action->execute($context);
+        $processor->process($context);
 
         $agentsFile = $this->testDir.'/AGENTS.md';
         $this->assertFileExists($agentsFile);
@@ -67,33 +67,33 @@ class ActionsTest extends TestCase
         $this->assertStringContainsString('Project Rules & Guidelines', (string) File::get($agentsFile));
     }
 
-    public function test_setup_agents_guideline_action_self_symlink(): void
+    public function test_agents_guideline_workspace_processor_self_symlink(): void
     {
         $pkgPath = 'packages/alex-kassel/test-toolkit';
         $pkgFull = $this->testDir.'/'.$pkgPath;
         File::ensureDirectoryExists($pkgFull.'/stubs');
         File::put($pkgFull.'/stubs/AGENTS.md.stub', '# Test Toolkit Rules');
 
-        $action = new SetupAgentsGuidelineAction();
-        $context = new InstallContext(
+        $processor = new AgentsGuidelineWorkspaceProcessor();
+        $context = new WorkspaceContext(
             rootPath: $this->testDir,
             isSelf: true,
             selfPackagePath: $pkgPath,
         );
 
-        $action->execute($context);
+        $processor->process($context);
 
         $agentsFile = $this->testDir.'/AGENTS.md';
         $this->assertTrue(is_link($agentsFile));
         $this->assertSame('# Test Toolkit Rules', (string) File::get($agentsFile));
     }
 
-    public function test_setup_boost_config_action_creates_and_updates(): void
+    public function test_boost_config_workspace_processor(): void
     {
-        $action = new SetupBoostConfigAction();
-        $context = new InstallContext(rootPath: $this->testDir);
+        $processor = new BoostConfigWorkspaceProcessor();
+        $context = new WorkspaceContext(rootPath: $this->testDir);
 
-        $action->execute($context);
+        $processor->process($context);
 
         $boostFile = $this->testDir.'/boost.json';
         $this->assertFileExists($boostFile);
@@ -104,8 +104,8 @@ class ActionsTest extends TestCase
 
         // Test updating existing with guidelines: true
         File::put($boostFile, json_encode(['guidelines' => true, 'packages' => ['other/pkg']]));
-        $context2 = new InstallContext(rootPath: $this->testDir);
-        $action->execute($context2);
+        $context2 = new WorkspaceContext(rootPath: $this->testDir);
+        $processor->process($context2);
 
         $updated = json_decode((string) File::get($boostFile), true);
         $this->assertFalse($updated['guidelines']);
@@ -113,49 +113,49 @@ class ActionsTest extends TestCase
         $this->assertContains('other/pkg', $updated['packages']);
     }
 
-    public function test_publish_workspace_runner_action(): void
+    public function test_runner_workspace_processor(): void
     {
-        $action = new PublishWorkspaceRunnerAction();
-        $context = new InstallContext(rootPath: $this->testDir);
+        $processor = new RunnerWorkspaceProcessor();
+        $context = new WorkspaceContext(rootPath: $this->testDir);
 
-        $action->execute($context);
+        $processor->process($context);
 
         $runner = $this->testDir.'/workspace';
         $this->assertFileExists($runner);
         $this->assertStringContainsString('#!/usr/bin/env php', (string) File::get($runner));
     }
 
-    public function test_cleanup_host_artifacts_action_removes_cloud_md(): void
+    public function test_cleanup_artifacts_workspace_processor(): void
     {
         File::put($this->testDir.'/CLOUD.md', '# Cloud rules');
 
-        $action = new CleanupHostArtifactsAction();
-        $context = new InstallContext(rootPath: $this->testDir);
+        $processor = new CleanupArtifactsWorkspaceProcessor();
+        $context = new WorkspaceContext(rootPath: $this->testDir);
 
-        $action->execute($context);
+        $processor->process($context);
 
         $this->assertFileDoesNotExist($this->testDir.'/CLOUD.md');
         $this->assertSame('cleaned', $context->steps[0]['status']);
 
         // Test skip cleanup
         File::put($this->testDir.'/CLOUD.md', '# Cloud rules again');
-        $contextSkip = new InstallContext(rootPath: $this->testDir, skipCleanup: true);
-        $action->execute($contextSkip);
+        $contextSkip = new WorkspaceContext(rootPath: $this->testDir, skipCleanup: true);
+        $processor->process($contextSkip);
 
         $this->assertFileExists($this->testDir.'/CLOUD.md');
         $this->assertSame('skipped', $contextSkip->steps[0]['status']);
     }
 
-    public function test_run_custom_hook_action(): void
+    public function test_custom_hook_workspace_processor(): void
     {
         $hookDir = $this->testDir.'/stubs/workspace/hooks';
         File::ensureDirectoryExists($hookDir);
         File::put($hookDir.'/post-install.php', '<?php File::put($context->rootPath."/hook_ran.txt", "yes");');
 
-        $action = new RunCustomHookAction();
-        $context = new InstallContext(rootPath: $this->testDir);
+        $processor = new CustomHookWorkspaceProcessor();
+        $context = new WorkspaceContext(rootPath: $this->testDir);
 
-        $action->execute($context);
+        $processor->process($context);
 
         $this->assertFileExists($this->testDir.'/hook_ran.txt');
         $this->assertSame('executed', $context->steps[0]['status']);

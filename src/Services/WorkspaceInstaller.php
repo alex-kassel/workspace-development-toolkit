@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\CleanupHostArtifactsAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\PublishWorkspaceRunnerAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\RunCustomHookAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupAgentsGuidelineAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupBoostConfigAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupWorkspaceManifestAction;
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\AgentsGuidelineWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\BoostConfigWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\CleanupArtifactsWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\CustomHookWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\RunnerWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\SetupManifestWorkspaceProcessor;
 use Illuminate\Pipeline\Pipeline;
 
 class WorkspaceInstaller
@@ -18,13 +18,13 @@ class WorkspaceInstaller
     /**
      * @var array<int, class-string>
      */
-    protected array $defaultPipes = [
-        SetupWorkspaceManifestAction::class,
-        SetupAgentsGuidelineAction::class,
-        SetupBoostConfigAction::class,
-        PublishWorkspaceRunnerAction::class,
-        CleanupHostArtifactsAction::class,
-        RunCustomHookAction::class,
+    protected array $defaultProcessors = [
+        SetupManifestWorkspaceProcessor::class,
+        AgentsGuidelineWorkspaceProcessor::class,
+        BoostConfigWorkspaceProcessor::class,
+        RunnerWorkspaceProcessor::class,
+        CleanupArtifactsWorkspaceProcessor::class,
+        CustomHookWorkspaceProcessor::class,
     ];
 
     public function __construct(
@@ -34,14 +34,14 @@ class WorkspaceInstaller
     /**
      * Run the installation pipeline for the given context.
      *
-     * @param  array<int, class-string>|null  $pipes
+     * @param  array<int, class-string>|null  $processors
      */
-    public function install(InstallContext $context, ?array $pipes = null): InstallContext
+    public function install(WorkspaceContext $context, ?array $processors = null): WorkspaceContext
     {
-        /** @var InstallContext */
+        /** @var WorkspaceContext */
         return $this->pipeline
             ->send($context)
-            ->through($pipes ?? $this->defaultPipes)
-            ->then(fn (InstallContext $ctx): InstallContext => $ctx);
+            ->through($processors ?? $this->defaultProcessors)
+            ->then(fn (WorkspaceContext $ctx): WorkspaceContext => $ctx);
     }
 }

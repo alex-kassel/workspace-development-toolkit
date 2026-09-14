@@ -2,25 +2,17 @@
 
 declare(strict_types=1);
 
-namespace AlexKassel\WorkspaceDevelopmentToolkit\Actions;
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
-use Closure;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use Illuminate\Support\Facades\File;
 
-class PublishWorkspaceRunnerAction
+class RunnerWorkspaceProcessor extends BaseWorkspaceProcessor
 {
-    public function handle(InstallContext $context, Closure $next): mixed
+    public function process(WorkspaceContext $context): bool
     {
-        $this->execute($context);
-
-        return $next($context);
-    }
-
-    public function execute(InstallContext $context): bool
-    {
-        $runnerPath = $context->rootPath.DIRECTORY_SEPARATOR.'workspace';
-        $stubPath = dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'workspace.stub';
+        $runnerPath = $context->runnerPath();
+        $stubPath = dirname(__DIR__, 3).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'workspace.stub';
 
         if (! File::exists($stubPath)) {
             $context->recordStep('runner', 'failed', "workspace.stub not found at [{$stubPath}].");

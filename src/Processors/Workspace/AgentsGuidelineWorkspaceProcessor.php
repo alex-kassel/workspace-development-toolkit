@@ -2,25 +2,17 @@
 
 declare(strict_types=1);
 
-namespace AlexKassel\WorkspaceDevelopmentToolkit\Actions;
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
-use Closure;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use Illuminate\Support\Facades\File;
 
-class SetupAgentsGuidelineAction
+class AgentsGuidelineWorkspaceProcessor extends BaseWorkspaceProcessor
 {
-    public function handle(InstallContext $context, Closure $next): mixed
+    public function process(WorkspaceContext $context): bool
     {
-        $this->execute($context);
-
-        return $next($context);
-    }
-
-    public function execute(InstallContext $context): bool
-    {
-        $hostAgentsPath = $context->rootPath.DIRECTORY_SEPARATOR.'AGENTS.md';
-        $bundledStubPath = dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'AGENTS.md.stub';
+        $hostAgentsPath = $context->agentsPath();
+        $bundledStubPath = dirname(__DIR__, 3).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'AGENTS.md.stub';
 
         if ($context->isSelf && $context->selfPackagePath !== null) {
             $relPkgPath = trim(str_replace(['\\', '/'], '/', $context->selfPackagePath), '/');
@@ -57,7 +49,7 @@ class SetupAgentsGuidelineAction
                 return true;
             }
 
-            $context->recordStep('guidelines', 'failed', "Failed to create symlink for AGENTS.md.");
+            $context->recordStep('guidelines', 'failed', 'Failed to create symlink for AGENTS.md.');
 
             return false;
         }

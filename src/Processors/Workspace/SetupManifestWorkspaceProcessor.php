@@ -2,25 +2,17 @@
 
 declare(strict_types=1);
 
-namespace AlexKassel\WorkspaceDevelopmentToolkit\Actions;
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
-use Closure;
 use Illuminate\Support\Facades\File;
 
-class SetupWorkspaceManifestAction
+class SetupManifestWorkspaceProcessor extends BaseWorkspaceProcessor
 {
-    public function handle(InstallContext $context, Closure $next): mixed
+    public function process(WorkspaceContext $context): void
     {
-        $this->execute($context);
-
-        return $next($context);
-    }
-
-    public function execute(InstallContext $context): void
-    {
-        $manifestPath = $context->rootPath.DIRECTORY_SEPARATOR.'workspace.json';
+        $manifestPath = $context->manifestPath();
         $cleanWorkspace = trim(str_replace(['\\', '/'], '/', $context->defaultWorkspace), '/');
 
         if (File::exists($manifestPath) && ! $context->force) {
@@ -29,13 +21,13 @@ class SetupWorkspaceManifestAction
             return;
         }
 
-        File::ensureDirectoryExists($context->rootPath.DIRECTORY_SEPARATOR.$cleanWorkspace);
+        File::ensureDirectoryExists($context->workspacePath($cleanWorkspace));
 
         $initialData = [
+            'default' => $cleanWorkspace,
             'workspaces' => [
                 $cleanWorkspace => [
                     'vendor' => null,
-                    'is_default' => true,
                     'packages' => [],
                 ],
             ],

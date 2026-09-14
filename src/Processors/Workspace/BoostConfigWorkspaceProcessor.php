@@ -2,25 +2,17 @@
 
 declare(strict_types=1);
 
-namespace AlexKassel\WorkspaceDevelopmentToolkit\Actions;
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
-use Closure;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use Illuminate\Support\Facades\File;
 
-class SetupBoostConfigAction
+class BoostConfigWorkspaceProcessor extends BaseWorkspaceProcessor
 {
-    public function handle(InstallContext $context, Closure $next): mixed
+    public function process(WorkspaceContext $context): bool
     {
-        $this->execute($context);
-
-        return $next($context);
-    }
-
-    public function execute(InstallContext $context): bool
-    {
-        $boostJsonPath = $context->rootPath.DIRECTORY_SEPARATOR.'boost.json';
-        $bundledStub = dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'boost.json.stub';
+        $boostJsonPath = $context->boostJsonPath();
+        $bundledStub = dirname(__DIR__, 3).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'boost.json.stub';
 
         if (! File::exists($boostJsonPath)) {
             if (File::exists($bundledStub)) {

@@ -8,7 +8,7 @@ declare(strict_types=1);
  * This hook is executed at the end of `php artisan workspace:install`.
  *
  * Available variables:
- * - $context: AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext
+ * - $context: AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext
  *
  * Example usage:
  * // Remove unwanted files:

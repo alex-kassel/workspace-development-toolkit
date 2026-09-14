@@ -2,22 +2,14 @@
 
 declare(strict_types=1);
 
-namespace AlexKassel\WorkspaceDevelopmentToolkit\Actions;
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
-use Closure;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use Illuminate\Support\Facades\File;
 
-class CleanupHostArtifactsAction
+class CleanupArtifactsWorkspaceProcessor extends BaseWorkspaceProcessor
 {
-    public function handle(InstallContext $context, Closure $next): mixed
-    {
-        $this->execute($context);
-
-        return $next($context);
-    }
-
-    public function execute(InstallContext $context): void
+    public function process(WorkspaceContext $context): void
     {
         if ($context->skipCleanup) {
             $context->recordStep('cleanup', 'skipped', 'Host artifact cleanup skipped by flag.');

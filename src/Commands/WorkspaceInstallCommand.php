@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
@@ -55,11 +55,11 @@ class WorkspaceInstallCommand extends BaseCommand
         $force = (bool) $this->option('force');
         $skipCleanup = (bool) $this->option('skip-cleanup');
 
-        $context = new InstallContext(
+        $context = new \AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext(
             rootPath: base_path(),
+            defaultWorkspace: $defaultWorkspace,
             isSelf: $isSelf,
             selfPackagePath: $packagePath,
-            defaultWorkspace: $defaultWorkspace,
             force: $force,
             skipCleanup: $skipCleanup,
         );
@@ -81,7 +81,8 @@ class WorkspaceInstallCommand extends BaseCommand
                 $hasFailure = true;
             }
 
-            $this->line("  {$statusIcon} [{$step['action']}] {$step['message']}");
+            $processorName = $step['processor'] ?? $step['action'] ?? 'step';
+            $this->line("  {$statusIcon} [{$processorName}] {$step['message']}");
         }
 
         if ($hasFailure) {

@@ -2,22 +2,14 @@
 
 declare(strict_types=1);
 
-namespace AlexKassel\WorkspaceDevelopmentToolkit\Actions;
+namespace AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace;
 
-use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\InstallContext;
-use Closure;
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use Illuminate\Support\Facades\File;
 
-class RunCustomHookAction
+class CustomHookWorkspaceProcessor extends BaseWorkspaceProcessor
 {
-    public function handle(InstallContext $context, Closure $next): mixed
-    {
-        $this->execute($context);
-
-        return $next($context);
-    }
-
-    public function execute(InstallContext $context): void
+    public function process(WorkspaceContext $context): void
     {
         $customHookConfig = config('workspace.post_install_hook');
         $candidatePaths = [
@@ -31,7 +23,7 @@ class RunCustomHookAction
                 $rel = trim(str_replace($context->rootPath, '', $candidate), DIRECTORY_SEPARATOR);
 
                 try {
-                    (static function (InstallContext $context, string $file): void {
+                    (static function (WorkspaceContext $context, string $file): void {
                         require $file;
                     })($context, $candidate);
 
