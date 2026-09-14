@@ -362,4 +362,36 @@ class ComposerManager
     {
         return $this->getRequirementType($package) !== null;
     }
+
+    /**
+     * Remove multiple dependencies from root composer.json in batch.
+     *
+     * @param  array<string, string>|array<int, string>  $packages  List of package names or map of [package => 'require'|'require-dev']
+     *
+     * @throws ComposerProcessException
+     */
+    public function removeDependencies(array $packages): void
+    {
+        $requirePkgs = [];
+        $devPkgs = [];
+
+        foreach ($packages as $key => $value) {
+            $pkg = is_string($key) && ($value === 'require' || $value === 'require-dev') ? $key : (string) $value;
+            $type = ($value === 'require' || $value === 'require-dev') ? $value : $this->getRequirementType($pkg);
+
+            if ($type === 'require') {
+                $requirePkgs[] = $pkg;
+            } elseif ($type === 'require-dev') {
+                $devPkgs[] = $pkg;
+            }
+        }
+
+        if (! empty($requirePkgs)) {
+            $this->runComposer(array_merge(['remove'], array_values(array_unique($requirePkgs))));
+        }
+
+        if (! empty($devPkgs)) {
+            $this->runComposer(array_merge(['remove'], array_values(array_unique($devPkgs)), ['--dev']));
+        }
+    }
 }

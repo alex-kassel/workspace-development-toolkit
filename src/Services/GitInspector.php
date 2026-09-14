@@ -101,6 +101,61 @@ class GitInspector
     }
 
     /**
+     * Get safety issues for a specific package directory.
+     *
+     * @return array<int, string> List of human-readable issues
+     */
+    public function getPackageSafetyIssues(string $packagePath): array
+    {
+        $issues = [];
+        if (! $this->hasGitRepository($packagePath)) {
+            return [];
+        }
+
+        if (! $this->isClean($packagePath)) {
+            $issues[] = 'package working tree has uncommitted or untracked changes';
+        }
+
+        if ($this->hasUnpushedCommits($packagePath)) {
+            $issues[] = 'package contains local Git commits that have not been pushed to a remote repository';
+        }
+
+        if ($this->hasStashes($packagePath)) {
+            $issues[] = 'package has stashed changes';
+        }
+
+        return $issues;
+    }
+
+    /**
+     * Scan a workspace directory for packages with Git safety issues.
+     *
+     * @return array<string, array<int, string>> Map of package directory name => list of issues
+     */
+    public function getWorkspaceSafetyIssues(string $workspacePath): array
+    {
+        $dirty = [];
+        $realPath = realpath($workspacePath);
+        if ($realPath === false || ! is_dir($realPath)) {
+            return [];
+        }
+
+        $composerFiles = glob($realPath.'/*/composer.json') ?: [];
+        $composerFiles = array_merge($composerFiles, glob($realPath.'/*/*/composer.json') ?: []);
+
+        foreach ($composerFiles as $file) {
+            $dir = dirname($file);
+            $name = basename($dir);
+            $issues = $this->getPackageSafetyIssues($dir);
+            if (! empty($issues)) {
+                $dirty[$name] = $issues;
+            }
+        }
+
+        return $dirty;
+    }
+
+    /**
      * Check if HEAD is detached.
      */
     public function isDetachedHead(string $path): bool

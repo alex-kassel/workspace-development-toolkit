@@ -319,6 +319,29 @@ class WorkspaceCommandsTest extends TestCase
         $this->assertDirectoryDoesNotExist(base_path('packages'));
     }
 
+    public function test_workspace_remove_with_purge_blocks_dirty_git_repo_without_force(): void
+    {
+        Workspace::add('packages');
+        $this->createDummyPackage('packages/acme/dirty-pkg', 'acme/dirty-pkg');
+        File::ensureDirectoryExists(base_path('packages/acme/dirty-pkg/.git'));
+
+        Process::fake(function ($process) {
+            $cmd = is_array($process->command) ? implode(' ', $process->command) : (string) $process->command;
+            if (str_contains($cmd, 'status')) {
+                return Process::result("M dirty.php\n");
+            }
+
+            return Process::result('OK');
+        });
+
+        $this->artisan('workspace:remove', ['path' => 'packages', '--purge' => true])
+            ->expectsOutputToContain('packages have uncommitted changes or unpushed commits')
+            ->assertFailed();
+
+        $this->assertArrayHasKey('packages', Workspace::all());
+        $this->assertDirectoryExists(base_path('packages/acme/dirty-pkg'));
+    }
+
     public function test_workspace_local_manifest_persistence_and_auto_restoration(): void
     {
         Workspace::add('labs', 'acme', true);

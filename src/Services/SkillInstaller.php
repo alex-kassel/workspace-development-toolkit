@@ -217,6 +217,49 @@ class SkillInstaller
     }
 
     /**
+     * Remove all skills declared by a package from the host project.
+     */
+    public function removeSkillsForPackage(string $packagePath, ?string $targetSkillsDir = null): int
+    {
+        $skillsDir = $packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
+        if (! is_dir($skillsDir)) {
+            return 0;
+        }
+
+        $discovered = $this->discoverSkillsInPath($skillsDir);
+        $removed = 0;
+        foreach ($discovered as $slug => $dir) {
+            if ($this->removeSkill($slug, $targetSkillsDir)) {
+                $removed++;
+            }
+        }
+
+        return $removed;
+    }
+
+    /**
+     * Remove all skills declared by packages within a workspace directory.
+     */
+    public function removeSkillsForWorkspace(string $workspacePath, ?string $targetSkillsDir = null): int
+    {
+        $realPath = realpath($workspacePath);
+        if ($realPath === false || ! is_dir($realPath)) {
+            return 0;
+        }
+
+        $totalRemoved = 0;
+        $composerFiles = glob($realPath.'/*/composer.json') ?: [];
+        $composerFiles = array_merge($composerFiles, glob($realPath.'/*/*/composer.json') ?: []);
+
+        foreach ($composerFiles as $file) {
+            $pkgDir = dirname($file);
+            $totalRemoved += $this->removeSkillsForPackage($pkgDir, $targetSkillsDir);
+        }
+
+        return $totalRemoved;
+    }
+
+    /**
      * Copy directory recursively.
      */
     private function copyDirectory(string $source, string $destination): void

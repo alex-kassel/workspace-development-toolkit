@@ -6,11 +6,6 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitInspector;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
-use Illuminate\Support\Facades\File;
 use Laravel\Prompts\Prompt;
 
 class WorkspaceRemoveCommand extends BaseWorkspaceCommand
@@ -32,15 +27,6 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
      * @var string
      */
     protected $description = 'Remove a workspace from composer.json and workspace.json (directory is preserved by default)';
-
-    public function __construct(
-        WorkspaceManager $workspace,
-        ComposerManager $composer,
-        protected readonly GitInspector $gitInspector,
-        protected readonly SkillInstaller $skillInstaller,
-    ) {
-        parent::__construct($workspace, $composer);
-    }
 
     /**
      * Execute the console command.
@@ -166,27 +152,6 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
         }
 
         if ($purge) {
-            $fullPath = base_path($path);
-            if (! File::isDirectory($fullPath)) {
-                $this->error("Workspace directory [{$path}] does not exist on disk.");
-
-                return self::FAILURE;
-            }
-
-            if (! $force) {
-                $dirtyPackages = $this->checkDirtyPackagesInWorkspace($fullPath);
-                if (! empty($dirtyPackages)) {
-                    $this->error("Cannot purge workspace [{$path}]: packages have uncommitted changes or unpushed commits.");
-                    foreach ($dirtyPackages as $dirty) {
-                        $this->line("  • {$dirty}");
-                    }
-                    $this->line('  <comment>How to fix:</comment> Commit, stash, or push your changes before purging, or use --force:');
-                    $this->line("  <info>php artisan workspace:remove {$path} --purge --force</info>");
-
-                    return self::FAILURE;
-                }
-            }
-
             if (! $force && $isInteractive) {
                 $usePrompt = class_exists(Prompt::class);
                 $confirm = $usePrompt
@@ -200,12 +165,8 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
                 }
             }
 
-            $this->uninstallActivePackages($activePackages);
-            $this->removeSkillsInWorkspace($fullPath);
-
             try {
-                $this->workspace->remove($path, force: true);
-                $this->workspace->deleteDirectoryRecursively($fullPath);
+                $this->workspace->purge($path, force: $force);
             } catch (WorkspaceException $e) {
                 return $this->handleWorkspaceException($e);
             }
@@ -215,12 +176,12 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
             return self::SUCCESS;
         }
 
-        if ($detach && ! empty($activePackages)) {
-            $this->uninstallActivePackages($activePackages);
-        }
-
         try {
-            $this->workspace->remove($path, force: true);
+            if ($detach) {
+                $this->workspace->detach($path);
+            } else {
+                $this->workspace->remove($path, force: true);
+            }
         } catch (WorkspaceException $e) {
             return $this->handleWorkspaceException($e);
         }
@@ -237,102 +198,5 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
         }
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Uninstall active packages from root composer.json.
-     *
-     * @param  array<string, string>  $activePackages
-     */
-    protected function uninstallActivePackages(array $activePackages): void
-    {
-        $requirePkgs = array_keys(array_filter($activePackages, fn ($t) => $t === 'require'));
-        $devPkgs = array_keys(array_filter($activePackages, fn ($t) => $t === 'require-dev'));
-
-        if (! empty($requirePkgs)) {
-            $this->info('Uninstalling active package(s) from require: '.implode(', ', $requirePkgs));
-            $this->composer->runComposer(array_merge(['remove'], $requirePkgs));
-        }
-
-        if (! empty($devPkgs)) {
-            $this->info('Uninstalling active package(s) from require-dev: '.implode(', ', $devPkgs));
-            $this->composer->runComposer(array_merge(['remove'], $devPkgs, ['--dev']));
-        }
-    }
-
-    /**
-     * Check for uncommitted or unpushed git changes in packages inside a workspace.
-     *
-     * @return array<int, string>
-     */
-    protected function checkDirtyPackagesInWorkspace(string $workspaceFullPath): array
-    {
-        $dirty = [];
-        if (! File::isDirectory($workspaceFullPath)) {
-            return [];
-        }
-
-        $dirs = File::directories($workspaceFullPath);
-        $checkDirs = [];
-        foreach ($dirs as $dir) {
-            if (File::exists($dir.DIRECTORY_SEPARATOR.'composer.json') || File::isDirectory($dir.DIRECTORY_SEPARATOR.'.git')) {
-                $checkDirs[] = $dir;
-            } else {
-                foreach (File::directories($dir) as $subDir) {
-                    if (File::exists($subDir.DIRECTORY_SEPARATOR.'composer.json') || File::isDirectory($subDir.DIRECTORY_SEPARATOR.'.git')) {
-                        $checkDirs[] = $subDir;
-                    }
-                }
-            }
-        }
-
-        foreach ($checkDirs as $dir) {
-            $name = basename($dir);
-            if ($this->gitInspector->hasGitRepository($dir)) {
-                if (! $this->gitInspector->isClean($dir)) {
-                    $dirty[] = "[{$name}] has uncommitted or untracked changes";
-                } elseif ($this->gitInspector->hasUnpushedCommits($dir)) {
-                    $dirty[] = "[{$name}] has unpushed commits";
-                } elseif ($this->gitInspector->hasStashes($dir)) {
-                    $dirty[] = "[{$name}] has stashed changes";
-                }
-            }
-        }
-
-        return $dirty;
-    }
-
-    /**
-     * Remove installed skills belonging to packages in the given workspace.
-     */
-    protected function removeSkillsInWorkspace(string $workspaceFullPath): void
-    {
-        if (! File::isDirectory($workspaceFullPath)) {
-            return;
-        }
-
-        $dirs = File::directories($workspaceFullPath);
-        $checkDirs = [];
-        foreach ($dirs as $dir) {
-            if (File::exists($dir.DIRECTORY_SEPARATOR.'composer.json')) {
-                $checkDirs[] = $dir;
-            } else {
-                foreach (File::directories($dir) as $subDir) {
-                    if (File::exists($subDir.DIRECTORY_SEPARATOR.'composer.json')) {
-                        $checkDirs[] = $subDir;
-                    }
-                }
-            }
-        }
-
-        foreach ($checkDirs as $dir) {
-            $skillsPath = $dir.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
-            if (File::isDirectory($skillsPath)) {
-                $discovered = $this->skillInstaller->discoverSkillsInPath($skillsPath);
-                foreach ($discovered as $slug => $path) {
-                    $this->skillInstaller->removeSkill($slug);
-                }
-            }
-        }
     }
 }

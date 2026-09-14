@@ -23,6 +23,8 @@ class WorkspaceManager
         public readonly PackageResolver $resolver,
         public readonly ComposerManager $composer,
         public readonly FilesystemHelper $filesystem,
+        public readonly GitInspector $gitInspector,
+        public readonly SkillInstaller $skillInstaller,
     ) {}
 
     /**
@@ -181,6 +183,170 @@ class WorkspaceManager
         }
 
         return $result;
+    }
+
+    /**
+     * Detach all active packages from root composer.json and remove the workspace.
+     * Physical package files remain intact on disk.
+     *
+     * @throws WorkspaceException
+     */
+    public function detach(string $path): bool
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($path);
+        $active = $this->getActivePackagesInWorkspace($cleanPath);
+
+        if (! empty($active)) {
+            $this->composer->removeDependencies($active);
+        }
+
+        return $this->remove($cleanPath, force: true);
+    }
+
+    /**
+     * Permanently purge a workspace: uninstalls active dependencies, removes skills,
+     * unregisters workspace, and deletes its physical directory from disk.
+     *
+     * @throws WorkspaceException
+     */
+    public function purge(string $path, bool $force = false): bool
+    {
+        $cleanPath = $this->manifest->normalizeWorkspacePath($path);
+        $fullPath = base_path($cleanPath);
+
+        if (! File::isDirectory($fullPath)) {
+            throw new WorkspaceException(
+                "Cannot purge workspace [{$cleanPath}]: directory does not exist on disk.",
+                'Verify workspace path or check registered workspaces with: php artisan workspace:list'
+            );
+        }
+
+        if (! $force) {
+            $dirtyMap = $this->gitInspector->getWorkspaceSafetyIssues($fullPath);
+            if (! empty($dirtyMap)) {
+                $lines = [];
+                foreach ($dirtyMap as $pkg => $issues) {
+                    $lines[] = "[{$pkg}]: ".implode(', ', $issues);
+                }
+                $details = implode("\n  • ", $lines);
+
+                throw new WorkspaceException(
+                    "Cannot purge workspace [{$cleanPath}]: packages have uncommitted changes or unpushed commits:\n  • {$details}",
+                    'Commit, stash, or push changes before purging, or use --force.'
+                );
+            }
+        }
+
+        $active = $this->getActivePackagesInWorkspace($cleanPath);
+        if (! empty($active)) {
+            $this->composer->removeDependencies($active);
+        }
+
+        $this->skillInstaller->removeSkillsForWorkspace($fullPath);
+
+        $removed = $this->remove($cleanPath, force: true);
+        $this->deleteDirectoryRecursively($fullPath);
+
+        return $removed;
+    }
+
+    /**
+     * Permanently delete a package: verifies safety, uninstalls dependencies from composer.json,
+     * removes skills, removes files from disk, cleans up manifests and empty vendor folders.
+     *
+     * @return string The relative package path that was deleted.
+     *
+     * @throws WorkspaceException
+     */
+    public function deletePackage(string $packageName, bool $force = false): string
+    {
+        $packagePath = $this->findPackagePath($packageName);
+        if (! $packagePath) {
+            throw new WorkspaceException(
+                "Package [{$packageName}] was not found in any registered workspace.",
+                'View all registered packages across workspaces using: php artisan workspace:list'
+            );
+        }
+
+        $fullPath = base_path($packagePath);
+        $realFullPath = realpath($fullPath);
+        $realBasePath = realpath(base_path());
+
+        $normalizedFullPath = $realFullPath ? strtolower(rtrim(str_replace('\\', '/', $realFullPath), '/')) : '';
+        $normalizedBasePath = $realBasePath ? strtolower(rtrim(str_replace('\\', '/', $realBasePath), '/')) : '';
+
+        if (! $realFullPath || ! $realBasePath || ! str_starts_with($normalizedFullPath, $normalizedBasePath.'/')) {
+            throw new WorkspaceException("Security violation: Package path [{$fullPath}] resolves outside the application root.");
+        }
+
+        $targetCanonical = FilesystemHelper::canonicalPath($realFullPath);
+        $protectedRoots = [FilesystemHelper::canonicalPath(base_path())];
+        foreach (array_keys($this->all()) as $wsKey) {
+            $protectedRoots[] = FilesystemHelper::canonicalPath(base_path($wsKey));
+        }
+
+        if (in_array($targetCanonical, $protectedRoots, true)) {
+            throw new WorkspaceException("Security violation: Target directory [{$packagePath}] is a protected workspace or application root.");
+        }
+
+        foreach ($protectedRoots as $protectedRoot) {
+            if ($protectedRoot !== $targetCanonical && str_starts_with($protectedRoot.'/', $targetCanonical.'/')) {
+                throw new WorkspaceException("Security violation: Target directory [{$packagePath}] contains a registered child workspace root.");
+            }
+        }
+
+        if (! $force) {
+            $issues = $this->gitInspector->getPackageSafetyIssues($realFullPath);
+            if (! empty($issues)) {
+                throw new WorkspaceException(
+                    "Cannot delete package [{$packageName}]: {$issues[0]}.",
+                    "Commit, stash, or discard changes before deleting, or use --force: php artisan package:delete {$packageName} --force"
+                );
+            }
+        }
+
+        $requirementType = $this->composer->getRequirementType($packageName);
+        if ($requirementType !== null) {
+            $this->composer->removeDependencies([$packageName => $requirementType]);
+        }
+
+        $this->skillInstaller->removeSkillsForPackage($realFullPath);
+
+        $deleted = false;
+        try {
+            $deleted = $this->deleteDirectoryRecursively($realFullPath);
+        } catch (\Throwable $e) {
+            throw new WorkspaceException("Failed to delete package directory [{$packagePath}]: {$e->getMessage()}");
+        }
+
+        if (! $deleted || File::isDirectory($realFullPath)) {
+            throw new WorkspaceException("Failed to delete package directory [{$packagePath}].");
+        }
+
+        $matchedWorkspace = $this->findWorkspaceForPath($packagePath);
+        if ($matchedWorkspace !== null) {
+            $this->forgetPackage($matchedWorkspace, $packageName);
+        }
+
+        $vendorDir = dirname($realFullPath);
+        $vendorCanonical = FilesystemHelper::canonicalPath($vendorDir);
+        $isProtectedVendorDir = in_array($vendorCanonical, $protectedRoots, true);
+        if (! $isProtectedVendorDir) {
+            foreach ($protectedRoots as $protectedRoot) {
+                if ($protectedRoot === $vendorCanonical || str_starts_with($protectedRoot.'/', $vendorCanonical.'/')) {
+                    $isProtectedVendorDir = true;
+                    break;
+                }
+            }
+        }
+
+        if (File::isDirectory($vendorDir) && ! $isProtectedVendorDir && $this->filesystem->isEmptyDirectory($vendorDir)) {
+            $this->deleteDirectoryRecursively($vendorDir);
+        }
+
+        $this->sync();
+
+        return $packagePath;
     }
 
     /**
