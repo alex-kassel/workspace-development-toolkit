@@ -173,6 +173,8 @@ class PackageCloneCommandTest extends TestCase
                     File::put("{$targetPath}/composer.json", json_encode([
                         'name' => 'alex-kassel/workspace-development-toolkit',
                     ]));
+                    File::ensureDirectoryExists("{$targetPath}/stubs");
+                    File::put("{$targetPath}/stubs/AGENTS.md.stub", '# Agents Stub');
 
                     return Process::result(output: 'Cloned self');
                 }
@@ -185,8 +187,10 @@ class PackageCloneCommandTest extends TestCase
             '--self' => true,
         ])
             ->expectsOutputToContain('Cloning [')
-            ->expectsOutputToContain('alex-kassel/workspace-development-toolkit')
+            ->expectsOutputToContain('Linked host [AGENTS.md]')
             ->assertSuccessful();
+
+        $this->assertTrue(is_link(base_path('AGENTS.md')));
 
         Process::assertRan(function ($process) {
             $cmd = is_array($process->command) ? implode(' ', $process->command) : $process->command;

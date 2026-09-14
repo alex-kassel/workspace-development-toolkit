@@ -1,0 +1,111 @@
+<laravel-boost-guidelines>
+# Project Rules & Guidelines (Laravel 13 / PHP 8.3)
+
+---
+
+## 1. Critical Constraints (Highest Priority)
+
+* **Active Development Stage (Zero Backward Compatibility Overhead)**:
+  * The codebase is in active pre-1.0 local development. ZERO backward compatibility overhead is required.
+  * NEVER retain legacy proxies, deprecated wrapper methods, obsolete aliases, or compatibility shims just to avoid breaking callers.
+  * Refactor directly, aggressively eliminate dead code, and update existing callers and tests to the new clean design.
+
+* **Language & Localization (Strict English-Only for Repository Artifacts)**:
+  * While conversational pair-programming with the user is in Russian, ALL repository artifacts, code, comments, PHPDoc blocks, Git commits, PR descriptions, test names, skills, CLI output/prompts, exceptions, and markdown documentation that enter version control or GitHub MUST BE 100% STRICTLY IN ENGLISH.
+  * Zero Cyrillic or non-English text is permitted anywhere in repository code, skills, or documentation.
+
+* **Dependencies & Directory Discipline**:
+  * Never install or change Composer/NPM dependencies without explicit user approval.
+  * Stick to the existing directory structure; do not create new base folders without approval.
+  * Create documentation files only when explicitly requested by the user.
+
+---
+
+## 2. Architecture & Code Quality
+
+* **PHP 8.3 & Strict Typing**:
+  * Use explicit parameter type hints and return type declarations for all methods: `function isAccessible(User $user, ?string $path = null): bool`.
+  * Use PHP 8 constructor property promotion: `public function __construct(public Service $service) {}`. Avoid empty parameterless constructors unless private.
+  * Always use curly braces `{}` for control structures, even for single-line bodies.
+  * TitleCase for Enum keys: `FavoritePerson`, `BestLake`, `Monthly`.
+  * Prefer PHPDoc blocks with array shape definitions over inline comments. Avoid redundant inline comments; comment only exceptionally complex logic.
+
+* **Architecture Patterns**:
+  * **Thin Coordinators**: Console commands and controllers must handle only input/output orchestration. All business logic, process execution, error diagnostics, and filesystem operations belong in reusable, isolated services and typed DTOs.
+  * **Pipeline Pattern**: When multiple operations, checks, or mutations execute sequentially, strongly prefer the Pipeline pattern (`Illuminate\Pipeline\Pipeline` or dedicated step runners adhering to single-responsibility check contracts) for OCP extensibility and step isolation.
+  * **Reuse Existing Code**: Check for existing components and patterns before writing new ones. Avoid speculative over-engineering.
+
+* **Laravel Conventions**:
+  * Use `php artisan make:` commands (`php artisan make:class`, `php artisan make:test`, etc.).
+  * For APIs, use Eloquent API Resources and API versioning.
+  * Generate links using named routes: `route('name')`.
+  * Use descriptive names for variables and methods (`isRegisteredForDiscounts`, not `discount()`).
+
+* **Code Formatting (Pint)**:
+  * Run `vendor/bin/pint --dirty --format agent` (or `vendor/bin/pint --format agent`) on modified PHP files before finalizing changes to ensure adherence to code style.
+
+---
+
+## 3. Developer & Agent UX (CLI & Tools Design)
+
+We develop packages for both humans and AI agents. CLI output, interactive prompts, signatures, error messages, and documentation must NEVER leave room for guesswork:
+* **Fail-Safe Command Signatures**: All command arguments must be syntactically optional (`{arg?}`) to prevent fatal non-interactive Symfony Console crashes, delegating missing input resolution to centralized thin coordinator base helpers (`BaseCommand`).
+* **Unambiguous Formats & Examples**: Always show concrete formats and examples in prompts, errors, and argument descriptions (e.g. `vendor/package`, `acme/my-pkg`).
+* **Precise Terminology**: Do not blur terminology (if an entity is a package, call it `package`, never "package or alias"; if an input requires a two-part `vendor/package`, explicitly state the two-part requirement and give an example).
+* **Proactive Next Steps & Suggestions**:
+  * In interactive prompts, suggest the 1-2 most probable next steps, sensible defaults, or module aliases (e.g. suggesting TitleCase directory aliases like `Billing` for flat module workspaces).
+  * In non-interactive/agent mode, surface these same options cleanly in actionable guidance blocks.
+* **Symmetrical Command Pairs**: Always prefer intuitive, symmetrical paired verbs for command lifecycles (e.g. `workspace:register` / `workspace:unregister`, `workspace:flatten` / `workspace:unflatten`).
+* **Actionable Guidance**: Provide copy-pasteable next steps and fix suggestions via `<comment>How to fix:</comment>`.
+
+---
+
+## 4. Boost Tools & Documentation Workflow
+
+* **Installed Versions Verification**:
+  * Always check installed versions before relying on third-party APIs (`composer show --direct`, `composer show <vendor/package>`, or `package.json`). Never assume package versions or APIs.
+
+* **Documentation Search (`search-docs`)**:
+  * Use MCP `search-docs` before changes that depend on Laravel ecosystem APIs, behavior, configuration, or version-specific syntax.
+  * Search syntax:
+    1. Words for auto-stemmed AND logic: `rate limit`.
+    2. Quotes for exact phrases: `"infinite scroll"`.
+    3. Multiple queries for OR logic: `queries=["authentication", "middleware"]`.
+    4. Scope with `packages` array when known. Do not add package names to query strings.
+
+* **Boost MCP Tools**:
+  * `database-query` / `database-schema`: Use for database inspections instead of raw SQL in Tinker.
+  * `get-absolute-url`: Resolve schemes, domains, and ports before sharing URLs.
+  * `browser-logs`: Check recent browser logs and exceptions.
+
+* **Artisan & Tinker**:
+  * Pass `--no-interaction` to all Artisan commands.
+  * Read config via `php artisan config:show app.name` or directly from `config/`.
+  * Filter routes via `php artisan route:list` (`--method=GET`, `--name=users`, `--path=api`, `--except-vendor`).
+  * In Tinker, always use single quotes to prevent shell expansion: `php artisan tinker --execute 'Your::code();'`. Double quotes inside for PHP strings.
+
+* **Project Rules**:
+  * If `.ai/rules` exists, consult `@.ai/rules/index.md` and matching rule files before modifying code.
+  * Use `record-rule` only when the user explicitly requests recording a standing rule.
+
+* **Skills Activation**:
+  * Activate matching domain-specific skills in `.agents/skills` or `**/skills/**` (e.g. `testing-best-practices`, `deploying-to-cloud`, `tailwindcss-development`, `package-*`).
+
+* **Frontend Bundling (Vite)**:
+  * If a Vite manifest error occurs or UI changes are not visible, run `npm run build` or ask the user to start `npm run dev` / `composer run dev`.
+
+---
+
+## 5. Testing & Verification
+
+* **PHPUnit**:
+  * Create tests with `php artisan make:test --phpunit {NameTest}`. Do NOT include the test suite directory prefix (`SomeFeatureTest`, not `Feature/SomeFeatureTest`).
+  * Prefer Feature tests over Unit tests.
+  * Use model factories and custom factory states. Use `fake()` / `$this->faker`.
+  * Run the narrowest test suite covering the change: `php artisan test --compact {path}` or `--filter=testName`. Rerun after each change.
+  * Direct test runner: `vendor/bin/phpunit`.
+
+* **Verification Discipline**:
+  * Do not create scratch/verification scripts or use Tinker when tests can cover that functionality.
+  * Unit and feature tests are the canonical proof of functionality.
+</laravel-boost-guidelines>

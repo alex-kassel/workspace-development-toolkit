@@ -193,6 +193,39 @@ class PackageCloner
         }
     }
 
+    /**
+     * Link the host application's AGENTS.md to the local cloned toolkit's stub.
+     *
+     * @param  string  $packageRelativePath  Relative path to the cloned package (e.g. packages/alex-kassel/workspace-development-toolkit)
+     * @return bool True if successfully linked, false if stub was not found or link failed.
+     */
+    public function linkHostAgentsGuideline(string $packageRelativePath): bool
+    {
+        $stubFullPath = base_path($packageRelativePath.DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'AGENTS.md.stub');
+        if (! File::exists($stubFullPath)) {
+            return false;
+        }
+
+        $hostAgentsPath = base_path('AGENTS.md');
+        $relativeLinkTarget = str_replace('\\', '/', $packageRelativePath).'/stubs/AGENTS.md.stub';
+
+        if (is_link($hostAgentsPath)) {
+            $currentTarget = (string) @readlink($hostAgentsPath);
+            if ($currentTarget === $relativeLinkTarget || $currentTarget === $stubFullPath) {
+                return true;
+            }
+            @unlink($hostAgentsPath);
+        } elseif (File::exists($hostAgentsPath)) {
+            $hostContent = (string) File::get($hostAgentsPath);
+            if (trim($hostContent) !== '' && $hostContent !== File::get($stubFullPath)) {
+                File::put($stubFullPath, $hostContent);
+            }
+            @unlink($hostAgentsPath);
+        }
+
+        return @symlink($relativeLinkTarget, $hostAgentsPath);
+    }
+
     protected function emitMessage(?Closure $onMessage, string $level, string $message): void
     {
         if ($onMessage !== null) {

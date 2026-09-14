@@ -279,6 +279,13 @@ class PackageCloneCommand extends BasePackageCommand
             $this->info("Package [{$canonicalComposerName}] is now symlinked to [{$relativeTargetPath}]!");
         }
 
+        if ($isSelf) {
+            $linked = $this->cloner->linkHostAgentsGuideline($relativeTargetPath);
+            if ($linked) {
+                $this->info("Linked host [AGENTS.md] to local toolkit stub [{$relativeTargetPath}/stubs/AGENTS.md.stub] for continuous development.");
+            }
+        }
+
         // Recursive cloning of dependencies from trusted organizations
         if ($recursive && File::exists($clonedComposerPath)) {
             $rootVendor = null;
