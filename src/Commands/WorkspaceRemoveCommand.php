@@ -88,9 +88,12 @@ class WorkspaceRemoveCommand extends BaseWorkspaceCommand
         if (! empty($activePackages) && ! $detach && ! $purge) {
             if ($isInteractive) {
                 try {
-                    $usePrompt = class_exists(Prompt::class);
-                    $pkgList = implode(', ', array_keys($activePackages));
-                    $this->warn("Workspace [{$path}] contains active packages installed in root composer.json: {$pkgList}");
+                    $this->newLine();
+                    $this->warn("Workspace [{$path}] contains active packages installed in root composer.json:");
+                    foreach ($activePackages as $pkg => $reqType) {
+                        $this->line("  <fg=cyan>•</> <info>{$pkg}</info> <fg=gray>({$reqType})</>");
+                    }
+                    $this->newLine();
 
                     $choice = $usePrompt
                         ? \Laravel\Prompts\select(
