@@ -26,12 +26,15 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageSkillsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageUninstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageWorkflowCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceAddCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceArchetypesCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceCiMatrixCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDashboardCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStatusCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStubsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceSyncCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\BinaryResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
@@ -169,6 +172,9 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 WorkspaceRemoveCommand::class,
                 WorkspaceSyncCommand::class,
                 WorkspaceHelpCommand::class,
+                WorkspaceStubsCommand::class,
+                WorkspaceArchetypesCommand::class,
+                WorkspaceDashboardCommand::class,
             ]);
 
             $this->autoPublishSkill();

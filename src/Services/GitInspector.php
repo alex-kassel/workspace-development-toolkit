@@ -39,6 +39,30 @@ class GitInspector
     }
 
     /**
+     * Get count of dirty / modified / untracked files in working tree.
+     */
+    public function getDirtyFilesCount(string $path): int
+    {
+        if (! $this->hasGitRepository($path)) {
+            return 0;
+        }
+
+        $result = Process::path($path)->run(['git', 'status', '--porcelain']);
+        if (! $result->successful()) {
+            return 0;
+        }
+
+        $trimmed = trim($result->output());
+        if ($trimmed === '') {
+            return 0;
+        }
+
+        $lines = array_filter(explode("\n", $trimmed), fn (string $line) => trim($line) !== '');
+
+        return count($lines);
+    }
+
+    /**
      * Check if the current branch has unpushed commits compared to upstream.
      */
     public function hasUnpushedCommits(string $path): bool
