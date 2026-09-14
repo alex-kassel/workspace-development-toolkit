@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Exceptions;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\DiagnosticSeverity;
 use RuntimeException;
 use Throwable;
 
@@ -31,6 +32,24 @@ class WorkspaceException extends RuntimeException
     public function getSolution(): ?string
     {
         return $this->solution;
+    }
+
+    /**
+     * Diagnostic severity level.
+     */
+    public function severity(): DiagnosticSeverity
+    {
+        return DiagnosticSeverity::Error;
+    }
+
+    /**
+     * Contextual metadata for diagnostic rendering.
+     *
+     * @return array<string|int, string|array<int|string, string>>
+     */
+    public function diagnosticContext(): array
+    {
+        return [];
     }
 
     /**

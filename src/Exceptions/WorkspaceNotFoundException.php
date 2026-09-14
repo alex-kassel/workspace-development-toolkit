@@ -29,4 +29,14 @@ class WorkspaceNotFoundException extends WorkspaceException
     {
         return "Register the workspace using 'php artisan workspace:add {$this->workspace}' or inspect valid workspaces with 'php artisan workspace:list'.";
     }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    public function diagnosticContext(): array
+    {
+        return [
+            'Available workspaces' => empty($this->available) ? ['(none registered)'] : $this->available,
+        ];
+    }
 }

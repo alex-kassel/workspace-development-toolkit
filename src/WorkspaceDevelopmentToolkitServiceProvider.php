@@ -36,11 +36,14 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRemoveCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStatusCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStubsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceSyncCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Events\ConsoleDiagnosticDispatched;
+use AlexKassel\WorkspaceDevelopmentToolkit\Listeners\RenderConsoleDiagnosticListener;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\BinaryResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CertificateVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\CiMatrixGenerator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerDiagnosticService;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ConsoleUiRenderer;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FilesystemHelper;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\FingerprintCalculator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\GitDiagnosticService;
@@ -58,6 +61,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\VerificationPipeline;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceStatusCollector;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\ServiceProvider;
 
 class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
@@ -75,6 +79,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(PackageResolver::class);
         $this->app->singleton(WorkspaceManager::class);
         $this->app->singleton(BinaryResolver::class);
+        $this->app->singleton(ConsoleUiRenderer::class);
 
         $this->app->singleton(ComposerValidateCheck::class);
         $this->app->singleton(PintStyleCheck::class);
@@ -123,6 +128,10 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        /** @var Dispatcher $events */
+        $events = $this->app->make(Dispatcher::class);
+        $events->listen(ConsoleDiagnosticDispatched::class, RenderConsoleDiagnosticListener::class);
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/workspace.php' => config_path('workspace.php'),

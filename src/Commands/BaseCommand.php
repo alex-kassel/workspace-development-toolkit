@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Enums\DiagnosticSeverity;
+use AlexKassel\WorkspaceDevelopmentToolkit\Events\ConsoleDiagnosticDispatched;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\ConsoleUiRenderer;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Events\Dispatcher;
 
 abstract class BaseCommand extends Command
 {
@@ -23,24 +27,58 @@ abstract class BaseCommand extends Command
      */
     protected function handleWorkspaceException(WorkspaceException $e): int
     {
-        $code = $e->errorCode();
-        $this->error("[{$code}] {$e->getMessage()}");
-
         $steps = $e->remediationSteps();
-        if (! empty($steps)) {
-            $this->line('  <comment>How to fix:</comment>');
-            foreach ($steps as $step) {
-                $this->line("  • {$step}");
-            }
-        } elseif ($e->getSolution()) {
-            $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
+        if (empty($steps) && $e->getSolution()) {
+            $steps = [$e->getSolution()];
         }
 
-        if ($e->agentInstructions() && ($this->output->isVerbose() || getenv('AGENT') !== false)) {
-            $this->line("  <fg=gray>Agent guidance:</> {$e->agentInstructions()}");
-        }
+        $agentGuidance = ($this->output->isVerbose() || getenv('AGENT') !== false)
+            ? $e->agentInstructions()
+            : null;
+
+        $this->dispatchDiagnostic(
+            code: $e->errorCode(),
+            message: $e->getMessage(),
+            severity: $e->severity(),
+            context: $e->diagnosticContext(),
+            remediationSteps: $steps,
+            agentGuidance: $agentGuidance,
+        );
 
         return self::FAILURE;
+    }
+
+    /**
+     * Dispatch a structured console diagnostic event.
+     *
+     * @param  array<string|int, string|array<int|string, string>>  $context
+     * @param  array<int, string>  $remediationSteps
+     */
+    protected function dispatchDiagnostic(
+        string $code,
+        string $message,
+        DiagnosticSeverity $severity = DiagnosticSeverity::Error,
+        array $context = [],
+        array $remediationSteps = [],
+        ?string $agentGuidance = null,
+    ): void {
+        $event = new ConsoleDiagnosticDispatched(
+            code: $code,
+            message: $message,
+            severity: $severity,
+            context: $context,
+            remediationSteps: $remediationSteps,
+            agentGuidance: $agentGuidance,
+            output: $this->output,
+        );
+
+        /** @var Dispatcher|null $dispatcher */
+        $dispatcher = app()->bound(Dispatcher::class) ? app(Dispatcher::class) : null;
+        if ($dispatcher !== null) {
+            $dispatcher->dispatch($event);
+        } else {
+            app(ConsoleUiRenderer::class)->render($event, $this->output);
+        }
     }
 
     /**
