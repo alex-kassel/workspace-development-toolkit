@@ -62,11 +62,14 @@ class PackageSkillsCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $skillsPath = base_path($packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills');
+        $boostSkillsPath = base_path($packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'boost'.DIRECTORY_SEPARATOR.'skills');
+        $legacySkillsPath = base_path($packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills');
+        $skillsPath = is_dir($boostSkillsPath) ? $boostSkillsPath : $legacySkillsPath;
         $discovered = $this->installer->discoverSkillsInPath($skillsPath);
 
         if (empty($discovered)) {
-            $this->comment("No skills discovered in [{$packagePath}/resources/skills].");
+            $displaySubpath = is_dir($boostSkillsPath) ? 'resources/boost/skills' : 'resources/skills';
+            $this->comment("No skills discovered in [{$packagePath}/{$displaySubpath}].");
 
             return self::SUCCESS;
         }

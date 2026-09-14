@@ -25,6 +25,10 @@ class StubResolverTest extends TestCase
         $this->assertNotEmpty($result->fileMap);
         $this->assertArrayHasKey('composer.json', $result->fileMap);
         $this->assertArrayHasKey('src/{{ providerClass }}.php', $result->fileMap);
+        $this->assertArrayHasKey('config/{{ package }}.php', $result->fileMap);
+        $this->assertArrayHasKey('tests/TestCase.php', $result->fileMap);
+        $this->assertArrayHasKey('.github/workflows/run-tests.yml', $result->fileMap);
+        $this->assertArrayHasKey('resources/boost/skills/{{ skillSlug }}/SKILL.md', $result->fileMap);
         $this->assertArrayHasKey('LICENSE', $result->fileMap);
         $this->assertArrayHasKey('phpunit.xml', $result->fileMap);
         $this->assertContains('bundled:default', $result->appliedTiers);

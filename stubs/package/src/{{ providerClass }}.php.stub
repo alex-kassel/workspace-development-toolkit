@@ -23,7 +23,10 @@ class {{ providerClass }} extends ServiceProvider
                 __DIR__.'/../config/{{ package }}.php' => config_path('{{ package }}.php'),
             ], '{{ package }}-config');
 
-            $skillsSource = __DIR__.'/../resources/skills';
+            $skillsSource = is_dir(__DIR__.'/../resources/boost/skills')
+                ? __DIR__.'/../resources/boost/skills'
+                : __DIR__.'/../resources/skills';
+
             if (is_dir($skillsSource)) {
                 $targetPaths = (array) config('{{ package }}.skills_path', ['.agents/skills']);
                 $publishes = [];

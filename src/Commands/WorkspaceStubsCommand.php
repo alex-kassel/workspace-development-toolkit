@@ -83,8 +83,8 @@ class WorkspaceStubsCommand extends BaseCommand
 
         $copiedCount = 0;
         foreach ($stubResolution->fileMap as $targetRelPath => $sourceFullPath) {
-            // Retain original filename
-            $destFile = $destDir.DIRECTORY_SEPARATOR.basename($sourceFullPath);
+            $destFile = $destDir.DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $targetRelPath).'.stub';
+            File::ensureDirectoryExists(dirname($destFile));
             File::copy($sourceFullPath, $destFile);
             $copiedCount++;
         }

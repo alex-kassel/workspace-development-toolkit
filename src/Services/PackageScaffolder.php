@@ -161,6 +161,9 @@ class PackageScaffolder
         $packageNamespace = Str::studly(str_replace(['.', '-'], '_', $packageName));
         $providerClass = "{$packageNamespace}ServiceProvider";
         $illuminateConstraint = $this->resolveIlluminateConstraint();
+        $slug = ($skillSlug !== null && trim($skillSlug) !== '')
+            ? trim($skillSlug)
+            : Str::kebab(str_replace('/', '-', $package));
 
         $replacements = [
             '{{ vendor }}' => $vendorName,
@@ -170,6 +173,7 @@ class PackageScaffolder
             '{{ providerClass }}' => $providerClass,
             '{{ year }}' => date('Y'),
             '{{ illuminate_constraint }}' => $illuminateConstraint,
+            '{{ skillSlug }}' => $slug,
         ];
 
         // Snapshot host files before first mutation
@@ -190,15 +194,9 @@ class PackageScaffolder
 
         try {
             // 4. Render all stubs dynamically into the package directory
-            $this->renderStubsIntoPackage($packagePath, $replacements, $cleanWorkspace, $archetype);
+            $this->renderStubsIntoPackage($packagePath, $replacements, $cleanWorkspace, $archetype, $scaffoldSkills);
 
-            // 5. Scaffold agent skill if requested
-            if ($scaffoldSkills) {
-                $slug = ($skillSlug !== null && trim($skillSlug) !== '') ? trim($skillSlug) : Str::kebab($package);
-                $this->scaffoldPackageSkill($packagePath, $slug, $package);
-            }
-
-            // 6. Synchronize workspace manifest
+            // 5. Synchronize workspace manifest
             Workspace::sync();
 
             if ($cleanAlias !== '') {
@@ -308,6 +306,7 @@ class PackageScaffolder
         array $replacements,
         string $cleanWorkspace,
         ?string $archetype = null,
+        bool $scaffoldSkills = true,
     ): void {
         File::ensureDirectoryExists($packagePath);
 
@@ -315,6 +314,10 @@ class PackageScaffolder
         $finalReplacements = array_merge($replacements, $stubResolution->extraReplacements);
 
         foreach ($stubResolution->fileMap as $targetRelPath => $fullStubPath) {
+            if (! $scaffoldSkills && str_starts_with($targetRelPath, 'resources/boost/skills')) {
+                continue;
+            }
+
             $content = (string) File::get($fullStubPath);
             $renderedContent = str_replace(array_keys($finalReplacements), array_values($finalReplacements), $content);
             $renderedRelPath = str_replace(array_keys($finalReplacements), array_values($finalReplacements), $targetRelPath);
@@ -323,78 +326,5 @@ class PackageScaffolder
             File::ensureDirectoryExists(dirname($targetFullPath));
             File::put($targetFullPath, rtrim($renderedContent)."\n");
         }
-    }
-
-    /**
-     * Scan a directory recursively for all .stub files.
-     *
-     * @return array<string, string> Map of relative-stub-path => absolute-file-path
-     */
-    protected function scanStubFiles(string $dir): array
-    {
-        $stubs = [];
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::SELF_FIRST
-        );
-
-        /** @var SplFileInfo $item */
-        foreach ($iterator as $item) {
-            if ($item->isFile() && str_ends_with($item->getFilename(), '.stub')) {
-                $relPath = trim(str_replace([$dir, '\\'], ['', '/'], $item->getPathname()), '/');
-                $stubs[$relPath] = $item->getPathname();
-            }
-        }
-
-        return $stubs;
-    }
-
-    /**
-     * Scaffold initial agent skill in draft status.
-     */
-    protected function scaffoldPackageSkill(string $packagePath, string $skillSlug, string $packageName): void
-    {
-        $skillsDir = "{$packagePath}/resources/skills/{$skillSlug}";
-        File::ensureDirectoryExists($skillsDir);
-
-        $skillContent = <<<MARKDOWN
----
-name: {$skillSlug}
-origin: {$packageName}
-version: 0.0.1
-status: draft
-description: >-
-  TODO: Operational agent skill for {$packageName} package.
----
-
-# {$skillSlug} Skill
-
-> [!NOTE]
-> This skill is currently in **draft** status.
-> Fill in instructions and workflows for AI agents, then change `status: draft` to `status: published` to activate publishing.
-
----
-
-## Operational Workflow
-
-### Phase 0: Tooling Verification & Bootstrapping
-Before performing actions with this package:
-1. Verify if the package service or commands are available:
-   ```bash
-   composer show {$packageName}
-   ```
-2. **If installed**: Proceed to next phase.
-3. **If missing**:
-   - Check your environment execution policy:
-     - If authorized to install dependencies autonomously:
-       ```bash
-       composer require {$packageName}
-       ```
-     - Otherwise, request human confirmation before modifying dependencies:
-       *"The package [{$packageName}] is required for this operation. May I install it via composer require?"*
-
-MARKDOWN;
-
-        File::put("{$skillsDir}/SKILL.md", $skillContent);
     }
 }

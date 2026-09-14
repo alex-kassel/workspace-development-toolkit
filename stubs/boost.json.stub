@@ -2,8 +2,11 @@
     "agents": [
         "antigravity"
     ],
+    "packages": [
+        "alex-kassel/workspace-development-toolkit"
+    ],
     "cloud": true,
-    "guidelines": true,
+    "guidelines": false,
     "mcp": true,
     "nightwatch": false,
     "sail": false,
@@ -12,6 +15,11 @@
         "deploying-to-cloud",
         "laravel-best-practices",
         "testing-best-practices",
-        "tailwindcss-development"
+        "tailwindcss-development",
+        "package-audit",
+        "package-docs",
+        "package-release",
+        "package-scaffolding",
+        "package-verification"
     ]
 }

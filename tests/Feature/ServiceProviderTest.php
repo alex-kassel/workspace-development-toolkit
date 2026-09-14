@@ -64,15 +64,16 @@ class ServiceProviderTest extends TestCase
         $this->assertFileExists($targetDir.'/README.md.stub');
         $this->assertFileExists($targetDir.'/phpunit.xml.stub');
         $this->assertFileExists($targetDir.'/phpstan.neon.stub');
-        $this->assertFileExists($targetDir.'/gitattributes.stub');
-        $this->assertFileExists($targetDir.'/gitignore.stub');
-        $this->assertFileExists($targetDir.'/TestCase.php.stub');
-        $this->assertFileExists($targetDir.'/bootstrap.php.stub');
+        $this->assertFileExists($targetDir.'/.gitattributes.stub');
+        $this->assertFileExists($targetDir.'/.gitignore.stub');
+        $this->assertFileExists($targetDir.'/tests/TestCase.php.stub');
+        $this->assertFileExists($targetDir.'/tests/bootstrap.php.stub');
         $this->assertFileExists($targetDir.'/LICENSE.stub');
         $this->assertFileExists($targetDir.'/composer.json.stub');
-        $this->assertFileExists($targetDir.'/ServiceProvider.php.stub');
-        $this->assertFileExists($targetDir.'/config.php.stub');
-        $this->assertFileExists($targetDir.'/ExampleTest.php.stub');
+        $this->assertFileExists($targetDir.'/src/{{ providerClass }}.php.stub');
+        $this->assertFileExists($targetDir.'/config/{{ package }}.php.stub');
+        $this->assertFileExists($targetDir.'/tests/Unit/ExampleTest.php.stub');
+        $this->assertFileExists($targetDir.'/resources/boost/skills/{{ skillSlug }}/SKILL.md.stub');
     }
 
     public function test_it_publishes_workspace_config(): void

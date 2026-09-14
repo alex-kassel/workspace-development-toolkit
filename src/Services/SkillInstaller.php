@@ -21,7 +21,7 @@ class SkillInstaller
      */
     public function getDefaultSourcePath(): string
     {
-        return $this->defaultSourcePath ?? dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
+        return $this->defaultSourcePath ?? dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'boost'.DIRECTORY_SEPARATOR.'skills';
     }
 
     /**
@@ -221,7 +221,9 @@ class SkillInstaller
      */
     public function removeSkillsForPackage(string $packagePath, ?string $targetSkillsDir = null): int
     {
-        $skillsDir = $packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
+        $boostSkillsDir = $packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'boost'.DIRECTORY_SEPARATOR.'skills';
+        $legacySkillsDir = $packagePath.DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'skills';
+        $skillsDir = is_dir($boostSkillsDir) ? $boostSkillsDir : $legacySkillsDir;
         if (! is_dir($skillsDir)) {
             return 0;
         }

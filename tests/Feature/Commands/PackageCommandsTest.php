@@ -947,4 +947,42 @@ class PackageCommandsTest extends TestCase
         $this->assertDirectoryExists("{$dir}/src/DTOs");
         $this->assertDirectoryExists("{$dir}/src/Contracts");
     }
+
+    public function test_package_make_scaffolds_skill_into_boost_skills_directory(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result('ok'),
+        ]);
+
+        $this->artisan('package:make', [
+            'package' => 'acme/boost-skill-pkg',
+        ])->assertSuccessful();
+
+        $dir = base_path('packages/acme/boost-skill-pkg');
+        $skillPath = "{$dir}/resources/boost/skills/acme-boost-skill-pkg/SKILL.md";
+        $this->assertFileExists($skillPath);
+
+        $content = File::get($skillPath);
+        $this->assertStringContainsString('name: acme-boost-skill-pkg', $content);
+        $this->assertStringContainsString('origin: acme/boost-skill-pkg', $content);
+    }
+
+    public function test_package_make_skips_skills_when_no_skills_flag_provided(): void
+    {
+        Workspace::add('packages', null, true);
+
+        Process::fake([
+            '*' => Process::result('ok'),
+        ]);
+
+        $this->artisan('package:make', [
+            'package' => 'acme/silent-pkg',
+            '--no-skills' => true,
+        ])->assertSuccessful();
+
+        $dir = base_path('packages/acme/silent-pkg');
+        $this->assertDirectoryDoesNotExist("{$dir}/resources/boost/skills");
+    }
 }
