@@ -13,6 +13,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Console\Command;
 use Illuminate\Console\OutputStyle;
 use Illuminate\Contracts\Events\Dispatcher;
+use Laravel\Prompts\Prompt;
 use Symfony\Component\Console\Exception\ExceptionInterface;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -37,35 +38,47 @@ abstract class BaseCommand extends Command
             $this->input = $input;
             $this->output = new OutputStyle($input, $output);
 
+            $cmd = $this->getName() ?? 'command';
             $message = $e->getMessage();
-            if (str_contains($message, 'Too many arguments')) {
-                $this->dispatchDiagnostic(
-                    code: 'CMD_TOO_MANY_ARGUMENTS',
-                    message: "Too many arguments provided to [{$this->getName()}].",
-                    severity: DiagnosticSeverity::Error,
-                    context: [
-                        'Symfony error' => $message,
-                    ],
-                    remediationSteps: [
-                        'Provide only the arguments defined in the command signature.',
-                        'If you used an unquoted shell wildcard (*), quote it or specify a single path: "pattern" or single-directory.',
-                        "View command help and syntax: php artisan help {$this->getName()}",
-                    ],
-                    agentGuidance: "Too many arguments were passed to '{$this->getName()}'. In bash/zsh, unquoted wildcards like '*' expand to all filenames in the working directory before PHP receives them. Quote the argument or provide a single target."
-                );
+            $synopsis = 'php artisan '.$this->getSynopsis();
+            $desc = $this->getDescription();
 
-                return self::FAILURE;
+            $context = [
+                'Expected usage' => $synopsis,
+            ];
+
+            if ($desc !== '') {
+                $context['Description'] = $desc;
             }
 
+            $context['Details'] = $message;
+
             $this->dispatchDiagnostic(
-                code: 'CMD_SYNTAX_ERROR',
-                message: $message,
+                code: 'CMD_ARGUMENT_ERROR',
+                message: "Invalid or unexpected arguments provided to [{$cmd}].",
                 severity: DiagnosticSeverity::Error,
+                context: $context,
                 remediationSteps: [
-                    "View command help and syntax: php artisan help {$this->getName()}",
+                    "Inspect command options and syntax: php artisan help {$cmd}",
+                    'View toolkit overview and examples: php artisan workspace:help',
                 ],
-                agentGuidance: "Command syntax error. Check 'php artisan help {$this->getName()}'."
+                agentGuidance: "Check the command's expected synopsis: 'php artisan help {$cmd}'."
             );
+
+            if ($input->isInteractive() && @stream_isatty(STDIN)) {
+                try {
+                    $usePrompt = class_exists(Prompt::class);
+                    $showHelp = $usePrompt
+                        ? \Laravel\Prompts\confirm("Would you like to view the complete help guide for [{$cmd}] now?", default: true)
+                        : $this->confirm("Would you like to view the complete help guide for [{$cmd}] now?", true);
+
+                    if ($showHelp) {
+                        $this->call('help', ['command_name' => $cmd]);
+                    }
+                } catch (\Throwable) {
+                    // Non-interactive or prompt cancelled
+                }
+            }
 
             return self::FAILURE;
         }
