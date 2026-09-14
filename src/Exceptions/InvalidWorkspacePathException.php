@@ -13,4 +13,14 @@ class InvalidWorkspacePathException extends WorkspaceException
             'Specify a clean relative directory path inside the application (e.g. "packages" or "clients/acme"). Paths may not be absolute, reference parent directories (".."), or escape the project root.'
         );
     }
+
+    public function errorCode(): string
+    {
+        return 'WS_INVALID_WORKSPACE_PATH';
+    }
+
+    public function agentInstructions(): ?string
+    {
+        return 'Provide a clean relative path within project root without parent references ("..") or leading slashes.';
+    }
 }

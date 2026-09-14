@@ -13,4 +13,14 @@ class DefaultWorkspaceNotConfiguredException extends WorkspaceException
 
         parent::__construct($message, $solution);
     }
+
+    public function errorCode(): string
+    {
+        return 'WS_DEFAULT_WORKSPACE_MISSING';
+    }
+
+    public function agentInstructions(): ?string
+    {
+        return "Configure a default workspace using 'php artisan workspace:default <workspace>' or create one with 'php artisan workspace:add <workspace> --default'.";
+    }
 }

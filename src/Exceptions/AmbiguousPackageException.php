@@ -29,4 +29,14 @@ class AmbiguousPackageException extends WorkspaceException
     {
         return $this->matches;
     }
+
+    public function errorCode(): string
+    {
+        return 'WS_AMBIGUOUS_PACKAGE';
+    }
+
+    public function agentInstructions(): ?string
+    {
+        return 'Disambiguate package reference by specifying --workspace=<workspace> or using full vendor/package name.';
+    }
 }

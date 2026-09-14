@@ -19,4 +19,14 @@ class PackageNotFoundException extends WorkspaceException
 
         parent::__construct($message, $solution);
     }
+
+    public function errorCode(): string
+    {
+        return 'WS_PACKAGE_NOT_FOUND';
+    }
+
+    public function agentInstructions(): ?string
+    {
+        return "Check package spelling using 'php artisan workspace:list' or scaffold it with 'php artisan package:make {$this->packageName}'.";
+    }
 }

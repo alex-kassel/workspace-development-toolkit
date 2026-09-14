@@ -19,4 +19,14 @@ class WorkspaceNotFoundException extends WorkspaceException
 
         parent::__construct($message, $solution);
     }
+
+    public function errorCode(): string
+    {
+        return 'WS_WORKSPACE_NOT_FOUND';
+    }
+
+    public function agentInstructions(): ?string
+    {
+        return "Register the workspace using 'php artisan workspace:add {$this->workspace}' or inspect valid workspaces with 'php artisan workspace:list'.";
+    }
 }

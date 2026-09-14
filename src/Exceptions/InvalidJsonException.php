@@ -18,4 +18,14 @@ class InvalidJsonException extends WorkspaceException
 
         parent::__construct($message, $solution, 0, $previous);
     }
+
+    public function errorCode(): string
+    {
+        return 'WS_INVALID_JSON';
+    }
+
+    public function agentInstructions(): ?string
+    {
+        return "Validate and fix the JSON syntax in file [{$this->path}].";
+    }
 }

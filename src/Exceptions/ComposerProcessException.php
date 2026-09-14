@@ -17,4 +17,14 @@ class ComposerProcessException extends WorkspaceException
 
         parent::__construct($message, $solution);
     }
+
+    public function errorCode(): string
+    {
+        return 'WS_COMPOSER_FAILED';
+    }
+
+    public function agentInstructions(): ?string
+    {
+        return 'Inspect the raw Composer output above, resolve package constraint conflicts, or check network/connectivity if pulling packages.';
+    }
 }

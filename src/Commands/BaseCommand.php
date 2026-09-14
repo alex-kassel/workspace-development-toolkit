@@ -23,9 +23,21 @@ abstract class BaseCommand extends Command
      */
     protected function handleWorkspaceException(WorkspaceException $e): int
     {
-        $this->error($e->getMessage());
-        if ($e->getSolution()) {
+        $code = $e->errorCode();
+        $this->error("[{$code}] {$e->getMessage()}");
+
+        $steps = $e->remediationSteps();
+        if (! empty($steps)) {
+            $this->line('  <comment>How to fix:</comment>');
+            foreach ($steps as $step) {
+                $this->line("  • {$step}");
+            }
+        } elseif ($e->getSolution()) {
             $this->line("  <comment>How to fix:</comment> {$e->getSolution()}");
+        }
+
+        if ($e->agentInstructions() && ($this->output->isVerbose() || getenv('AGENT') !== false)) {
+            $this->line("  <fg=gray>Agent guidance:</> {$e->agentInstructions()}");
         }
 
         return self::FAILURE;
