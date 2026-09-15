@@ -7,11 +7,13 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\DTOs;
 class WorkspaceContext
 {
     /**
+     * @param  array<int, string>  $workspaces
      * @param  array<int, array{processor: string, status: string, message: string}>  $steps
      */
     public function __construct(
         public readonly string $rootPath,
-        public readonly string $defaultWorkspace = 'packages',
+        public readonly array $workspaces = [],
+        public readonly ?string $defaultWorkspace = null,
         public readonly bool $isSelf = false,
         public readonly ?string $selfPackagePath = null,
         public readonly bool $force = false,
@@ -33,9 +35,14 @@ class WorkspaceContext
         return $this->rootPath.DIRECTORY_SEPARATOR.'workspace.json';
     }
 
-    public function workspacePath(?string $workspace = null): string
+    public function workspacePath(?string $workspace = null): ?string
     {
-        $ws = $workspace ?? $this->defaultWorkspace;
+        $ws = $workspace ?? $this->defaultWorkspace ?? ($this->workspaces[0] ?? null);
+
+        if ($ws === null) {
+            return null;
+        }
+
         $clean = trim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $ws), DIRECTORY_SEPARATOR);
 
         return $this->rootPath.DIRECTORY_SEPARATOR.$clean;

@@ -17,7 +17,7 @@ class WorkspaceInstallCommand extends BaseCommand
      * @var string
      */
     protected $signature = 'workspace:install
-        {workspace? : Default workspace directory name (e.g. packages)}
+        {--default= : Explicitly specify which initial workspace should be default}
         {--self : Link guidelines to local development package repository}
         {--package-path= : Relative path to the local cloned package (used with --self)}
         {--force : Force overwrite existing configuration files}
@@ -43,8 +43,24 @@ class WorkspaceInstallCommand extends BaseCommand
      */
     public function handle(): int
     {
-        $rawWorkspace = (string) $this->argument('workspace');
-        $defaultWorkspace = trim($rawWorkspace) !== '' ? trim($rawWorkspace) : 'packages';
+        $configWorkspaces = config('workspace.initial_workspaces');
+        if (is_string($configWorkspaces) && trim($configWorkspaces) !== '') {
+            $workspaces = array_values(array_filter(array_map('trim', explode(',', $configWorkspaces))));
+        } elseif (is_array($configWorkspaces)) {
+            $workspaces = array_values(array_filter(array_map('trim', $configWorkspaces)));
+        } else {
+            $workspaces = [];
+        }
+
+        $defaultOption = $this->option('default');
+        $defaultWorkspace = is_string($defaultOption) && trim($defaultOption) !== ''
+            ? trim($defaultOption)
+            : ($workspaces[0] ?? null);
+
+        if ($defaultWorkspace !== null && ! in_array($defaultWorkspace, $workspaces, true)) {
+            array_unshift($workspaces, $defaultWorkspace);
+        }
+
         $isSelf = (bool) $this->option('self');
         $packagePath = $this->option('package-path') ? (string) $this->option('package-path') : null;
 
@@ -55,8 +71,9 @@ class WorkspaceInstallCommand extends BaseCommand
         $force = (bool) $this->option('force');
         $skipCleanup = (bool) $this->option('skip-cleanup');
 
-        $context = new \AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext(
+        $context = new WorkspaceContext(
             rootPath: base_path(),
+            workspaces: $workspaces,
             defaultWorkspace: $defaultWorkspace,
             isSelf: $isSelf,
             selfPackagePath: $packagePath,
@@ -81,8 +98,7 @@ class WorkspaceInstallCommand extends BaseCommand
                 $hasFailure = true;
             }
 
-            $processorName = $step['processor'] ?? $step['action'] ?? 'step';
-            $this->line("  {$statusIcon} [{$processorName}] {$step['message']}");
+            $this->line("  {$statusIcon} [{$step['processor']}] {$step['message']}");
         }
 
         if ($hasFailure) {
@@ -95,7 +111,11 @@ class WorkspaceInstallCommand extends BaseCommand
         $this->newLine();
         $this->info('✔ Workspace environment initialized successfully!');
         $this->line('  <comment>Next steps:</comment>');
-        $this->line("  • Create a package: <info>php artisan package:make <vendor/package> --workspace={$defaultWorkspace}</info>");
+        if ($defaultWorkspace !== null) {
+            $this->line("  • Create a package: <info>php artisan package:make <vendor/package> --workspace={$defaultWorkspace}</info>");
+        } else {
+            $this->line('  • Register a workspace: <info>php artisan workspace:register <name></info>');
+        }
         $this->line('  • Check workspace status: <info>php artisan workspace:status</info>');
 
         return self::SUCCESS;

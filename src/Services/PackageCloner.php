@@ -201,13 +201,16 @@ class PackageCloner
      */
     public function linkHostAgentsGuideline(string $packageRelativePath): bool
     {
-        $context = new \AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext(
-            rootPath: base_path(),
-            isSelf: true,
-            selfPackagePath: $packageRelativePath,
-        );
+        $action = app(\AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupAgentsGuidelineAction::class);
+        $success = true;
 
-        return app(\AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\AgentsGuidelineWorkspaceProcessor::class)->process($context);
+        foreach ($action->execute(rootPath: base_path(), isSelf: true, selfPackagePath: $packageRelativePath) as $step) {
+            if ($step->status === 'failed') {
+                $success = false;
+            }
+        }
+
+        return $success;
     }
 
     protected function emitMessage(?Closure $onMessage, string $level, string $message): void

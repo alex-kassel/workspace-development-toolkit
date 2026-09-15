@@ -4,72 +4,19 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupAgentsGuidelineAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
-use Illuminate\Support\Facades\File;
 
 class AgentsGuidelineWorkspaceProcessor extends BaseWorkspaceProcessor
 {
-    public function process(WorkspaceContext $context): bool
+    public function __construct(
+        protected readonly SetupAgentsGuidelineAction $action,
+    ) {}
+
+    public function process(WorkspaceContext $context): void
     {
-        $hostAgentsPath = $context->agentsPath();
-        $bundledStubPath = dirname(__DIR__, 3).DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'AGENTS.md.stub';
-
-        if ($context->isSelf && $context->selfPackagePath !== null) {
-            $relPkgPath = trim(str_replace(['\\', '/'], '/', $context->selfPackagePath), '/');
-            $stubFullPath = $context->rootPath.DIRECTORY_SEPARATOR.$relPkgPath.DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'AGENTS.md.stub';
-
-            if (! File::exists($stubFullPath)) {
-                $context->recordStep('guidelines', 'failed', "Stub not found at [{$stubFullPath}].");
-
-                return false;
-            }
-
-            $relativeLinkTarget = $relPkgPath.'/stubs/AGENTS.md.stub';
-
-            if (is_link($hostAgentsPath)) {
-                $currentTarget = (string) @readlink($hostAgentsPath);
-                if ($currentTarget === $relativeLinkTarget || $currentTarget === $stubFullPath) {
-                    $context->recordStep('guidelines', 'skipped', "AGENTS.md is already linked to [{$relativeLinkTarget}].");
-
-                    return true;
-                }
-                @unlink($hostAgentsPath);
-            } elseif (File::exists($hostAgentsPath)) {
-                $hostContent = (string) File::get($hostAgentsPath);
-                if (trim($hostContent) !== '' && $hostContent !== File::get($stubFullPath)) {
-                    File::put($stubFullPath, $hostContent);
-                }
-                @unlink($hostAgentsPath);
-            }
-
-            $linked = @symlink($relativeLinkTarget, $hostAgentsPath);
-            if ($linked) {
-                $context->recordStep('guidelines', 'linked', "Symlinked AGENTS.md to [{$relativeLinkTarget}].");
-
-                return true;
-            }
-
-            $context->recordStep('guidelines', 'failed', 'Failed to create symlink for AGENTS.md.');
-
-            return false;
+        foreach ($this->action->execute($context->rootPath, $context->isSelf, $context->selfPackagePath, $context->force) as $step) {
+            $context->recordStep('guidelines', $step->status, $step->message);
         }
-
-        // Standard standalone installation
-        if (File::exists($hostAgentsPath) && ! $context->force) {
-            $context->recordStep('guidelines', 'skipped', "AGENTS.md already exists at [{$hostAgentsPath}].");
-
-            return true;
-        }
-
-        if (File::exists($bundledStubPath)) {
-            File::copy($bundledStubPath, $hostAgentsPath);
-            $context->recordStep('guidelines', 'created', 'Created AGENTS.md from bundled guideline stub.');
-
-            return true;
-        }
-
-        $context->recordStep('guidelines', 'failed', "Bundled AGENTS.md.stub not found at [{$bundledStubPath}].");
-
-        return false;
     }
 }

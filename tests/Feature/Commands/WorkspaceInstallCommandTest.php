@@ -11,6 +11,8 @@ class WorkspaceInstallCommandTest extends TestCase
 {
     public function test_workspace_install_initializes_complete_environment(): void
     {
+        config(['workspace.initial_workspaces' => ['my_packages']]);
+
         // Place a dummy CLOUD.md to verify cleanup
         File::put(base_path('CLOUD.md'), '# Obsolete cloud instructions');
 
@@ -20,7 +22,7 @@ class WorkspaceInstallCommandTest extends TestCase
         @unlink(base_path('boost.json'));
         @unlink(base_path('workspace'));
 
-        $this->artisan('workspace:install', ['workspace' => 'my_packages'])
+        $this->artisan('workspace:install')
             ->expectsOutputToContain('Initializing Workspace Development Toolkit...')
             ->expectsOutputToContain('Workspace environment initialized successfully!')
             ->assertSuccessful();
@@ -35,6 +37,43 @@ class WorkspaceInstallCommandTest extends TestCase
         $boostData = json_decode((string) File::get(base_path('boost.json')), true);
         $this->assertFalse($boostData['guidelines']);
         $this->assertContains('alex-kassel/workspace-development-toolkit', $boostData['packages']);
+
+        if (File::isDirectory(base_path('my_packages'))) {
+            File::deleteDirectory(base_path('my_packages'));
+        }
+    }
+
+    public function test_workspace_install_with_zero_initial_workspaces(): void
+    {
+        config(['workspace.initial_workspaces' => []]);
+
+        @unlink(base_path('workspace.json'));
+
+        $this->artisan('workspace:install')
+            ->expectsOutputToContain('zero workspaces')
+            ->assertSuccessful();
+
+        $data = json_decode((string) File::get(base_path('workspace.json')), true);
+        $this->assertNull($data['default']);
+        $this->assertSame([], $data['workspaces']);
+    }
+
+    public function test_workspace_install_with_default_option(): void
+    {
+        config(['workspace.initial_workspaces' => ['pkg_a', 'pkg_b']]);
+
+        @unlink(base_path('workspace.json'));
+
+        $this->artisan('workspace:install', ['--default' => 'pkg_b'])
+            ->assertSuccessful();
+
+        $data = json_decode((string) File::get(base_path('workspace.json')), true);
+        $this->assertSame('pkg_b', $data['default']);
+        $this->assertArrayHasKey('pkg_a', $data['workspaces']);
+        $this->assertArrayHasKey('pkg_b', $data['workspaces']);
+
+        File::deleteDirectory(base_path('pkg_a'));
+        File::deleteDirectory(base_path('pkg_b'));
     }
 
     public function test_workspace_install_with_self_option(): void

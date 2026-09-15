@@ -98,6 +98,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Initial Workspaces
+    |--------------------------------------------------------------------------
+    |
+    | Workspace directories to automatically initialize during `workspace:install`.
+    | Can be defined as an array or comma-separated list via WORKSPACE_INITIAL_WORKSPACES.
+    | When multiple directories are defined, the first one becomes the default.
+    | If null or empty array, the workspace manifest is initialized with zero workspaces.
+    |
+    */
+    'initial_workspaces' => env('WORKSPACE_INITIAL_WORKSPACES') !== null
+        ? array_values(array_filter(array_map('trim', explode(',', (string) env('WORKSPACE_INITIAL_WORKSPACES')))))
+        : ['packages'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Custom Verification Pipeline Checks
     |--------------------------------------------------------------------------
     |

@@ -35,8 +35,8 @@ class WorkspaceProcessorsTest extends TestCase
 
     public function test_setup_manifest_workspace_processor(): void
     {
-        $processor = new SetupManifestWorkspaceProcessor();
-        $context = new WorkspaceContext(rootPath: $this->testDir, defaultWorkspace: 'custom_pkgs');
+        $processor = app(SetupManifestWorkspaceProcessor::class);
+        $context = new WorkspaceContext(rootPath: $this->testDir, workspaces: ['custom_pkgs'], defaultWorkspace: 'custom_pkgs');
 
         $processor->process($context);
 
@@ -49,14 +49,14 @@ class WorkspaceProcessorsTest extends TestCase
         $this->assertSame('custom_pkgs', $data['default']);
 
         // Running again without force should skip
-        $context2 = new WorkspaceContext(rootPath: $this->testDir, defaultWorkspace: 'custom_pkgs');
+        $context2 = new WorkspaceContext(rootPath: $this->testDir, workspaces: ['custom_pkgs'], defaultWorkspace: 'custom_pkgs');
         $processor->process($context2);
         $this->assertSame('skipped', $context2->steps[0]['status']);
     }
 
     public function test_agents_guideline_workspace_processor_standalone(): void
     {
-        $processor = new AgentsGuidelineWorkspaceProcessor();
+        $processor = app(AgentsGuidelineWorkspaceProcessor::class);
         $context = new WorkspaceContext(rootPath: $this->testDir);
 
         $processor->process($context);
@@ -74,7 +74,7 @@ class WorkspaceProcessorsTest extends TestCase
         File::ensureDirectoryExists($pkgFull.'/stubs');
         File::put($pkgFull.'/stubs/AGENTS.md.stub', '# Test Toolkit Rules');
 
-        $processor = new AgentsGuidelineWorkspaceProcessor();
+        $processor = app(AgentsGuidelineWorkspaceProcessor::class);
         $context = new WorkspaceContext(
             rootPath: $this->testDir,
             isSelf: true,
@@ -90,7 +90,7 @@ class WorkspaceProcessorsTest extends TestCase
 
     public function test_boost_config_workspace_processor(): void
     {
-        $processor = new BoostConfigWorkspaceProcessor();
+        $processor = app(BoostConfigWorkspaceProcessor::class);
         $context = new WorkspaceContext(rootPath: $this->testDir);
 
         $processor->process($context);
@@ -115,7 +115,7 @@ class WorkspaceProcessorsTest extends TestCase
 
     public function test_runner_workspace_processor(): void
     {
-        $processor = new RunnerWorkspaceProcessor();
+        $processor = app(RunnerWorkspaceProcessor::class);
         $context = new WorkspaceContext(rootPath: $this->testDir);
 
         $processor->process($context);
@@ -129,7 +129,7 @@ class WorkspaceProcessorsTest extends TestCase
     {
         File::put($this->testDir.'/CLOUD.md', '# Cloud rules');
 
-        $processor = new CleanupArtifactsWorkspaceProcessor();
+        $processor = app(CleanupArtifactsWorkspaceProcessor::class);
         $context = new WorkspaceContext(rootPath: $this->testDir);
 
         $processor->process($context);
@@ -152,7 +152,7 @@ class WorkspaceProcessorsTest extends TestCase
         File::ensureDirectoryExists($hookDir);
         File::put($hookDir.'/post-install.php', '<?php File::put($context->rootPath."/hook_ran.txt", "yes");');
 
-        $processor = new CustomHookWorkspaceProcessor();
+        $processor = app(CustomHookWorkspaceProcessor::class);
         $context = new WorkspaceContext(rootPath: $this->testDir);
 
         $processor->process($context);
