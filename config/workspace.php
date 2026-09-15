@@ -113,6 +113,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Cleanup Files & Directories
+    |--------------------------------------------------------------------------
+    |
+    | Files and directories in the host application root to be cleaned up
+    | during `workspace:install` (unless `--skip-cleanup` is passed).
+    | Can be defined as an array or comma-separated list via WORKSPACE_CLEANUP_FILES.
+    |
+    */
+    'cleanup_files' => env('WORKSPACE_CLEANUP_FILES') !== null
+        ? array_values(array_filter(array_map('trim', explode(',', (string) env('WORKSPACE_CLEANUP_FILES')))))
+        : [
+            'CLOUD.md',
+            '.cloud',
+        ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Custom Verification Pipeline Checks
     |--------------------------------------------------------------------------
     |

@@ -16,12 +16,12 @@ class CleanupArtifactsWorkspaceProcessor extends BaseWorkspaceProcessor
     public function process(WorkspaceContext $context): void
     {
         if ($context->skipCleanup) {
-            $context->recordStep('cleanup', 'skipped', 'Host artifact cleanup skipped by flag.');
+            $context->recordStep('cleanup', 'skipped', 'Artifact cleanup skipped by flag.');
 
             return;
         }
 
-        $filesToClean = (array) config('workspace.cleanup_files', ['CLOUD.md']);
+        $filesToClean = (array) config('workspace.cleanup_files', ['CLOUD.md', '.cloud']);
 
         foreach ($this->action->execute($context->rootPath, $filesToClean) as $step) {
             $context->recordStep('cleanup', $step->status, $step->message);

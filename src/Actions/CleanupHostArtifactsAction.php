@@ -20,15 +20,19 @@ class CleanupHostArtifactsAction extends BaseAction
         foreach ($artifacts as $file) {
             $target = $rootPath.DIRECTORY_SEPARATOR.trim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, (string) $file), DIRECTORY_SEPARATOR);
 
-            if (File::exists($target)) {
+            if (File::isDirectory($target)) {
+                File::deleteDirectory($target);
+                $cleanedCount++;
+                yield ActionStep::cleaned("Removed [{$file}].");
+            } elseif (File::exists($target)) {
                 File::delete($target);
                 $cleanedCount++;
-                yield ActionStep::cleaned("Removed redundant host artifact [{$file}].");
+                yield ActionStep::cleaned("Removed [{$file}].");
             }
         }
 
         if ($cleanedCount === 0) {
-            yield ActionStep::skipped('No redundant host artifacts found.');
+            yield ActionStep::skipped('No specified cleanup artifacts found.');
         }
     }
 }

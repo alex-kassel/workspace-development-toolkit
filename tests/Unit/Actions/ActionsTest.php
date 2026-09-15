@@ -151,15 +151,22 @@ class ActionsTest extends TestCase
     public function test_cleanup_host_artifacts_action(): void
     {
         File::put($this->testDir.'/CLOUD.md', '# Cloud rules');
+        File::ensureDirectoryExists($this->testDir.'/.cloud');
+        File::put($this->testDir.'/.cloud/config.json', '{}');
 
         $action = new CleanupHostArtifactsAction();
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
-            artifacts: ['CLOUD.md'],
+            artifacts: ['CLOUD.md', '.cloud'],
         ));
 
         $this->assertFileDoesNotExist($this->testDir.'/CLOUD.md');
+        $this->assertDirectoryDoesNotExist($this->testDir.'/.cloud');
+        $this->assertCount(2, $steps);
         $this->assertSame('cleaned', $steps[0]->status);
+        $this->assertSame('Removed [CLOUD.md].', $steps[0]->message);
+        $this->assertSame('cleaned', $steps[1]->status);
+        $this->assertSame('Removed [.cloud].', $steps[1]->message);
 
         // Test with non-existent artifacts
         $stepsSkip = iterator_to_array($action->execute(
