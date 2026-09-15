@@ -114,7 +114,10 @@ class ActionsTest extends TestCase
     public function test_setup_boost_config_action_creates_and_updates(): void
     {
         $action = new SetupBoostConfigAction();
-        $steps = iterator_to_array($action->execute(rootPath: $this->testDir));
+        $steps = iterator_to_array($action->execute(
+            rootPath: $this->testDir,
+            packages: ['alex-kassel/workspace-development-toolkit'],
+        ));
 
         $boostFile = $this->testDir.'/boost.json';
         $this->assertFileExists($boostFile);
@@ -150,15 +153,19 @@ class ActionsTest extends TestCase
         File::put($this->testDir.'/CLOUD.md', '# Cloud rules');
 
         $action = new CleanupHostArtifactsAction();
-        $steps = iterator_to_array($action->execute(rootPath: $this->testDir));
+        $steps = iterator_to_array($action->execute(
+            rootPath: $this->testDir,
+            artifacts: ['CLOUD.md'],
+        ));
 
         $this->assertFileDoesNotExist($this->testDir.'/CLOUD.md');
         $this->assertSame('cleaned', $steps[0]->status);
 
-        // Test skip flag
-        File::put($this->testDir.'/CLOUD.md', '# Cloud rules again');
-        $stepsSkip = iterator_to_array($action->execute(rootPath: $this->testDir, skip: true));
-        $this->assertFileExists($this->testDir.'/CLOUD.md');
+        // Test with non-existent artifacts
+        $stepsSkip = iterator_to_array($action->execute(
+            rootPath: $this->testDir,
+            artifacts: ['CLOUD.md'],
+        ));
         $this->assertSame('skipped', $stepsSkip[0]->status);
     }
 
@@ -171,6 +178,7 @@ class ActionsTest extends TestCase
         $action = new RunCustomHookAction();
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
+            candidatePaths: [$hookDir.'/post-install.php'],
             contextVariables: ['rootPath' => $this->testDir],
         ));
 

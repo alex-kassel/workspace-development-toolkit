@@ -17,7 +17,7 @@ class SetupWorkspaceManifestAction extends BaseAction
      */
     public function execute(
         string $rootPath,
-        array $workspaces = [],
+        array $workspaces,
         ?string $defaultWorkspace = null,
         bool $force = false,
     ): Generator {

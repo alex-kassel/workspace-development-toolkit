@@ -14,14 +14,8 @@ class CleanupHostArtifactsAction extends BaseAction
      * @param  array<int, string>  $artifacts
      * @return Generator<int, ActionStep>
      */
-    public function execute(string $rootPath, bool $skip = false, array $artifacts = ['CLOUD.md']): Generator
+    public function execute(string $rootPath, array $artifacts): Generator
     {
-        if ($skip) {
-            yield ActionStep::skipped('Host artifact cleanup skipped by flag.');
-
-            return;
-        }
-
         $cleanedCount = 0;
         foreach ($artifacts as $file) {
             $target = $rootPath.DIRECTORY_SEPARATOR.trim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, (string) $file), DIRECTORY_SEPARATOR);

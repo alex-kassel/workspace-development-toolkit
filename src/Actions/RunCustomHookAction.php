@@ -16,16 +16,9 @@ class RunCustomHookAction extends BaseAction
      * @param  array<string, mixed>  $contextVariables
      * @return Generator<int, ActionStep>
      */
-    public function execute(string $rootPath, array $candidatePaths = [], array $contextVariables = []): Generator
+    public function execute(string $rootPath, array $candidatePaths, array $contextVariables = []): Generator
     {
-        $defaultCandidates = [
-            $rootPath.DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'workspace'.DIRECTORY_SEPARATOR.'hooks'.DIRECTORY_SEPARATOR.'post-install.php',
-            $rootPath.DIRECTORY_SEPARATOR.'.workspace-post-install.php',
-        ];
-
-        $allCandidates = array_values(array_filter([...$candidatePaths, ...$defaultCandidates]));
-
-        foreach ($allCandidates as $candidate) {
+        foreach (array_filter($candidatePaths) as $candidate) {
             if (File::exists($candidate)) {
                 $rel = trim(str_replace($rootPath, '', $candidate), DIRECTORY_SEPARATOR);
 

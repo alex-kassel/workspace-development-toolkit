@@ -37,7 +37,7 @@ class WorkspaceContext
 
     public function workspacePath(?string $workspace = null): ?string
     {
-        $ws = $workspace ?? $this->defaultWorkspace ?? ($this->workspaces[0] ?? null);
+        $ws = $workspace ?? $this->defaultWorkspace;
 
         if ($ws === null) {
             return null;

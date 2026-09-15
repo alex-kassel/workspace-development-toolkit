@@ -18,6 +18,8 @@ class CustomHookWorkspaceProcessor extends BaseWorkspaceProcessor
         $customHookConfig = config('workspace.post_install_hook');
         $candidatePaths = array_values(array_filter([
             $customHookConfig ? (string) $customHookConfig : null,
+            $context->rootPath.DIRECTORY_SEPARATOR.'stubs'.DIRECTORY_SEPARATOR.'workspace'.DIRECTORY_SEPARATOR.'hooks'.DIRECTORY_SEPARATOR.'post-install.php',
+            $context->rootPath.DIRECTORY_SEPARATOR.'.workspace-post-install.php',
         ]));
 
         foreach ($this->action->execute($context->rootPath, $candidatePaths, ['context' => $context]) as $step) {

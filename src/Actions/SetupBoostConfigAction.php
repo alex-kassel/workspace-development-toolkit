@@ -16,7 +16,7 @@ class SetupBoostConfigAction extends BaseAction
      */
     public function execute(
         string $rootPath,
-        array $packages = ['alex-kassel/workspace-development-toolkit'],
+        array $packages,
         bool $force = false,
     ): Generator {
         $boostJsonPath = $rootPath.DIRECTORY_SEPARATOR.'boost.json';
