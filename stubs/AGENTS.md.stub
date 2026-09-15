@@ -19,6 +19,12 @@
   * Stick to the existing directory structure; do not create new base folders without approval.
   * Create documentation files only when explicitly requested by the user.
 
+* **Strict Fallback Encapsulation (Ban on Raw Literal Fallbacks in Code)**:
+  * **Zero Raw Literals in Class Bodies**: NEVER use raw literal strings, integers, or magic values as fallbacks, defaults, or ternary operands inside method bodies or helper calls (e.g. NEVER `?: 'workspace.json'`, NEVER `config('key', 'default_val')`, NEVER `data_get($d, 'k', 42)`).
+  * **Class Constants at the Very Top**: ALL internal fallbacks and default values MUST be defined as explicitly typed class constants at the very top of the class (`public const DEFAULT_FILENAME = 'workspace.json';`, `public const DEFAULT_TIMEOUT = 30;`). Any developer or AI agent opening the class MUST immediately see all default constants declared in one place, allowing a single-line edit to propagate everywhere.
+  * **Self-Documenting Configs vs Zero-Trust Code**: User-facing configuration files may expose sensible, human-readable defaults (e.g. `env('KEY', 'workspace.json')`) so users understand default behavior out of the box. However, internal code MUST NEVER blindly trust config output; it must assume configs can be cleared, deleted, or emptied.
+  * **Just-In-Time Resolution**: Internal fallback constants MUST ONLY be resolved at the last possible moment, immediately before consumption ("served to the table" just-in-time: `$path = config('...') ?: self::DEFAULT_FILENAME`).
+
 ---
 
 ## 2. Architecture & Code Quality
