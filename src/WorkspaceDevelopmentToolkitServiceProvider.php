@@ -55,6 +55,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\IsolatedPackageVerifier;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageAuditor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageGraph;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageMaker;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageVerifier;
@@ -126,6 +127,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(CiMatrixGenerator::class);
         $this->app->singleton(WorkspaceStatusCollector::class);
         $this->app->singleton(WorkspaceInstaller::class);
+        $this->app->singleton(PackageMaker::class);
     }
 
     /**

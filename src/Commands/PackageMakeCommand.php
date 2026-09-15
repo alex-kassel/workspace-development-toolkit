@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Commands;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\PackageContext;
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\DiagnosticSeverity;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ComposerManager;
-use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageScaffolder;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageMaker;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Laravel\Prompts\Prompt;
 
 class PackageMakeCommand extends BasePackageCommand
@@ -42,7 +44,7 @@ class PackageMakeCommand extends BasePackageCommand
     public function __construct(
         WorkspaceManager $workspace,
         ComposerManager $composer,
-        protected readonly PackageScaffolder $scaffolder,
+        protected readonly PackageMaker $maker,
     ) {
         parent::__construct($workspace, $composer);
     }
@@ -100,15 +102,14 @@ class PackageMakeCommand extends BasePackageCommand
                         label: $label,
                         placeholder: $placeholder,
                         required: true,
-                        validate: function (string $value) use ($workspace, $workspaceVendor, $existing) {
+                        validate: function (string $value) use ($workspace, $workspaceVendor, $existing): ?string {
                             $val = trim($value);
                             if ($val === '') {
                                 return 'Package name cannot be empty.';
                             }
 
-                            $validation = $this->workspace->validatePackageName($val, $workspaceVendor);
-                            if (! $validation['isValid']) {
-                                return $validation['error'];
+                            if ($workspaceVendor === null && ! str_contains($val, '/')) {
+                                return "Multi-vendor workspace [{$workspace}] requires vendor/package format (e.g. my-vendor/my-package).";
                             }
 
                             $shortName = str_contains($val, '/') ? explode('/', $val)[1] : $val;
@@ -117,9 +118,7 @@ class PackageMakeCommand extends BasePackageCommand
                                 : base_path("{$workspace}/{$val}");
 
                             if (in_array($val, $existing, true) || in_array($shortName, $existing, true) || File::isDirectory($targetDir)) {
-                                $list = ! empty($existing) ? implode(', ', $existing) : 'none';
-
-                                return "Package [{$val}] already exists in workspace [{$workspace}]. Existing packages: [{$list}]. Please enter a different name.";
+                                return "Package [{$val}] already exists in workspace [{$workspace}].";
                             }
 
                             return null;
@@ -127,15 +126,15 @@ class PackageMakeCommand extends BasePackageCommand
                     );
                 } else {
                     while (true) {
-                        $entered = (string) $this->ask($label);
-                        $val = trim($entered);
+                        $val = trim((string) $this->ask($label));
                         if ($val === '') {
+                            $this->error('Package name cannot be empty.');
+
                             continue;
                         }
 
-                        $validation = $this->workspace->validatePackageName($val, $workspaceVendor);
-                        if (! $validation['isValid']) {
-                            $this->error($validation['error']);
+                        if ($workspaceVendor === null && ! str_contains($val, '/')) {
+                            $this->error("Multi-vendor workspace [{$workspace}] requires vendor/package format (e.g. my-vendor/my-package).");
 
                             continue;
                         }
@@ -178,68 +177,108 @@ class PackageMakeCommand extends BasePackageCommand
                 return self::FAILURE;
             }
         }
+
         $rawAlias = (string) ($this->option('as') ?: $this->option('alias'));
         $alias = trim($rawAlias) !== '' ? trim($rawAlias) : null;
 
         $scaffoldSkills = $this->option('no-skills')
             ? false
-            : ($this->option('skills') || config('workspace.scaffold_agent_skills', true));
+            : ((bool) $this->option('skills') || (bool) config('workspace.scaffold_agent_skills', true));
 
-        $skillSlug = (string) $this->option('skill-name');
+        $skillOption = (string) $this->option('skill-name');
         $rawArchetype = (string) ($this->option('archetype') ?: $this->option('type'));
         $archetype = trim($rawArchetype) !== '' ? trim($rawArchetype) : null;
 
         try {
-            $result = $this->scaffolder->scaffold(
-                workspace: $workspace,
-                rawPackage: $rawPackage,
-                alias: $alias,
-                scaffoldSkills: $scaffoldSkills,
-                skillSlug: $skillSlug !== '' ? $skillSlug : null,
-                archetype: $archetype
-            );
-        } catch (WorkspaceException $e) {
+            $workspaceVendor = $this->workspace->getWorkspaceVendor($workspace);
+            $normalizedInput = str_replace('\\', '/', trim($rawPackage));
+            $validation = $this->workspace->validatePackageName($normalizedInput, $workspaceVendor);
 
+            if (! $validation['isValid']) {
+                $suggestion = $validation['suggestion'] !== null
+                    ? "\n  Did you mean: php artisan package:make {$validation['suggestion']} --workspace={$workspace}"
+                    : '';
+                $this->error(($validation['error'] ?? "Invalid package name [{$rawPackage}].").$suggestion);
+
+                return self::FAILURE;
+            }
+
+            $vendorName = $validation['vendorName'];
+            $packageName = $validation['packageName'];
+            $dirName = $alias ?? ($workspaceVendor !== null ? $packageName : "{$vendorName}/{$packageName}");
+            $relativeTargetPath = "{$workspace}/{$dirName}";
+
+            $skills = [];
+            if ($scaffoldSkills) {
+                $skills = [
+                    $skillOption !== '' ? trim($skillOption) : Str::kebab(str_replace('/', '-', $validation['fullName'])),
+                ];
+            }
+
+            $context = new PackageContext(
+                rootPath: base_path(),
+                workspace: $workspace,
+                vendor: $vendorName,
+                package: $packageName,
+                relativePackagePath: $relativeTargetPath,
+                alias: $alias,
+                archetype: $archetype,
+                install: $install,
+                dev: $dev,
+                scaffoldSkills: $scaffoldSkills,
+                skills: $skills,
+            );
+
+            $this->info("Creating package [{$validation['fullName']}] in [{$relativeTargetPath}]...");
+
+            $result = $this->maker->make($context);
+        } catch (WorkspaceException $e) {
             return $this->handleWorkspaceException($e);
         } catch (\Throwable $e) {
-            $this->error("Failed to scaffold package: {$e->getMessage()}");
+            $this->error("Failed to create package: {$e->getMessage()}");
 
             return self::FAILURE;
         }
 
-        $package = $result->package;
-        $shortName = $result->shortName;
-        $displayPath = $result->displayPath;
+        $hasComposerFailure = false;
+        foreach ($result->steps as $step) {
+            $statusIcon = match ($step['status']) {
+                'created', 'success', 'updated' => '<info>✔</info>',
+                'skipped' => '<comment>⏭</comment>',
+                'failed' => '<error>✖</error>',
+                default => '•',
+            };
 
-        $this->info("Package [{$package}] created successfully in [{$displayPath}].");
+            if ($step['status'] === 'failed' && $step['processor'] === 'composer') {
+                $hasComposerFailure = true;
+            }
+
+            $this->line("  {$statusIcon} [{$step['processor']}] {$step['message']}");
+        }
+
+        $this->newLine();
+        $this->info("Package [{$validation['fullName']}] created successfully in [{$relativeTargetPath}].");
         $this->line('  <info>Git repository initialized with initial commit and tag v0.0.1.</info>');
 
         if ($alias !== null) {
-            $this->warnIfDuplicateAlias($alias, $displayPath, $package);
+            $this->warnIfDuplicateAlias($alias, $relativeTargetPath, $validation['fullName']);
         }
 
-        if ($install) {
+        if ($hasComposerFailure) {
             $this->newLine();
+            $this->warn('Notice: Package scaffolding completed, but automatic Composer installation failed.');
+            $this->line("  Physical files remain intact in [{$relativeTargetPath}].");
+            $this->line('  <comment>How to fix:</comment> Resolve the Composer error shown above, then link the package manually:');
+            $this->line("  <info>php artisan package:install {$packageName}".($dev ? ' --dev' : '').'</info>');
 
-            $exitCode = $this->call('package:install', [
-                'package' => $shortName,
-                '--dev' => $dev,
-            ]);
+            return self::FAILURE;
+        }
 
-            if ($exitCode !== self::SUCCESS) {
-                $this->newLine();
-                $this->warn('Notice: Package scaffolding completed, but automatic Composer installation failed.');
-                $this->line("  Physical files remain intact in [{$displayPath}].");
-                $this->line('  <comment>How to fix:</comment> Resolve the Composer error shown above, then link the package manually:');
-                $this->line("  <info>php artisan package:install {$shortName}".($dev ? ' --dev' : '').'</info>');
-
-                return $exitCode;
-            }
-        } else {
+        if (! $install) {
             $this->newLine();
             $this->line('  <comment>Hint:</comment> To link this package into your application via Composer, run:');
-            $this->line("  <info>php artisan package:install {$shortName}</info>");
-            $this->line("  Or as a dev-dependency: <info>php artisan package:install {$shortName} --dev</info>");
+            $this->line("  <info>php artisan package:install {$packageName}</info>");
+            $this->line("  Or as a dev-dependency: <info>php artisan package:install {$packageName} --dev</info>");
         }
 
         return self::SUCCESS;
