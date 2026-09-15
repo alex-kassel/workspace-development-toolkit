@@ -9,6 +9,9 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidWorkspacePathException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceNotFoundException;
+use AlexKassel\WorkspaceManifest\Exceptions\InvalidWorkspacePathException as ManifestPathException;
+use AlexKassel\WorkspaceManifest\Exceptions\PackageConflictException;
+use AlexKassel\WorkspaceManifest\WorkspaceManifest;
 use Illuminate\Support\Facades\File;
 
 class ManifestRepository
@@ -21,6 +24,21 @@ class ManifestRepository
     protected ?array $cache = null;
 
     protected ?int $cacheMtime = null;
+
+    protected ?WorkspaceManifest $workspaceManifest = null;
+
+    /**
+     * Get underlying WorkspaceManifest instance.
+     */
+    public function manifest(): WorkspaceManifest
+    {
+        $path = $this->workspaceJsonPath();
+        if ($this->workspaceManifest === null || $this->workspaceManifest->manifest()->path !== $path) {
+            $this->workspaceManifest = WorkspaceManifest::open($path);
+        }
+
+        return $this->workspaceManifest;
+    }
 
     /**
      * Get path to workspace.json.
@@ -37,6 +55,9 @@ class ManifestRepository
     {
         $this->cache = null;
         $this->cacheMtime = null;
+        if ($this->workspaceManifest !== null) {
+            $this->workspaceManifest->manifest()->fresh();
+        }
     }
 
     /**
@@ -344,70 +365,13 @@ class ManifestRepository
             throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
         }
 
-        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
-        $newPackages = [];
-
-        $existingSkills = null;
-        $existingUrl = null;
-
-        foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? $item['name'] : (string) $item;
-            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
-
-            if ($existingName === $packageName) {
-                continue;
-            }
-
-            if (strcasecmp($existingName, $alias) === 0) {
-                throw new WorkspaceException(
-                    "Cannot use alias [{$alias}]: it conflicts with the name of existing package [{$existingName}].",
-                    "Choose a different alias or rename the existing package [{$alias}] first."
-                );
-            }
-
-            if ($existingAlias !== null && strcasecmp($existingAlias, $alias) === 0) {
-                throw new WorkspaceException(
-                    "Cannot use alias [{$alias}]: it conflicts with the alias of existing package [{$existingName}].",
-                    "Choose a different alias or rename the existing package [{$existingName}] first."
-                );
-            }
+        try {
+            $resolvedName = $this->resolveStoredPackageName($cleanWorkspace, $packageName);
+            $this->manifest()->registerPackageAlias($cleanWorkspace, $resolvedName, $alias);
+            $this->clearCache();
+        } catch (PackageConflictException $e) {
+            throw new WorkspaceException($e->getMessage(), 'Choose a different alias or rename the existing package first.');
         }
-
-        foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? $item['name'] : (string) $item;
-            if ($existingName === $packageName || $existingName === $alias) {
-                if (is_array($item)) {
-                    $existingSkills = $item['skills'] ?? null;
-                    $existingUrl = $item['url'] ?? null;
-                }
-
-                continue;
-            }
-            $newPackages[] = $item;
-        }
-
-        $entry = [
-            'name' => $packageName,
-            'alias' => $alias,
-        ];
-        if ($existingUrl !== null) {
-            $entry['url'] = $existingUrl;
-        }
-        if (! empty($existingSkills)) {
-            $entry['skills'] = $existingSkills;
-        }
-
-        $newPackages[] = $entry;
-
-        usort($newPackages, function ($a, $b) {
-            $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
-            $nameB = is_array($b) ? ($b['alias'] ?? $b['name']) : $b;
-
-            return strcasecmp($nameA, $nameB);
-        });
-
-        $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
-        $this->save($data);
     }
 
     /**
@@ -424,46 +388,13 @@ class ManifestRepository
             throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
         }
 
-        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
-        $vendor = $data['workspaces'][$cleanWorkspace]['vendor'] ?? null;
-        $newPackages = [];
-        $found = false;
-
-        $targets = [strtolower($packageName)];
-        if ($vendor !== null) {
-            $prefix = strtolower($vendor).'/';
-            if (str_starts_with(strtolower($packageName), $prefix)) {
-                $targets[] = substr(strtolower($packageName), strlen($prefix));
-            } else {
-                $targets[] = strtolower("{$vendor}/{$packageName}");
-            }
-        } elseif (str_contains($packageName, '/')) {
-            [, $shortName] = explode('/', $packageName, 2);
-            $targets[] = strtolower($shortName);
+        $resolvedName = $this->resolveStoredPackageName($cleanWorkspace, $packageName);
+        $removed = $this->manifest()->removePackage($resolvedName, $cleanWorkspace);
+        if ($removed) {
+            $this->clearCache();
         }
 
-        foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? $item['name'] : (string) $item;
-            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
-
-            $isMatch = in_array(strtolower($existingName), $targets, true)
-                || ($existingAlias !== null && in_array(strtolower($existingAlias), $targets, true));
-
-            if ($isMatch) {
-                $found = true;
-
-                continue;
-            }
-
-            $newPackages[] = $item;
-        }
-
-        if ($found) {
-            $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
-            $this->save($data);
-        }
-
-        return $found;
+        return $removed;
     }
 
     /**
@@ -478,80 +409,16 @@ class ManifestRepository
             throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
         }
 
-        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
-        $newPackages = [];
+        try {
+            $resolvedName = $this->resolveStoredPackageName($cleanWorkspace, $packageName);
+            $existing = $this->manifest()->getPackage($resolvedName, $cleanWorkspace);
+            $skills = $existing?->skills ?? [];
 
-        // F-03: Pre-mutation validation for unified namespace
-        foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? $item['name'] : (string) $item;
-            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
-
-            if ($existingName !== $packageName) {
-                if ($existingAlias !== null && strcasecmp($existingAlias, $packageName) === 0) {
-                    throw new WorkspaceException(
-                        "Cannot record package [{$packageName}]: it conflicts with the alias of existing package [{$existingName}].",
-                        'Choose a different package name or update the existing package alias first.'
-                    );
-                }
-
-                if ($alias !== null) {
-                    if (strcasecmp($existingName, $alias) === 0) {
-                        throw new WorkspaceException(
-                            "Cannot use alias [{$alias}]: it conflicts with the name of existing package [{$existingName}].",
-                            "Choose a different alias or rename the existing package [{$alias}] first."
-                        );
-                    }
-
-                    if ($existingAlias !== null && strcasecmp($existingAlias, $alias) === 0) {
-                        throw new WorkspaceException(
-                            "Cannot use alias [{$alias}]: it conflicts with the alias of existing package [{$existingName}].",
-                            'Choose a different alias or update the existing package alias first.'
-                        );
-                    }
-                }
-            }
+            $this->manifest()->addPackage($cleanWorkspace, $resolvedName, $alias, $url, $skills);
+            $this->clearCache();
+        } catch (PackageConflictException $e) {
+            throw new WorkspaceException($e->getMessage(), 'Choose a different package name or alias first.');
         }
-
-        $existingSkills = null;
-
-        foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? $item['name'] : (string) $item;
-            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
-            if ($existingName === $packageName || ($alias !== null && $existingAlias === $alias)) {
-                if (is_array($item)) {
-                    $existingSkills = $item['skills'] ?? null;
-                }
-
-                continue;
-            }
-            $newPackages[] = $item;
-        }
-
-        if ($alias !== null || $url !== null || ! empty($existingSkills)) {
-            $entry = ['name' => $packageName];
-            if ($alias !== null) {
-                $entry['alias'] = $alias;
-            }
-            if ($url !== null) {
-                $entry['url'] = $url;
-            }
-            if (! empty($existingSkills)) {
-                $entry['skills'] = $existingSkills;
-            }
-            $newPackages[] = $entry;
-        } else {
-            $newPackages[] = $packageName;
-        }
-
-        usort($newPackages, function ($a, $b) {
-            $nameA = is_array($a) ? ($a['alias'] ?? $a['name']) : $a;
-            $nameB = is_array($b) ? ($b['alias'] ?? $b['name']) : $b;
-
-            return strcasecmp($nameA, $nameB);
-        });
-
-        $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
-        $this->save($data);
     }
 
     /**
@@ -568,112 +435,40 @@ class ManifestRepository
             throw new WorkspaceNotFoundException($cleanWorkspace, array_keys($data['workspaces']));
         }
 
-        $wsPackages = $data['workspaces'][$cleanWorkspace]['packages'];
-        $vendor = $data['workspaces'][$cleanWorkspace]['vendor'] ?? null;
-        $newPackages = [];
-        $found = false;
+        $resolvedName = $this->resolveStoredPackageName($cleanWorkspace, $packageName);
+        $this->manifest()->updatePackageSkills($cleanWorkspace, $resolvedName, array_values(array_unique($skills)));
+        $this->clearCache();
+    }
 
-        $targets = [strtolower($packageName)];
+    /**
+     * Resolve the stored package entry name in workspace (strip vendor in fixed-vendor workspaces).
+     */
+    protected function resolveStoredPackageName(string $workspace, string $packageName): string
+    {
+        $vendor = $this->getWorkspaceVendor($workspace);
         if ($vendor !== null) {
             $prefix = strtolower($vendor).'/';
             if (str_starts_with(strtolower($packageName), $prefix)) {
-                $targets[] = substr(strtolower($packageName), strlen($prefix));
-            } else {
-                $targets[] = strtolower("{$vendor}/{$packageName}");
-            }
-        } elseif (str_contains($packageName, '/')) {
-            [, $shortName] = explode('/', $packageName, 2);
-            $targets[] = strtolower($shortName);
-        }
-
-        foreach ($wsPackages as $item) {
-            $existingName = is_array($item) ? $item['name'] : (string) $item;
-            $existingAlias = is_array($item) ? ($item['alias'] ?? null) : null;
-
-            $isMatch = in_array(strtolower($existingName), $targets, true)
-                || ($existingAlias !== null && in_array(strtolower($existingAlias), $targets, true));
-
-            if ($isMatch) {
-                $found = true;
-                $entry = is_array($item) ? $item : ['name' => $existingName];
-                if (! empty($skills)) {
-                    $entry['skills'] = array_values(array_unique($skills));
-                } elseif (isset($entry['skills'])) {
-                    unset($entry['skills']);
-                }
-
-                if (count($entry) === 1 && ! isset($entry['alias']) && ! isset($entry['url'])) {
-                    $newPackages[] = $existingName;
-                } else {
-                    $newPackages[] = $entry;
-                }
-            } else {
-                $newPackages[] = $item;
+                return substr($packageName, strlen($prefix));
             }
         }
 
-        if (! $found && ! empty($skills)) {
-            $storeName = ($vendor !== null && str_starts_with(strtolower($packageName), strtolower($vendor).'/'))
-                ? substr($packageName, strlen($vendor) + 1)
-                : $packageName;
-
-            $newPackages[] = [
-                'name' => $storeName,
-                'skills' => array_values(array_unique($skills)),
-            ];
-        }
-
-        $data['workspaces'][$cleanWorkspace]['packages'] = $newPackages;
-        $this->save($data);
+        return $packageName;
     }
 
     /**
      * Normalize and validate workspace path.
+     * Delegates to WorkspaceManifest::normalizeWorkspacePath.
      *
      * @throws InvalidWorkspacePathException
      */
     public function normalizeWorkspacePath(string $path): string
     {
-        $trimmed = trim($path);
-
-        if ($trimmed === '' || $trimmed === '.' || $trimmed === './') {
-            throw new InvalidWorkspacePathException($path, 'Workspace path cannot be empty or root directory.');
+        try {
+            return WorkspaceManifest::normalizeWorkspacePath($path);
+        } catch (ManifestPathException $e) {
+            throw new InvalidWorkspacePathException($e->workspacePath, $e->getMessage());
         }
-
-        $normalized = str_replace('\\', '/', $trimmed);
-
-        if (str_starts_with($normalized, '/') || preg_match('/^[a-zA-Z]:[\\\\\/]/', $trimmed)) {
-            throw new InvalidWorkspacePathException($path, 'Absolute paths are not allowed. Workspace must be a path relative to application root.');
-        }
-
-        $cleanPath = trim(preg_replace('#/+#', '/', $normalized) ?? '', '/');
-        $rawSegments = explode('/', $cleanPath);
-        $segments = [];
-
-        foreach ($rawSegments as $segment) {
-            if ($segment === '' || $segment === '.') {
-                continue;
-            }
-            if ($segment === '..' || str_contains($segment, '..')) {
-                throw new InvalidWorkspacePathException($path, 'Path traversal ("..") is not allowed.');
-            }
-            if (strlen($segment) > 255) {
-                throw new InvalidWorkspacePathException($path, 'Path segment exceeds maximum filesystem length of 255 characters.');
-            }
-            if (! preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9_\-\.]*[a-zA-Z0-9])?$/', $segment)) {
-                throw new InvalidWorkspacePathException(
-                    $path,
-                    "Invalid path segment [{$segment}]. Workspace folder names must start and end with an alphanumeric character and contain only letters, numbers, dashes, underscores, and single dots."
-                );
-            }
-            $segments[] = $segment;
-        }
-
-        if (empty($segments)) {
-            throw new InvalidWorkspacePathException($path, 'Workspace path cannot be empty or root directory.');
-        }
-
-        return implode('/', $segments);
     }
 
     /**
