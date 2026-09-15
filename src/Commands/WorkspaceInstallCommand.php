@@ -65,7 +65,13 @@ class WorkspaceInstallCommand extends BaseCommand
         $packagePath = $this->option('package-path') ? (string) $this->option('package-path') : null;
 
         if ($isSelf && $packagePath === null) {
-            $packagePath = 'packages/alex-kassel/workspace-development-toolkit';
+            $packageDir = realpath(dirname(__DIR__, 2));
+            $basePath = realpath(base_path());
+
+            if ($packageDir && $basePath && str_starts_with($packageDir, $basePath)) {
+                $relative = ltrim(substr($packageDir, strlen($basePath)), DIRECTORY_SEPARATOR);
+                $packagePath = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+            }
         }
 
         $force = (bool) $this->option('force');

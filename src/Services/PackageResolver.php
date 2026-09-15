@@ -549,13 +549,21 @@ class PackageResolver
             }
         }
 
-        // 2. Try composer installed.json in root
+        // 2. Read package's own composer.json
+        $composerJsonPath = "{$packageDir}/composer.json";
+        $pkgName = null;
+        if (File::exists($composerJsonPath)) {
+            $data = json_decode((string) File::get($composerJsonPath), true);
+            $pkgName = $data['name'] ?? null;
+        }
+
+        // 3. Try composer installed.json in root
         $installedJsonPath = base_path('vendor/composer/installed.json');
-        if (File::exists($installedJsonPath)) {
-            $installed = json_decode(File::get($installedJsonPath), true);
+        if ($pkgName !== null && File::exists($installedJsonPath)) {
+            $installed = json_decode((string) File::get($installedJsonPath), true);
             $packages = $installed['packages'] ?? $installed;
             foreach ($packages as $pkg) {
-                if (($pkg['name'] ?? '') === 'alex-kassel/workspace-development-toolkit') {
+                if (($pkg['name'] ?? '') === $pkgName) {
                     $sourceUrl = $pkg['source']['url'] ?? null;
                     if ($sourceUrl) {
                         return $this->formatUrlProtocol($sourceUrl, $useSsh);
@@ -564,17 +572,11 @@ class PackageResolver
             }
         }
 
-        // 3. Fallback to package's own composer.json name on GitHub
-        $composerJsonPath = "{$packageDir}/composer.json";
-        $pkgName = 'alex-kassel/workspace-development-toolkit';
-        if (File::exists($composerJsonPath)) {
-            $data = json_decode(File::get($composerJsonPath), true);
-            $pkgName = $data['name'] ?? $pkgName;
+        if ($pkgName !== null) {
+            return $this->formatUrlProtocol("git@github.com:{$pkgName}.git", $useSsh);
         }
 
-        return $useSsh
-            ? "git@github.com:{$pkgName}.git"
-            : "https://github.com/{$pkgName}.git";
+        throw new \RuntimeException("Unable to resolve package name from [{$composerJsonPath}].");
     }
 
     /**

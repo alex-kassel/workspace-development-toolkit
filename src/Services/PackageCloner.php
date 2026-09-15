@@ -196,7 +196,7 @@ class PackageCloner
     /**
      * Link the host application's AGENTS.md to the local cloned toolkit's stub.
      *
-     * @param  string  $packageRelativePath  Relative path to the cloned package (e.g. packages/alex-kassel/workspace-development-toolkit)
+     * @param  string  $packageRelativePath  Relative path to the cloned package (e.g. packages/vendor/package-name)
      * @return bool True if successfully linked, false if stub was not found or link failed.
      */
     public function linkHostAgentsGuideline(string $packageRelativePath): bool
