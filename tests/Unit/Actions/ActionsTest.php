@@ -177,4 +177,14 @@ class ActionsTest extends TestCase
         $this->assertFileExists($this->testDir.'/hook_ran.txt');
         $this->assertSame('executed', $steps[0]->status);
     }
+
+    public function test_base_action_throws_exception_when_execute_method_is_missing(): void
+    {
+        $anonymousAction = new class extends \AlexKassel\WorkspaceDevelopmentToolkit\Actions\BaseAction {};
+
+        $this->expectException(\AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ActionExecutionException::class);
+        $this->expectExceptionMessage('must implement an execute() generator method');
+
+        $anonymousAction->run();
+    }
 }
