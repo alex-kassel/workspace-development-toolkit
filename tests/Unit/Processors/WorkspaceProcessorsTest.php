@@ -144,6 +144,14 @@ class WorkspaceProcessorsTest extends TestCase
 
         $this->assertFileExists($this->testDir.'/CLOUD.md');
         $this->assertSame('skipped', $contextSkip->steps[0]['status']);
+
+        // Test empty config returns early with skipped step
+        config(['workspace.cleanup_files' => []]);
+        $contextEmpty = new WorkspaceContext(rootPath: $this->testDir);
+        $processor->process($contextEmpty);
+        $this->assertSame('skipped', $contextEmpty->steps[0]['status']);
+        $this->assertSame('No cleanup files configured.', $contextEmpty->steps[0]['message']);
+        @unlink($this->testDir.'/CLOUD.md');
     }
 
     public function test_custom_hook_workspace_processor(): void

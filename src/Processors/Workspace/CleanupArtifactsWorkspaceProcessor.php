@@ -21,7 +21,13 @@ class CleanupArtifactsWorkspaceProcessor extends BaseWorkspaceProcessor
             return;
         }
 
-        $filesToClean = (array) config('workspace.cleanup_files', ['CLOUD.md', '.cloud']);
+        $filesToClean = (array) config('workspace.cleanup_files', []);
+
+        if (empty($filesToClean)) {
+            $context->recordStep('cleanup', 'skipped', 'No cleanup files configured.');
+
+            return;
+        }
 
         foreach ($this->action->execute($context->rootPath, $filesToClean) as $step) {
             $context->recordStep('cleanup', $step->status, $step->message);
