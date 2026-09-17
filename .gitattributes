@@ -6,3 +6,4 @@
 /phpunit.xml.dist export-ignore
 /.audit export-ignore
 /.phpunit.result.cache export-ignore
+/.dev export-ignore
