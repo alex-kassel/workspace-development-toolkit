@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Feature;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Actions\PublishWorkspaceRunnerAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\CheckResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
@@ -24,11 +25,11 @@ final class AuditFindingsRegressionTest extends TestCase
 {
     public function test_f02_standalone_rejects_option_from_url_and_template(): void
     {
-        $stub = dirname(__DIR__, 2).'/stubs/workspace.stub';
+        $action = new PublishWorkspaceRunnerAction;
         foreach (['url', 'template'] as $source) {
             $dir = base_path($source);
             File::ensureDirectoryExists($dir);
-            File::copy($stub, $dir.'/workspace');
+            iterator_to_array($action->execute(rootPath: $dir, force: true));
             $entry = ['name' => 'acme/one'];
             $manifest = ['repository_template' => 'https://example.invalid/{package}', 'workspaces' => ['packages' => ['vendor' => null, 'packages' => [$entry]]]];
             if ($source === 'url') {
@@ -50,8 +51,8 @@ final class AuditFindingsRegressionTest extends TestCase
         if (PHP_OS_FAMILY !== 'Windows') {
             $this->markTestSkipped('Windows command boundary test');
         }
-        $stub = dirname(__DIR__, 2).'/stubs/workspace.stub';
-        File::copy($stub, base_path('workspace'));
+        $action = new PublishWorkspaceRunnerAction;
+        iterator_to_array($action->execute(rootPath: base_path(), force: true));
         File::put(base_path('git.bat'), "@echo off\r\necho %*>>arguments.txt\r\nexit /b 1\r\n");
         $urls = ['https://example.invalid/a', 'http://example.invalid/a', 'git@example.invalid:a/b', 'ssh://example.invalid/a', 'git://example.invalid/a'];
         $entries = [];

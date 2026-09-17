@@ -148,6 +148,15 @@ class ActionsTest extends TestCase
         $runner = $this->testDir.'/workspace';
         $this->assertFileExists($runner);
         $this->assertSame('created', $steps[0]->status);
+
+        $content = File::get($runner);
+        $this->assertStringContainsString('workspace.json', $content);
+        $this->assertStringNotContainsString('{{ manifestPath }}', $content);
+        $this->assertStringNotContainsString('{{ runnerName }}', $content);
+
+        // Second call without force should be skipped
+        $stepsSecond = iterator_to_array($action->execute(rootPath: $this->testDir));
+        $this->assertSame('skipped', $stepsSecond[0]->status);
     }
 
     public function test_cleanup_host_artifacts_action(): void
