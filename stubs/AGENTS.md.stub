@@ -14,16 +14,29 @@
   * While conversational pair-programming with the user is in Russian, ALL repository artifacts, code, comments, PHPDoc blocks, Git commits, PR descriptions, test names, skills, CLI output/prompts, exceptions, and markdown documentation that enter version control or GitHub MUST BE 100% STRICTLY IN ENGLISH.
   * Zero Cyrillic or non-English text is permitted anywhere in repository code, skills, or documentation.
 
-* **Dependencies & Directory Discipline**:
-  * Never install or change Composer/NPM dependencies without explicit user approval.
-  * Stick to the existing directory structure; do not create new base folders without approval.
-  * Create documentation files only when explicitly requested by the user.
+* **Dependencies & Ecosystem Libraries (Prefer Battle-Tested Packages Over Homegrown Wheels)**:
+  * **Leverage Established Libraries**: If a mature, well-tested third-party package exists to solve a specialized domain problem (e.g., JSON Schema generation, advanced object hydration, OpenAPI), STRONGLY PREFER adopting that battle-tested package. NEVER avoid external dependencies at the expense of writing, maintaining, or defending brittle homegrown plumbing or "not-invented-here" wheels.
+  * **Explicit User Approval**: Always consult the user and obtain explicit approval before installing or modifying Composer/NPM dependencies (never install or modify dependencies autonomously).
+  * **Directory & File Discipline**: Stick to the existing directory structure; do not create new base folders without approval. Create documentation files only when explicitly requested by the user.
 
-* **Strict Fallback Encapsulation (Ban on Raw Literal Fallbacks in Code)**:
-  * **Zero Raw Literals in Class Bodies**: NEVER use raw literal strings, integers, or magic values as fallbacks, defaults, or ternary operands inside method bodies or helper calls (e.g. NEVER `?: 'workspace.json'`, NEVER `config('key', 'default_val')`, NEVER `data_get($d, 'k', 42)`).
-  * **Class Constants at the Very Top**: ALL internal fallbacks and default values MUST be defined as explicitly typed class constants at the very top of the class (`public const DEFAULT_FILENAME = 'workspace.json';`, `public const DEFAULT_TIMEOUT = 30;`). Any developer or AI agent opening the class MUST immediately see all default constants declared in one place, allowing a single-line edit to propagate everywhere.
+* **Strict Fallback Encapsulation (Ban on Hardcoded Magic Values & Sensible Constants)**:
+  * **Domain & Config Fallbacks as Typed Constants**: Configuration defaults, filenames, time intervals, TTLs, and magic numbers MUST be declared as explicitly typed class constants at the top of the class (`public const DEFAULT_FILENAME = 'workspace.json';`, `public const DEFAULT_TIMEOUT = 30;`). NEVER hardcode magic domain strings or numbers deep inside method bodies (e.g. NEVER `?: 'workspace.json'`, NEVER `config('key', 'default_val')`).
+  * **Zero Constantitis on PHP Syntax & UI Text**: Pure PHP structural primitives (`[]`, `''`, `0`, `null`, `false`), standard POSIX formatting characters (`"\n"`), inline string glue (`', '`, `': '`), and routine CLI messages / table headers are natural language and syntax — they MUST NOT be converted into class constants. Class constants are reserved for configurable domain/operational values, not language syntax.
   * **Self-Documenting Configs vs Zero-Trust Code**: User-facing configuration files may expose sensible, human-readable defaults (e.g. `env('KEY', 'workspace.json')`) so users understand default behavior out of the box. However, internal code MUST NEVER blindly trust config output; it must assume configs can be cleared, deleted, or emptied.
   * **Just-In-Time Resolution**: Internal fallback constants MUST ONLY be resolved at the last possible moment, immediately before consumption ("served to the table" just-in-time: `$path = config('...') ?: self::DEFAULT_FILENAME`).
+
+* **Strict Laravel-First Philosophy (Absolute Ban on Reinventing Framework Wheels)**:
+  * **Zero Raw Low-Level Workarounds**: NEVER write custom low-level PHP plumbing (e.g. raw `fopen`, `flock`, `fwrite`, `rename`, `sys_get_temp_dir()`, custom file lock managers, home-grown feature flag flags, or custom process pipes) when Laravel provides official, first-party tested tools.
+  * **Leverage Laravel's Battle-Tested Tooling**:
+    * Filesystem & Atomic operations: Use `Illuminate\Filesystem\Filesystem` (`File::replace()`, `File::sharedGet()`, `File::json(..., lock: true)`).
+    * Process concurrency & mutual exclusion: Use Laravel Atomic Locks (`Cache::lock()->block()`, `LockProvider`) with automatic TTL, owner isolation, and timeout guarantees.
+    * Feature flags & toggles: Use **Laravel Pennant** (`Feature::active()`, scopes) instead of ad-hoc config flags or custom boolean checks.
+    * Subprocesses & CLI execution: Use Laravel's `Process` facade (`Process::run()`, `Process::pool()`).
+    * Timing & Delays: Use `Illuminate\Support\Sleep` for testable sleep/usleep pauses.
+  * **Framework-First Investigation**: Before writing ANY utility, driver, or operational helper, agents MUST thoroughly inspect Laravel documentation and framework source code (`vendor/laravel/framework`). Reinventing native framework capabilities is considered a severe architectural defect.
+  * **Proactive Debt Detection & Immediate Refactoring Alerts**:
+    * Legacy or unrefined code in this repository frequently contains non-idiomatic workarounds, raw PHP plumbing, or anti-patterns written before this standard was strictly enforced.
+    * Whenever an agent touches, inspects, or works near any code that violates Laravel-first principles, the agent MUST immediately flag the dirty code to the user, explain why it violates framework best practices, and propose an explicit refactoring plan. Never silently leave non-idiomatic code untouched when working in that area.
 
 ---
 
