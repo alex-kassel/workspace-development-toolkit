@@ -37,7 +37,7 @@ class WorkspaceDefaultCommand extends BaseWorkspaceCommand
         try {
             $this->workspace->setDefault($path);
         } catch (WorkspaceNotFoundException $e) {
-            if ($this->input->isInteractive() && @stream_isatty(STDIN) && ! empty($e->available)) {
+            if ($this->isInteractive() && ! empty($e->available)) {
                 try {
                     $usePrompt = class_exists(Prompt::class);
                     $confirm = $usePrompt

@@ -45,7 +45,7 @@ class WorkspaceFlattenCommand extends BaseWorkspaceCommand
         }
 
         $rawVendor = trim((string) $this->argument('vendor'));
-        $isInteractive = $this->input->isInteractive() && @stream_isatty(STDIN);
+        $isInteractive = $this->isInteractive();
 
         if ($rawVendor === '') {
             if ($isInteractive && class_exists(Prompt::class)) {

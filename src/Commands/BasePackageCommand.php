@@ -17,7 +17,7 @@ abstract class BasePackageCommand extends BaseCommand
     {
         $package = trim((string) $this->argument('package'));
 
-        if ($package === '' && $this->input->isInteractive() && @stream_isatty(STDIN)) {
+        if ($package === '' && $this->isInteractive()) {
             $defaultPrompt = 'Please enter the package name (format: vendor/package, e.g. acme/my-pkg):';
             $package = trim((string) $this->ask($prompt ?? $defaultPrompt));
         }

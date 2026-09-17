@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Exceptions;
 
 use AlexKassel\WorkspaceDevelopmentToolkit\Enums\DiagnosticSeverity;
+use AlexKassel\WorkspaceManifest\Exceptions\WorkspaceManifestException;
 use RuntimeException;
 use Throwable;
 
-class WorkspaceException extends RuntimeException
+class WorkspaceException extends RuntimeException implements WorkspaceManifestException
 {
     public function __construct(
         string $message,

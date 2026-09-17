@@ -25,7 +25,9 @@ class ManifestRepository
 
     protected ?int $cacheMtime = null;
 
-    protected ?WorkspaceManifest $workspaceManifest = null;
+    public function __construct(
+        protected ?WorkspaceManifest $workspaceManifest = null
+    ) {}
 
     /**
      * Get underlying WorkspaceManifest instance.
@@ -34,7 +36,9 @@ class ManifestRepository
     {
         $path = $this->workspaceJsonPath();
         if ($this->workspaceManifest === null || $this->workspaceManifest->manifest()->path !== $path) {
-            $this->workspaceManifest = WorkspaceManifest::open($path);
+            $this->workspaceManifest = app()->bound(WorkspaceManifest::class) && app(WorkspaceManifest::class)->manifest()->path === $path
+                ? app(WorkspaceManifest::class)
+                : WorkspaceManifest::open($path);
         }
 
         return $this->workspaceManifest;
@@ -56,7 +60,7 @@ class ManifestRepository
         $this->cache = null;
         $this->cacheMtime = null;
         if ($this->workspaceManifest !== null) {
-            $this->workspaceManifest->manifest()->fresh();
+            $this->workspaceManifest->clearCache();
         }
     }
 
@@ -184,6 +188,9 @@ class ManifestRepository
         File::put($path, $json, true);
         $this->cache = $data;
         $this->cacheMtime = File::exists($path) ? File::lastModified($path) : null;
+        if ($this->workspaceManifest !== null) {
+            $this->workspaceManifest->clearCache();
+        }
     }
 
     /**
@@ -201,7 +208,7 @@ class ManifestRepository
      */
     public function getDefault(): ?string
     {
-        return $this->load()['default'] ?? null;
+        return $this->manifest()->getDefaultWorkspace();
     }
 
     /**
@@ -226,15 +233,14 @@ class ManifestRepository
      */
     public function setDefault(string $workspace): bool
     {
-        $data = $this->load();
         $workspace = $this->normalizeWorkspacePath($workspace);
 
-        if (! array_key_exists($workspace, $data['workspaces'])) {
-            throw new WorkspaceNotFoundException($workspace, array_keys($data['workspaces']));
+        if (! $this->manifest()->hasWorkspace($workspace)) {
+            throw new WorkspaceNotFoundException($workspace, array_keys($this->all()));
         }
 
-        $data['default'] = $workspace;
-        $this->save($data);
+        $this->manifest()->setDefaultWorkspace($workspace);
+        $this->clearCache();
 
         return true;
     }
@@ -249,24 +255,12 @@ class ManifestRepository
         $cleanPath = $this->normalizeWorkspacePath($path);
         $cleanVendor = $vendor !== null ? strtolower(trim($vendor)) : null;
 
-        $data = $this->load();
-
-        if (array_key_exists($cleanPath, $data['workspaces'])) {
+        if ($this->manifest()->hasWorkspace($cleanPath)) {
             return false;
         }
 
-        $data['workspaces'][$cleanPath] = [
-            'vendor' => $cleanVendor,
-            'packages' => [],
-        ];
-
-        ksort($data['workspaces']);
-
-        if ($asDefault || $data['default'] === null) {
-            $data['default'] = $cleanPath;
-        }
-
-        $this->save($data);
+        $this->manifest()->registerWorkspace($cleanPath, $cleanVendor, $asDefault);
+        $this->clearCache();
 
         return true;
     }
@@ -279,19 +273,13 @@ class ManifestRepository
     public function remove(string $path): bool
     {
         $cleanPath = $this->normalizeWorkspacePath($path);
-        $data = $this->load();
 
-        if (! array_key_exists($cleanPath, $data['workspaces'])) {
-            throw new WorkspaceNotFoundException($cleanPath, array_keys($data['workspaces']));
+        if (! $this->manifest()->hasWorkspace($cleanPath)) {
+            throw new WorkspaceNotFoundException($cleanPath, array_keys($this->all()));
         }
 
-        unset($data['workspaces'][$cleanPath]);
-
-        if ($data['default'] === $cleanPath) {
-            $data['default'] = array_key_first($data['workspaces']) ?? null;
-        }
-
-        $this->save($data);
+        $this->manifest()->removeWorkspace($cleanPath);
+        $this->clearCache();
 
         return true;
     }
@@ -302,9 +290,8 @@ class ManifestRepository
     public function getWorkspaceVendor(string $workspace): ?string
     {
         $cleanPath = $this->normalizeWorkspacePath($workspace);
-        $workspaces = $this->all();
 
-        return $workspaces[$cleanPath]['vendor'] ?? null;
+        return $this->manifest()->getWorkspace($cleanPath)?->vendor;
     }
 
     /**
@@ -317,14 +304,12 @@ class ManifestRepository
         $cleanPath = $this->normalizeWorkspacePath($workspace);
         $cleanVendor = $vendor !== null ? strtolower(trim($vendor)) : null;
 
-        $data = $this->load();
-
-        if (! array_key_exists($cleanPath, $data['workspaces'])) {
-            throw new WorkspaceNotFoundException($cleanPath, array_keys($data['workspaces']));
+        if (! $this->manifest()->hasWorkspace($cleanPath)) {
+            throw new WorkspaceNotFoundException($cleanPath, array_keys($this->all()));
         }
 
-        $data['workspaces'][$cleanPath]['vendor'] = $cleanVendor;
-        $this->save($data);
+        $this->manifest()->setWorkspaceVendor($cleanPath, $cleanVendor);
+        $this->clearCache();
 
         return true;
     }
@@ -334,11 +319,13 @@ class ManifestRepository
      */
     public function getRepositoryTemplate(): string
     {
-        $data = $this->load();
-        $configured = (string) config('workspace.repository_url_template', 'git@github.com:{package}.git');
-        $default = trim($configured) !== '' ? trim($configured) : 'git@github.com:{package}.git';
+        $template = $this->manifest()->getRepositoryUrlTemplate();
+        $configured = (string) config('workspace.repository_url_template');
+        if (trim($configured) !== '' && ($template === WorkspaceManifest::DEFAULT_REPOSITORY_URL_TEMPLATE || ! File::exists($this->workspaceJsonPath()))) {
+            return trim($configured);
+        }
 
-        return $data['repository_url_template'] ?? $data['repository_template'] ?? $default;
+        return $template;
     }
 
     /**
@@ -346,9 +333,8 @@ class ManifestRepository
      */
     public function setRepositoryTemplate(string $template): bool
     {
-        $data = $this->load();
-        $data['repository_url_template'] = trim($template);
-        $this->save($data);
+        $this->manifest()->setRepositoryUrlTemplate(trim($template));
+        $this->clearCache();
 
         return true;
     }
@@ -412,7 +398,7 @@ class ManifestRepository
         try {
             $resolvedName = $this->resolveStoredPackageName($cleanWorkspace, $packageName);
             $existing = $this->manifest()->getPackage($resolvedName, $cleanWorkspace);
-            $skills = $existing?->skills ?? [];
+            $skills = $existing !== null ? $existing->skills : [];
 
             $this->manifest()->addPackage($cleanWorkspace, $resolvedName, $alias, $url, $skills);
             $this->clearCache();

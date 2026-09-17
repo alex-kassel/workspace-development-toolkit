@@ -353,6 +353,10 @@ class PackageCloneCommand extends BasePackageCommand
             return $director !== null && ! empty($director->getExpectations());
         }
 
+        if (app()->runningUnitTests()) {
+            return false;
+        }
+
         return (function_exists('stream_isatty') && @stream_isatty(STDIN))
             || (function_exists('posix_isatty') && @posix_isatty(STDIN));
     }

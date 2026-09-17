@@ -41,7 +41,7 @@ class WorkspaceUnregisterCommand extends BaseWorkspaceCommand
         if (! array_key_exists($path, $this->workspace->all())) {
             $exception = new WorkspaceNotFoundException($path, array_keys($this->workspace->all()));
 
-            if ($this->input->isInteractive() && @stream_isatty(STDIN) && ! empty($exception->available)) {
+            if ($this->isInteractive() && ! empty($exception->available)) {
                 try {
                     $usePrompt = class_exists(Prompt::class);
                     $confirm = $usePrompt
@@ -69,7 +69,7 @@ class WorkspaceUnregisterCommand extends BaseWorkspaceCommand
         $detach = (bool) $this->option('detach');
         $purge = (bool) $this->option('purge');
         $force = (bool) $this->option('force');
-        $isInteractive = $this->input->isInteractive() && @stream_isatty(STDIN);
+        $isInteractive = $this->isInteractive();
 
         if (! empty($activePackages) && ! $detach && ! $purge) {
             if ($isInteractive) {

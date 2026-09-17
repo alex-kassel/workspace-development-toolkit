@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupAgentsGuidelineAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\GitDiagnosticResult;
 use Closure;
 use Illuminate\Support\Facades\File;
@@ -201,7 +202,7 @@ class PackageCloner
      */
     public function linkHostAgentsGuideline(string $packageRelativePath): bool
     {
-        $action = app(\AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupAgentsGuidelineAction::class);
+        $action = app(SetupAgentsGuidelineAction::class);
         $success = true;
 
         foreach ($action->execute(rootPath: base_path(), isSelf: true, selfPackagePath: $packageRelativePath) as $step) {

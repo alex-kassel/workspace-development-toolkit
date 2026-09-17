@@ -22,7 +22,7 @@ abstract class BaseWorkspaceCommand extends BaseCommand
             $workspaces = $this->workspace->all();
             $available = array_keys($workspaces);
 
-            if ($this->input->isInteractive() && @stream_isatty(STDIN)) {
+            if ($this->isInteractive()) {
                 try {
                     if ($mustExist && ! empty($available)) {
                         $usePrompt = class_exists(Prompt::class);

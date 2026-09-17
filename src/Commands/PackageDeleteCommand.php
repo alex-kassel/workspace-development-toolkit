@@ -53,7 +53,7 @@ class PackageDeleteCommand extends BasePackageCommand
             return self::FAILURE;
         }
 
-        $isInteractive = $this->input->isInteractive() && @stream_isatty(STDIN);
+        $isInteractive = $this->isInteractive();
         if (! $force && $isInteractive) {
             $usePrompt = class_exists(Prompt::class);
             $confirm = $usePrompt

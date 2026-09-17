@@ -89,7 +89,7 @@ class PackageMakeCommand extends BasePackageCommand
                 $this->workspace->all()[$workspace]['packages'] ?? []
             );
 
-            if ($this->input->isInteractive() && @stream_isatty(STDIN)) {
+            if ($this->isInteractive()) {
                 $label = $workspaceVendor !== null
                     ? "Enter package name for [{$workspace}] (default vendor: {$workspaceVendor}):"
                     : "Enter package name with vendor for [{$workspace}] (e.g. vendor/my-package):";

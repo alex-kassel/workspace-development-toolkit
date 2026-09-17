@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Tests\Unit\Actions;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Actions\BaseAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\Actions\CleanupHostArtifactsAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\Actions\PublishWorkspaceRunnerAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\Actions\RunCustomHookAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupAgentsGuidelineAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupBoostConfigAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\Actions\SetupWorkspaceManifestAction;
+use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ActionExecutionException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Tests\TestCase;
 use Illuminate\Support\Facades\File;
 
@@ -34,7 +36,7 @@ class ActionsTest extends TestCase
 
     public function test_setup_workspace_manifest_action_with_multiple_workspaces(): void
     {
-        $action = new SetupWorkspaceManifestAction();
+        $action = new SetupWorkspaceManifestAction;
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
             workspaces: ['packages', 'modules'],
@@ -56,7 +58,7 @@ class ActionsTest extends TestCase
 
     public function test_setup_workspace_manifest_action_with_zero_workspaces(): void
     {
-        $action = new SetupWorkspaceManifestAction();
+        $action = new SetupWorkspaceManifestAction;
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
             workspaces: [],
@@ -75,7 +77,7 @@ class ActionsTest extends TestCase
 
     public function test_setup_workspace_manifest_action_run_eagerly(): void
     {
-        $action = new SetupWorkspaceManifestAction();
+        $action = new SetupWorkspaceManifestAction;
         $action->run($this->testDir, ['packages']);
 
         $this->assertFileExists($this->testDir.'/workspace.json');
@@ -83,7 +85,7 @@ class ActionsTest extends TestCase
 
     public function test_setup_agents_guideline_action_standalone(): void
     {
-        $action = new SetupAgentsGuidelineAction();
+        $action = new SetupAgentsGuidelineAction;
         $steps = iterator_to_array($action->execute(rootPath: $this->testDir));
 
         $agentsFile = $this->testDir.'/AGENTS.md';
@@ -99,7 +101,7 @@ class ActionsTest extends TestCase
         File::ensureDirectoryExists($pkgFull.'/stubs');
         File::put($pkgFull.'/stubs/AGENTS.md.stub', '# Test Toolkit Rules');
 
-        $action = new SetupAgentsGuidelineAction();
+        $action = new SetupAgentsGuidelineAction;
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
             isSelf: true,
@@ -113,7 +115,7 @@ class ActionsTest extends TestCase
 
     public function test_setup_boost_config_action_creates_and_updates(): void
     {
-        $action = new SetupBoostConfigAction();
+        $action = new SetupBoostConfigAction;
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
             packages: ['alex-kassel/workspace-development-toolkit'],
@@ -140,7 +142,7 @@ class ActionsTest extends TestCase
 
     public function test_publish_workspace_runner_action(): void
     {
-        $action = new PublishWorkspaceRunnerAction();
+        $action = new PublishWorkspaceRunnerAction;
         $steps = iterator_to_array($action->execute(rootPath: $this->testDir));
 
         $runner = $this->testDir.'/workspace';
@@ -154,7 +156,7 @@ class ActionsTest extends TestCase
         File::ensureDirectoryExists($this->testDir.'/.cloud');
         File::put($this->testDir.'/.cloud/config.json', '{}');
 
-        $action = new CleanupHostArtifactsAction();
+        $action = new CleanupHostArtifactsAction;
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
             artifacts: ['CLOUD.md', '.cloud'],
@@ -182,7 +184,7 @@ class ActionsTest extends TestCase
         File::ensureDirectoryExists($hookDir);
         File::put($hookDir.'/post-install.php', '<?php File::put($rootPath."/hook_ran.txt", "yes");');
 
-        $action = new RunCustomHookAction();
+        $action = new RunCustomHookAction;
         $steps = iterator_to_array($action->execute(
             rootPath: $this->testDir,
             candidatePaths: [$hookDir.'/post-install.php'],
@@ -195,9 +197,9 @@ class ActionsTest extends TestCase
 
     public function test_base_action_throws_exception_when_execute_method_is_missing(): void
     {
-        $anonymousAction = new class extends \AlexKassel\WorkspaceDevelopmentToolkit\Actions\BaseAction {};
+        $anonymousAction = new class extends BaseAction {};
 
-        $this->expectException(\AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ActionExecutionException::class);
+        $this->expectException(ActionExecutionException::class);
         $this->expectExceptionMessage('must implement an execute() generator method');
 
         $anonymousAction->run();

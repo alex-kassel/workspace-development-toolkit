@@ -11,6 +11,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\ManifestRepository;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\PackageResolver;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\WorkspaceDevelopmentToolkitServiceProvider;
+use AlexKassel\WorkspaceManifest\WorkspaceManifest;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\File;
 
@@ -78,6 +79,7 @@ abstract class TestCase extends BaseTestCase
         $this->app->forgetInstance(PackageResolver::class);
         $this->app->forgetInstance(PackageGraph::class);
         $this->app->forgetInstance(WorkspaceManager::class);
+        $this->app->forgetInstance(WorkspaceManifest::class);
         Workspace::clearResolvedInstances();
     }
 
@@ -91,6 +93,7 @@ abstract class TestCase extends BaseTestCase
         $this->app->forgetInstance(PackageResolver::class);
         $this->app->forgetInstance(PackageGraph::class);
         $this->app->forgetInstance(WorkspaceManager::class);
+        $this->app->forgetInstance(WorkspaceManifest::class);
         Workspace::clearResolvedInstances();
 
         if (isset($this->tempDir) && File::isDirectory($this->tempDir)) {

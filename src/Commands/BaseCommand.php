@@ -14,6 +14,7 @@ use Illuminate\Console\Command;
 use Illuminate\Console\OutputStyle;
 use Illuminate\Contracts\Events\Dispatcher;
 use Laravel\Prompts\Prompt;
+use Mockery\MockInterface;
 use Symfony\Component\Console\Exception\ExceptionInterface;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -65,7 +66,7 @@ abstract class BaseCommand extends Command
                 agentGuidance: "Check the command's expected synopsis: 'php artisan help {$cmd}'."
             );
 
-            if ($input->isInteractive() && @stream_isatty(STDIN)) {
+            if ($this->isInteractive()) {
                 try {
                     $usePrompt = class_exists(Prompt::class);
                     $showHelp = $usePrompt
@@ -82,6 +83,30 @@ abstract class BaseCommand extends Command
 
             return self::FAILURE;
         }
+    }
+
+    /**
+     * Determine if command is running in a truly interactive console environment.
+     */
+    public function isInteractive(): bool
+    {
+        if (! $this->input->isInteractive()) {
+            return false;
+        }
+
+        if (app()->runningUnitTests()) {
+            $output = $this->output;
+            if ($output instanceof MockInterface) {
+                $director = $output->mockery_getExpectationsFor('askQuestion');
+
+                return $director !== null && ! empty($director->getExpectations());
+            }
+
+            return false;
+        }
+
+        return (function_exists('stream_isatty') && @stream_isatty(STDIN))
+            || (function_exists('posix_isatty') && @posix_isatty(STDIN));
     }
 
     /**

@@ -7,12 +7,8 @@ namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ScaffoldResult;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\WorkspaceException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Facades\Workspace;
-use FilesystemIterator;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 
 class PackageScaffolder
 {
