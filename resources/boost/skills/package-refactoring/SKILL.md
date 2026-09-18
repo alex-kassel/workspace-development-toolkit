@@ -177,8 +177,16 @@ Instead of immediately jumping into the main entry point or largest service, ins
        Consumers interact directly (`$manager->registry->has(...)`), eliminating 50% of boilerplate code.
    - **No Redundant Base Path Parameters**:
      - Do not thread `$basePath` arguments through methods when standard files are inherently anchored to Laravel's `base_path()`.
-   - **Single Decisive Retrieval Method (`get()`)**:
-     - Do not proliferate speculative duplicate retrieval methods (`find()` returning `null` vs `get()` throwing). Provide a single decisive `get(string $name)` that fails with a typed `NotFoundException`. Existence checks belong on the registry (`$manager->registry->has($name)`).
+   - **Polymorphic Entry Point (`open()`) Over Proliferated Accessors**:
+     - Do not maintain redundant split accessors like `get('alias')`, `find('alias')`, and `open('path')`.
+     - Unify into a single, intuitive `open(string $target, ?Schema $schema = null)`:
+       - If `$target` matches a registered alias in the Registry, resolve its definition and schema.
+       - Otherwise, treat `$target` as a direct file path.
+       - If an unregistered target is not a resolvable path or file is missing, fail decisively with a typed exception.
+   - **Manager as a Stability Shield & Fluent Gateway**:
+     - The Manager serves as the primary coordination boundary (often exposed via a Facade).
+     - Retaining a fluent `register(Definition $def): self` proxy on the Manager allows seamless setup chains (`$manager->register(...)->register(...)->open(...)`) while still keeping `$manager->registry` exposed as `public readonly` for direct queries.
+     - Keeping the Manager slim isolates downstream consumer packages from direct structural dependency on the underlying heavy domain models (like `Manifest.php`), preventing breaking cascading changes during internal engine refactoring.
 
 ---
 
