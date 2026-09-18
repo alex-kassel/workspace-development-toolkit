@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Actions;
 
-use AlexKassel\StubEngine\Services\StubEngine;
+use AlexKassel\StubEngine\StubEngine;
 use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\ActionStep;
 use AlexKassel\WorkspaceManifest\WorkspaceManifest;
 use Generator;
@@ -23,7 +23,7 @@ class PublishWorkspaceRunnerAction extends BaseAction
     public const TOKEN_RUNNER_NAME = '{{ runnerName }}';
 
     public function __construct(
-        protected readonly StubEngine $stubEngine = new StubEngine,
+        protected readonly ?StubEngine $stubEngine = null,
     ) {}
 
     /**
@@ -50,18 +50,19 @@ class PublishWorkspaceRunnerAction extends BaseAction
             return;
         }
 
-        $created = $this->stubEngine->scaffoldFile(
-            sourceFile: $sourceStub,
-            targetFile: $targetRunner,
-            tokens: [
+        $engine = $this->stubEngine ?? app(StubEngine::class);
+
+        $result = $engine->from($sourceStub)
+            ->to($targetRunner)
+            ->withTokens([
                 self::TOKEN_MANIFEST_PATH => $manifestFilename,
                 self::TOKEN_RUNNER_NAME => $runnerName,
-            ],
-            overrideFile: $overrideStub,
-            force: $force,
-        );
+            ])
+            ->override($overrideStub)
+            ->force($force)
+            ->scaffold();
 
-        if ($created) {
+        if ($result->successful()) {
             @chmod($targetRunner, 0755);
 
             yield ActionStep::created("Published standalone workspace runner to [./{$runnerName}].");
