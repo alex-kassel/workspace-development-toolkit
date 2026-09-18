@@ -17,7 +17,18 @@ This skill provides a rigorous, battle-tested methodology for deep refactoring a
 
 ---
 
-## Refactoring Lifecycle Workflow
+## Non-Negotiable Standards & Code Conventions
+
+### Strict Typing Declaration
+Every PHP file created or refactored (both in `src/` and in `tests/`) **MUST** begin with the strict typing declaration:
+```php
+<?php
+
+declare(strict_types=1);
+```
+No exceptions. This ensures strict scalar type enforcement across all boundaries and prevents subtle implicit type juggling.
+
+---
 
 ```
 [1. Root Hygiene] ➔ [2. Config Audit] ➔ [3. ServiceProvider] ➔ [4. Architecture & SRP] ➔ [5. API Streamlining]
@@ -112,14 +123,62 @@ Whether creating a brand new package or refactoring an existing one, `ServicePro
 
 ---
 
-### Step 4: Architectural Audit & Component Decomposition (SRP)
-*Identify monolithic services and decompose them into dedicated single-responsibility classes.*
-1. **Smell Detection**: Locate classes combining multiple concerns (e.g. filesystem operations + string manipulation + path security + validation).
-2. **Subservice Extraction**: Extract pure, focused components:
-   - Security & Validation (e.g. path traversal guards).
-   - In-memory transformation / parsing (pure logic, no I/O).
-   - I/O & Filesystem workers (isolated side-effects).
-3. **Request/Command DTOs**: Replace parameter lists with immutable, typed Request objects (`ScaffoldRequest`, `ManifestRequest`).
+### Step 4: Root `src/` Audit & Component Decomposition (Bottom-Up Strategy)
+Instead of immediately jumping into the main entry point or largest service, inspect the classes sitting directly in `src/` using a **bottom-up approach**:
+1. **Identify Root Classes**: List all classes located directly under `src/` (not inside nested folders like `Services/`, `DTOs/`, `Console/`).
+2. **Start Small (Low-Coupling Components)**: Begin auditing smaller, independent classes (e.g. `Registry`, `Resolver`, `Store`) before tackling heavy coordinator monoliths (`Manager`, `Engine`).
+3. **Registry & Store Contract Standard**:
+   - **Anti-pattern**: Accepting a sprawling list of loose parameters inside a registry method:
+     ```php
+     // BAD: Registry duplicates DTO constructor arguments
+     public function register(string $name, string $filename, string|Schema $schema, ?string $desc = null, array $meta = []): self
+     {
+         $this->manifests[$name] = new ManifestDefinition($name, $filename, $schema, $desc, $meta);
+         return $this;
+     }
+     ```
+   - **Idiomatic Standard**: Registries must accept typed DTO instances directly:
+     ```php
+     // GOOD: Registry accepts pure typed definition DTO
+     public function register(ManifestDefinition $definition): self
+     {
+         $this->manifests[$definition->name] = $definition;
+         return $this;
+     }
+     ```
+     *Rationale:* The DTO is already responsible for validating and holding its data. The Registry should only be responsible for storage, retrieval, and indexing.
+4. **Use-Case Justification (Universal Package Context)**:
+   - When reviewing registry/store methods, consider universal use cases, not merely immediate local needs:
+     - `register(DTO $definition): self` — Essential.
+     - `get(string $name): ?DTO` — Essential (pure nullable query).
+     - `has(string $name): bool` — Essential (fast existence check).
+     - `all(): array` — Essential (inspection, iteration, CLI commands).
+     - `forget(string $name): self` — Essential for dynamic lifecycle, unregistering plugins, or test teardowns.
+     - `clear(): self` — Useful for resetting state in test suites and long-running workers.
+   - **Rule of Restraint**: Do NOT add speculative methods without concrete, logical necessity. You can always add a method later when a genuine requirement arises. Never bloat early.
+5. **No Raw Array Constructor Injection in Registries**:
+   - **Anti-pattern**: `public function __construct(protected array $items = [])`
+   - **Risk**: PHP cannot enforce inner value types on arrays at runtime (`array<string, Definition>` is only a PHPDoc hint). Accepting a raw array allows invalid, corrupt, or unverified items to bypass type checks and pollute internal state.
+   - **Idiomatic Standard**: Keep internal state unexposed in constructor:
+     ```php
+     protected array $items = [];
+     ```
+     Enforce that all entries enter the registry exclusively through the strictly-typed `register(Definition $item)` method.
+6. **Manager & Coordinator Streamlining**:
+   - **No Trampoline Dependencies**: Do NOT inject a dependency (e.g. `Filesystem`) into a Manager if the Manager never performs operations with it and only forwards it to child constructors. Let child objects resolve dependencies themselves.
+   - **Public Readonly Child Services Over Proxy Methods**:
+     - *Anti-pattern:* Writing forwarding wrapper methods (`has()`, `register()`) and getters (`registry()`) in a parent manager class.
+     - *Idiomatic Standard:* Promote child services to `public readonly`:
+       ```php
+       public function __construct(
+           public readonly ManifestRegistry $registry,
+       ) {}
+       ```
+       Consumers interact directly (`$manager->registry->has(...)`), eliminating 50% of boilerplate code.
+   - **No Redundant Base Path Parameters**:
+     - Do not thread `$basePath` arguments through methods when standard files are inherently anchored to Laravel's `base_path()`.
+   - **Single Decisive Retrieval Method (`get()`)**:
+     - Do not proliferate speculative duplicate retrieval methods (`find()` returning `null` vs `get()` throwing). Provide a single decisive `get(string $name)` that fails with a typed `NotFoundException`. Existence checks belong on the registry (`$manager->registry->has($name)`).
 
 ---
 
