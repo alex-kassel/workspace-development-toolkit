@@ -62,7 +62,7 @@ class PublishWorkspaceRunnerAction extends BaseAction
             ->force($force)
             ->scaffold();
 
-        if ($result->successful()) {
+        if ($result->renderedFiles !== []) {
             @chmod($targetRunner, 0755);
 
             yield ActionStep::created("Published standalone workspace runner to [./{$runnerName}].");
