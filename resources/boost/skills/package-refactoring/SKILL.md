@@ -187,6 +187,25 @@ Instead of immediately jumping into the main entry point or largest service, ins
      - The Manager serves as the primary coordination boundary (often exposed via a Facade).
      - Retaining a fluent `register(Definition $def): self` proxy on the Manager allows seamless setup chains (`$manager->register(...)->register(...)->open(...)`) while still keeping `$manager->registry` exposed as `public readonly` for direct queries.
      - Keeping the Manager slim isolates downstream consumer packages from direct structural dependency on the underlying heavy domain models (like `Manifest.php`), preventing breaking cascading changes during internal engine refactoring.
+7. **Domain Models & Pure Filesystem Facade Standard**:
+   - **No `Filesystem` Constructor DI in Domain Entities**: Never inject `Filesystem` into domain models or state engines (e.g. `Manifest`, `ManifestInspectionService`).
+   - Use Laravel's `File` facade (`Illuminate\Support\Facades\File`) directly. Threading `Filesystem` through constructors creates useless parameter trampolines, complicates instantiation (`new Manifest($path)`), and provides zero real-world test isolation benefit over Laravel's built-in facade mocking.
+8. **Elimination of Fake In-Memory Dirty Tracking**:
+   - **Anti-pattern**: Maintaining an internal `$isDirty` boolean and buffering mutations in memory before a manual `save()` call.
+   - **Risk**: In flat-file state engines with concurrent processes, in-memory dirty tracking creates a false illusion of consistency and invites lost-update race conditions.
+   - **Idiomatic Standard**:
+     - All mutations (`set`, `append`, `forget`, `save`) must delegate directly to an atomic locked transaction (`Cache::lock`) and return the fresh mutated data array immediately.
+     - Eliminate `$isDirty`, `reload()`, and intermediate in-memory mutation states.
+9. **Strict Definition DTOs Over Deferred String Resolvers**:
+   - **Anti-pattern**: Storing relative filenames and class-strings inside definition DTOs (e.g. `filename: 'workspace.json'`, `schema: WorkspaceSchema::class`) and implementing runtime resolution methods like `fullPath()` and `resolveSchema()`.
+   - **Idiomatic Standard**:
+     - Definition DTOs (`ManifestDefinition`) must be `final readonly` and receive fully-resolved, typed values upfront: absolute `path: string` and instantiated `schema: ManifestSchema`.
+     - Instantiating schemas at registration time eliminates container lookups during hot read paths and guarantees schema availability at compile time.
+10. **CQS and First-Class DTO Support in Mutation APIs**:
+    - **Accept `Arrayable` in Save Methods**: Mutation methods like `save(array|Arrayable $data)` must accept `Arrayable` so callers can pass typed DTOs directly without manual `->toArray()` calls.
+    - **Typed DTO Transitions**: Provide symmetric, type-safe DTO methods:
+      - `toDto(class-string<T> $dtoClass): T` for typed hydration.
+      - `mutateDto(class-string<T> $dtoClass, Closure $mutator): T` for typed atomic mutations under locks.
 
 ---
 
