@@ -41,7 +41,10 @@ This skill guides the pre-flight verification, version tagging, and Packagist re
      ```bash
      git pull --rebase origin main
      ```
-   - **Tag Immutability**: Published git tags are strictly immutable (`git push --force` is prohibited).
+   - **Tag Immutability & Packagist Integrity**:
+     - Published git tags are strictly immutable (`git push --force` or tag deletion is strictly prohibited).
+     - Packagist flags altered or moved tags as security manipulation and will ignore or reject the package version.
+     - Any subsequent fix or change requires bumping the patch version (`vX.Y.(Z+1)`).
    - Create annotated tag and push:
      ```bash
      git tag -a vX.Y.Z -m "Release vX.Y.Z"

@@ -33,6 +33,8 @@
 </p>
 
 <p align="center">
+  <!-- Place Audit Verified FIRST if AUDIT.json exists: -->
+  <!-- <a href="AUDIT.json"><img src="https://img.shields.io/badge/Audit-Verified-10b981?logo=shield" alt="Audit Verified"></a> -->
   <a href="https://packagist.org/packages/<vendor>/<package>"><img src="https://img.shields.io/packagist/v/<vendor>/<package>?color=f59e0b&logo=packagist&logoColor=white" alt="Latest Version"></a>
   <a href="https://laravel.com"><img src="https://img.shields.io/badge/Laravel-11%20%7C%2012%20%7C%2013-ff2d20?logo=laravel&logoColor=white" alt="Laravel Support"></a>
   <a href="https://php.net"><img src="https://img.shields.io/badge/PHP-8.2+-777bb4?logo=php&logoColor=white" alt="PHP Support"></a>

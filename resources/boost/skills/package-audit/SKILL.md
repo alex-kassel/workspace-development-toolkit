@@ -74,22 +74,47 @@ php artisan list package:audit
 
 ---
 
-### Phase 2: Remediation, Commit & Cryptographic Certification
+### Phase 2: Remediation, CI Matrix Verification, Commit & Cryptographic Certification
 
 Once the human user confirms and approves the plan:
-1. **Apply Atomic Remediation**:
-   Execute the approved fixes in logical order (Code Quality -> Architecture -> Tests -> Docs).
-2. **Create Release Commit**:
-   Stage changes and create a clean git commit representing the audited release milestone:
+1. **Apply Atomic Remediation & Documentation**:
+   - Execute approved fixes in logical order (Code Quality -> Architecture -> Tests -> Docs).
+   - **Audit Verification Badge in README**: Ensure the official audit verification badge is placed as the **very first badge** in `README.md` pointing to `AUDIT.json` (as codified in `package-docs` badge palette):
+     ```markdown
+     [![Audit Verified](https://img.shields.io/badge/Audit-Verified-10b981?logo=shield)](AUDIT.json)
+     ```
+   - Finalize `CHANGELOG.md` with the target release version and date.
+2. **Commit & Push to Remote**:
+   Stage changes and commit:
    ```bash
    git add .
    git commit -m "release: prepare audited release v{version}"
+   git push origin <branch>
    ```
-3. **Mechanical Verification & Cryptographic Certification**:
-   Execute final certification against the committed state:
+3. **Autonomous Remote CI Matrix Verification**:
+   - The orchestrator autonomously monitors the remote CI pipeline using GitHub CLI:
+     ```bash
+     gh run list --limit 1
+     gh run view <run-id>
+     ```
+   - Verify that all matrix jobs (all PHP versions and OS platforms, including Windows/Ubuntu) pass with 100% green status.
+   - If any CI job fails, inspect logs (`gh run view <run-id> --log-failed`), apply remediation, commit, push, and re-verify until the entire matrix is green.
+4. **Mechanical Verification & Cryptographic Certification**:
+   Execute final certification against the committed, CI-verified state:
    ```bash
    php artisan package:audit <path/to/package> --target-version={version}
    ```
-   This issues the tamper-proof **`AUDIT.json`** anchored to the immutable Git `tree_hash` and commit.
-4. **Archive Run Artifacts**:
+   This issues the tamper-proof **`AUDIT.json`** anchored to the immutable Git `tree_hash` and commit, and tags `audit/v{version}`.
+5. **Release Tagging & Publishing**:
+   - **Strict Tag Immutability & Packagist Warning**:
+     - Published git tags are strictly immutable. Never delete, re-point, or force-push an existing tag (`git push --force` or tag overwrite is prohibited).
+     - Packagist flags modified tags as suspicious tampering and will ignore or reject that release version.
+     - Any subsequent changes post-release must increment the patch version (`vX.Y.(Z+1)`).
+   - Create the semantic release tag and push commits and tags to remote:
+     ```bash
+     git tag -a v{version} -m "Release v{version}"
+     git push origin <branch> --tags
+     ```
+
+6. **Archive Run Artifacts**:
    Save `FINAL-REPORT.md` into `.audit/<timestamp>/` for local audit trail.

@@ -487,7 +487,7 @@ php artisan package:check --all --quick
 * `--quick`: Run quick tier checks only (`composer` validation and `pint` style check). Default is deep tier (`composer`, `pint`, `phpstan`, `tests`).
 * `--fix`: Automatically format and fix code style issues using Pint.
 * `--only=`: Comma-separated list of checks to run (`composer`, `pint`, `phpstan`, `tests`, `isolated`).
-* `--isolated`: Install and test an independent temporary copy of the package in isolation with Composer cache optimization (`--prefer-offline`).
+* `--isolated`: Install and test an independent temporary copy of the package in isolation with Composer cache optimization (`--prefer-dist`).
 * `--with-workspace-deps`: Allow isolated checks to resolve and link unpublished sibling packages in your workspace using local path repositories. If omitted when sibling dependencies exist, the check halts with an explicit, actionable error.
 * `--affected`: Traverse the workspace dependency graph (DAG) and execute regression test suites for all packages that depend on this package.
 * `--all`: Verify all packages across all registered workspaces.

@@ -138,7 +138,7 @@ class IsolatedPackageVerifier
             }
 
             $output[] = $this->run(
-                ['composer', 'install', '--prefer-dist', '--prefer-offline', '--no-interaction', '--no-progress'],
+                ['composer', 'install', '--prefer-dist', '--no-interaction', '--no-progress'],
                 $project,
                 $environment
             );

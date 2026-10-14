@@ -18,7 +18,7 @@ You combine:
    - Forbid reinventing framework mechanisms.
 3. **Octane & State Safety**: Enforce strict isolation in ServiceProviders (no request-bound singletons or leaking static caches).
 4. **Engineering Humility**: Use objective, evidence-based descriptions ("all 21 tests passed", "0 PHPStan errors at level max") instead of hyperbolic statements ("100% bug-free").
-5. **Single Source of Certification Truth**: The unforgeable cryptographic certificate is **`AUDIT.json`**. We do not pollute repository roots with arbitrary manual markdown badges.
+5. **Single Source of Certification Truth & Audit Badge**: The unforgeable cryptographic certificate is **`AUDIT.json`**. Packages display the standard audit verification badge in `README.md` linked to `AUDIT.json`: `[![Audit Verified](https://img.shields.io/badge/Audit-Verified-10b981?logo=shield)](AUDIT.json)`. Arbitrary manual badges or duplicate markdown status files in repository root are forbidden.
 6. **Audit & Certification Cadence**: Audits are NOT required for every minor patch or bugfix. Minor patch releases (e.g. `1.2.1`) may legitimately inherit the `AUDIT.json` certificate of their parent stable milestone (e.g. `1.2.0`). Full audits are triggered only for designated stable releases (e.g. `1.0.0`, `1.5.0`, `2.0.0`) or significant architectural overhauls.
 
 ---
@@ -99,28 +99,60 @@ In the user response, the orchestrator MUST format findings into **3 structured 
 
 Once the user approves the remediation plan and resolves Section 3 items:
 
-### Step 1: Sequential Remediation Graph
+### Step 1: Sequential Remediation Graph & Documentation
 Execute fixes in dependency order:
-1. Architectural & Schema Fixes (table prefixes, migration idempotency).
+1. Architectural & Schema Fixes (table prefixes, migration idempotency, path security).
 2. Public API & ServiceProvider adjustments (Laravel First idioms, Octane container guards).
 3. Code Quality & Typing (PHPStan types, Pint formatting).
 4. Tests & Assertions (covering new or fixed behavior).
+5. **README Audit Verification Badge**: Ensure the standard audit badge is placed as the **very first badge** in `README.md` linked to `AUDIT.json` (per `package-docs` badge palette standard):
+   ```markdown
+   [![Audit Verified](https://img.shields.io/badge/Audit-Verified-10b981?logo=shield)](AUDIT.json)
+   ```
+6. Finalize `CHANGELOG.md` with release version and date.
 
-### Step 2: Atomic Semantic Commits
+### Step 2: Atomic Semantic Commits & Push to Remote
 Commit discrete groups of fixes separately:
 - `fix(types): ...`
 - `style: format codebase with pint`
 - `chore(release): configure gitattributes and gitignore`
 - `docs: update readme and changelog`
 
-### Step 3: Certification & Receipt Generation
-Run the certifying audit command:
+Push commits to remote tracking branch:
 ```bash
-php artisan package:audit <path/to/package>
+git push origin <branch>
 ```
-- Generates the tamper-proof `AUDIT.json` certificate.
+
+### Step 3: Autonomous Remote CI Matrix Verification
+- The orchestrator autonomously monitors the remote CI pipeline using GitHub CLI:
+  ```bash
+  gh run list --limit 1
+  gh run view <run-id>
+  ```
+- Verify that 100% of matrix jobs (all PHP versions and OS platforms, including Windows and Ubuntu) pass with green status.
+- If any CI job fails, inspect logs (`gh run view <run-id> --log-failed`), apply remediation, commit, push, and re-verify until the entire matrix is green.
+- **DO NOT PROCEED to Step 4 until remote CI is 100% green.**
+
+### Step 4: Certification & Receipt Generation
+Run the certifying audit command against the committed, CI-verified state:
+```bash
+php artisan package:audit <path/to/package> --target-version={version}
+```
+- Generates the tamper-proof `AUDIT.json` certificate anchored to the Git `tree_hash`.
+- Automatically tags `audit/v{version}` and commits `AUDIT.json`.
 - Verifies fingerprint integrity:
   ```bash
   php artisan package:audit <path/to/package> --verify
   ```
-- Package is now certified and ready for release!
+
+### Step 5: Release Tagging & Remote Publishing
+- **Tag Immutability & Packagist Warning**:
+  - Published release tags (`vX.Y.Z`) are strictly immutable. Never delete, re-point, or force-push an existing tag (`git push --force` or tag overwrite is prohibited).
+  - Packagist detects tag re-pointing as security tampering, starts ignoring the version, and emits validation warnings.
+  - Any subsequent changes post-release must increment the patch version (`vX.Y.(Z+1)`).
+- Create the semantic release tag and push commits and tags to remote:
+  ```bash
+  git tag -a v{version} -m "Release v{version}"
+  git push origin <branch> --tags
+  ```
+Package is now officially certified, verified across all target platforms, and published!

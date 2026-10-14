@@ -20,7 +20,15 @@
     --add-topic "laravel" --add-topic "workspace" --add-topic "packages"
   ```
 
-## 3. Strict SemVer, Tag Immutability & Git Hygiene
+## 3. Strict SemVer, Tag Immutability & Packagist Rules
 - **Pull-Before-Tag**: Always run `git pull --rebase origin main` before creating and pushing tags to ensure local workspace is aligned across all machines.
-- **Tag Immutability**: All published tags are strictly immutable. Never delete, re-point, or force-push an existing tag.
-- Any subsequent hotfix or adjustment must be released under an incremented version tag (`vX.Y.(Z+1)`).
+- **Strict Tag Immutability**:
+  - Published release tags (`vX.Y.Z`) are strictly immutable and irreversible.
+  - **NEVER** delete, move, re-point, or force-push an existing release tag (`git push --force` or `git tag -f` are strictly prohibited on published tags).
+- **Packagist Tampering Detection & Invalidation**:
+  - Once a package is listed on Packagist, Packagist constantly monitors Git commits and tags via webhook or polling.
+  - If a tag is deleted, altered, or re-pointed to a different commit hash, Packagist detects this as potential security tampering/manipulation.
+  - In response, Packagist marks the tag as suspect, throws validation errors, and **completely ignores or freezes updates** for that version, breaking Composer dependency resolution for consumers.
+- **Post-Release Adjustments (Patch Increment Rule)**:
+  - Any subsequent bugfix, typo fix, README update, or code adjustment after a tag has been published **MUST** be released under an incremented version tag (`vX.Y.(Z+1)`), never by rewriting history or overwriting the existing tag.
+
