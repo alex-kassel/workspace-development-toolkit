@@ -22,6 +22,11 @@ switch ($command) {
     case 'status':
         exit(workspace_status($rootPath, $manifestPath));
 
+    case 'check':
+    case 'push':
+    case 'pull':
+        exit(workspace_run_artisan_command($rootPath, $command, array_slice($argv, 2)));
+
     case 'help':
     case '--help':
     case '-h':
@@ -188,6 +193,40 @@ function workspace_status(string $rootPath, string $manifestPath): int
 }
 
 /**
+ * Delegate a routine command to the Laravel artisan application.
+ */
+function workspace_run_artisan_command(string $rootPath, string $command, array $args): int
+{
+    if (! file_exists($rootPath . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php')) {
+        fwrite(STDERR, "\033[31m[ERROR]\033[0m Composer dependencies are not installed. Run: composer install\n");
+
+        return 1;
+    }
+
+    $artisan = $rootPath . DIRECTORY_SEPARATOR . 'artisan';
+    if (! file_exists($artisan)) {
+        fwrite(STDERR, "\033[31m[ERROR]\033[0m Artisan entrypoint was not found at: {$artisan}\n");
+
+        return 1;
+    }
+
+    $parts = [escapeshellarg(PHP_BINARY), escapeshellarg($artisan), 'workspace:' . $command];
+    foreach ($args as $arg) {
+        $parts[] = escapeshellarg((string) $arg);
+    }
+
+    $process = proc_open(implode(' ', $parts), [STDIN, STDOUT, STDERR], $pipes, $rootPath);
+
+    if (! is_resource($process)) {
+        fwrite(STDERR, "\033[31m[ERROR]\033[0m Failed to execute workspace:{$command}.\n");
+
+        return 1;
+    }
+
+    return proc_close($process);
+}
+
+/**
  * Show help for the workspace CLI.
  */
 function workspace_help(): void
@@ -201,6 +240,9 @@ function workspace_help(): void
 \033[36mAvailable commands:\033[0m
   \033[32mrestore\033[0m   Clone any missing workspace packages defined in {{ manifestPath }}
   \033[32mstatus\033[0m    Check the physical presence of workspace packages on disk
+  \033[32mcheck\033[0m     Verify the host app and packages are clean and pushed
+  \033[32mpush\033[0m      Push all clean repositories (requires composer install)
+  \033[32mpull\033[0m      Fast-forward all repositories (requires composer install)
   \033[32mhelp\033[0m      Display this help message
 
 HELP;

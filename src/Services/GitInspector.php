@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Process\FakeProcessResult;
 use Illuminate\Support\Facades\Process;
 
@@ -419,5 +420,145 @@ class GitInspector
         }
 
         return "Diverged (↑{$ahead} ↓{$behind})";
+    }
+
+    /**
+     * Get structured upstream tracking details.
+     *
+     * @return array{upstream: ?string, ahead: int, behind: int, status: string}
+     */
+    public function getTrackingDetails(string $path): array
+    {
+        if (! $this->hasGitRepository($path)) {
+            return ['upstream' => null, 'ahead' => 0, 'behind' => 0, 'status' => 'No git repo'];
+        }
+
+        $upstreamResult = Process::path($path)->run(['git', 'rev-parse', '--abbrev-ref', '@{u}']);
+        $upstream = $upstreamResult->successful() ? trim($upstreamResult->output()) : '';
+
+        if ($upstream === '') {
+            $commitCountResult = Process::path($path)->run(['git', 'rev-list', '--count', 'HEAD']);
+            $commits = $commitCountResult->successful() ? (int) trim($commitCountResult->output()) : 0;
+
+            return [
+                'upstream' => null,
+                'ahead' => $commits,
+                'behind' => 0,
+                'status' => $commits > 0 ? 'Unpublished' : 'No upstream',
+            ];
+        }
+
+        $revListResult = Process::path($path)->run(['git', 'rev-list', '--left-right', '--count', 'HEAD...@{u}']);
+        if (! $revListResult->successful()) {
+            return ['upstream' => $upstream, 'ahead' => 0, 'behind' => 0, 'status' => 'No upstream'];
+        }
+
+        $parts = preg_split('/\s+/', trim($revListResult->output())) ?: [];
+        $ahead = isset($parts[0]) ? (int) $parts[0] : 0;
+        $behind = isset($parts[1]) ? (int) $parts[1] : 0;
+
+        $status = match (true) {
+            $ahead === 0 && $behind === 0 => 'Synced',
+            $ahead > 0 && $behind === 0 => 'Ahead',
+            $ahead === 0 && $behind > 0 => 'Behind',
+            default => 'Diverged',
+        };
+
+        return ['upstream' => $upstream, 'ahead' => $ahead, 'behind' => $behind, 'status' => $status];
+    }
+
+    /**
+     * Get the individual dirty/untracked entries reported by `git status --porcelain`.
+     *
+     * @return array<int, string>
+     */
+    public function getDirtyFiles(string $path): array
+    {
+        if (! $this->hasGitRepository($path)) {
+            return [];
+        }
+
+        $result = Process::path($path)->run(['git', 'status', '--porcelain']);
+        if (! $result->successful()) {
+            return [];
+        }
+
+        $lines = array_filter(
+            array_map('trim', explode("\n", str_replace("\r", '', $result->output()))),
+            fn (string $line) => $line !== ''
+        );
+
+        return array_values($lines);
+    }
+
+    /**
+     * Get the number of stashed changes in the repository.
+     */
+    public function getStashesCount(string $path): int
+    {
+        if (! $this->hasGitRepository($path)) {
+            return 0;
+        }
+
+        $result = Process::path($path)->run(['git', 'stash', 'list']);
+        if (! $result->successful()) {
+            return 0;
+        }
+
+        return count(array_filter(
+            array_map('trim', explode("\n", str_replace("\r", '', $result->output()))),
+            fn (string $line) => $line !== ''
+        ));
+    }
+
+    /**
+     * Get tags that exist locally but not on any remote.
+     *
+     * @return array<int, string>
+     */
+    public function getUnpushedTags(string $path): array
+    {
+        if (! $this->hasGitRepository($path)) {
+            return [];
+        }
+
+        $result = Process::path($path)->run(['git', 'tag', '--not', '--remotes']);
+        if (! $result->successful()) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map('trim', explode("\n", str_replace("\r", '', $result->output()))),
+            fn (string $line) => $line !== ''
+        ));
+    }
+
+    /**
+     * Resolve the URL of a configured remote, or null when it does not exist.
+     */
+    public function getRemoteUrl(string $path, string $remote = 'origin'): ?string
+    {
+        if (! $this->hasGitRepository($path)) {
+            return null;
+        }
+
+        $result = Process::path($path)->run(['git', 'remote', 'get-url', $remote]);
+        if (! $result->successful()) {
+            return null;
+        }
+
+        $url = trim($result->output());
+
+        return $url !== '' ? $url : null;
+    }
+
+    /**
+     * Fetch all remote references (prune deleted branches).
+     */
+    public function fetch(string $path, string $remote = 'origin', ?int $timeout = null): ProcessResult
+    {
+        return Process::timeout($timeout ?? (int) config('workspace.process_timeout', 300))
+            ->path($path)
+            ->run(['git', 'fetch', '--prune', $remote]);
     }
 }

@@ -87,6 +87,9 @@ WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED=
    - [`workspace:default`](#workspacedefault)
    - [`php workspace restore`](#php-workspace-restore-standalone-cli-runner)
    - [`workspace:sync`](#workspacesync)
+   - [`workspace:check`](#workspacecheck)
+   - [`workspace:push`](#workspacepush)
+   - [`workspace:pull`](#workspacepull)
    - [`package:make`](#packagemake)
    - [`package:clone`](#packageclone)
    - [`package:alias`](#packagealias)
@@ -315,6 +318,74 @@ php artisan workspace:sync --dry-run
 
 > [!TIP]
 > The synchronization is **strictly idempotent**: if root `composer.json` already contains the correct repository paths, it will **not touch or reformat the file** on disk, completely eliminating ghost git diffs in team environments.
+
+### `workspace:check`
+Read-only preflight gate: verifies that the host application repository and every workspace package have a clean working tree, a configured upstream, and no unpushed commits.
+
+```bash
+# Human-readable report (exit code 1 when problems are found):
+composer workspace:check
+
+# Machine-readable report:
+php artisan workspace:check --json
+
+# Verify against freshly fetched remotes and skip the host repository:
+php artisan workspace:check --fetch --no-host
+```
+
+* **Errors** (non-zero exit code): dirty working tree, detached HEAD, missing package directory, missing `origin`, unpublished branch, ahead of upstream, diverged branch.
+* **Warnings** (exit code stays 0): behind upstream, stashes, tags that are not pushed.
+* Also available as `php workspace check` (the standalone runner delegates to this command).
+
+---
+
+### `workspace:push`
+Pushes every clean repository that has local commits (and its tags) to `origin`. The command never commits, merges, or force-pushes anything.
+
+```bash
+# Push all packages, then the host application:
+composer workspace:push
+
+# Preview what would be pushed:
+php artisan workspace:push --dry-run
+
+# Skip tags or the host repository:
+php artisan workspace:push --no-tags --no-host
+```
+
+* Dirty, detached, diverged, or missing-remote repositories are reported and skipped; the command exits with a non-zero code.
+* Branches without an upstream are pushed with `--set-upstream`.
+* Tags are pushed with `--follow-tags`, and any remaining local-only tags are pushed explicitly.
+* Also available as `php workspace push`.
+
+---
+
+### `workspace:pull`
+Fast-forwards the host application and all workspace packages to their remote state. It is intentionally incremental: existing and up-to-date packages are left untouched, missing packages are cloned, and only what actually changed is refreshed.
+
+```bash
+# Typical use on another machine:
+composer workspace:pull
+
+# Preview without changing anything:
+php artisan workspace:pull --dry-run
+
+# Skip dependency/asset refresh when you only need the code:
+php artisan workspace:pull --no-install --no-assets
+```
+
+The command performs, in order:
+
+1. fast-forward the host repository (when it is behind its upstream);
+2. clone packages listed in `workspace.json` but missing on disk;
+3. fast-forward every existing package (dirty or diverged repositories are skipped and reported);
+4. run `composer install` only when `composer.json` / `composer.lock` changed or `vendor/` is missing;
+5. run migrations only when migration files changed (or `--migrate` is passed);
+6. install and build front-end assets only when `package.json` / `package-lock.json` changed (or `--assets` is passed);
+7. clear application caches.
+
+Everything is fast-forward-only: local uncommitted changes are never overwritten.
+* Also available as `php workspace pull`.
 
 ---
 

@@ -111,7 +111,7 @@ class ComposerManager
     }
 
     /**
-     * Ensure root composer.json has pre-install and pre-update hooks for standalone workspace restore.
+     * Ensure root composer.json has restore hooks and routine command shortcuts.
      */
     public function ensureComposerHooks(): void
     {
@@ -156,6 +156,21 @@ class ComposerManager
                 $scripts[$hookName] = $current;
                 $modified = true;
             }
+        }
+
+        $targetScripts = [
+            'workspace:check' => '@php artisan workspace:check --ansi',
+            'workspace:push' => '@php artisan workspace:push --ansi',
+            'workspace:pull' => '@php artisan workspace:pull --ansi',
+        ];
+
+        foreach ($targetScripts as $scriptName => $targetScript) {
+            if (array_key_exists($scriptName, $scripts)) {
+                continue;
+            }
+
+            $scripts[$scriptName] = [$targetScript];
+            $modified = true;
         }
 
         if ($modified) {

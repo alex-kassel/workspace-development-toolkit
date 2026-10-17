@@ -8,6 +8,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\DTOs\WorkspaceContext;
 use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\AgentsGuidelineWorkspaceProcessor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\BoostConfigWorkspaceProcessor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\CleanupArtifactsWorkspaceProcessor;
+use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\ComposerScriptsWorkspaceProcessor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\CustomHookWorkspaceProcessor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\RunnerWorkspaceProcessor;
 use AlexKassel\WorkspaceDevelopmentToolkit\Processors\Workspace\SetupManifestWorkspaceProcessor;
@@ -23,6 +24,7 @@ class WorkspaceInstaller
         AgentsGuidelineWorkspaceProcessor::class,
         BoostConfigWorkspaceProcessor::class,
         RunnerWorkspaceProcessor::class,
+        ComposerScriptsWorkspaceProcessor::class,
         CleanupArtifactsWorkspaceProcessor::class,
         CustomHookWorkspaceProcessor::class,
     ];

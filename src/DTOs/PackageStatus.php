@@ -26,7 +26,10 @@ final readonly class PackageStatus
             return true;
         }
 
-        if (str_starts_with($this->upstream, 'Ahead') || str_starts_with($this->upstream, 'Behind') || str_starts_with($this->upstream, 'Diverged')) {
+        if (str_starts_with($this->upstream, 'Ahead')
+            || str_starts_with($this->upstream, 'Behind')
+            || str_starts_with($this->upstream, 'Diverged')
+            || $this->upstream === 'Unpublished') {
             return true;
         }
 

@@ -26,6 +26,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageSkillsCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageUninstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\PackageWorkflowCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceArchetypesCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceCheckCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceCiMatrixCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDashboardCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceDefaultCommand;
@@ -33,6 +34,8 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceFlattenCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceHelpCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceInstallCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceListCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspacePullCommand;
+use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspacePushCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceRegisterCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStatusCommand;
 use AlexKassel\WorkspaceDevelopmentToolkit\Commands\WorkspaceStubsCommand;
@@ -63,6 +66,7 @@ use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReadmeValidator;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\ReleaseChecker;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\SkillInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\VerificationPipeline;
+use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceGitService;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceInstaller;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceManager;
 use AlexKassel\WorkspaceDevelopmentToolkit\Services\WorkspaceStatusCollector;
@@ -126,6 +130,7 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
         $this->app->singleton(PackageGraph::class);
         $this->app->singleton(CiMatrixGenerator::class);
         $this->app->singleton(WorkspaceStatusCollector::class);
+        $this->app->singleton(WorkspaceGitService::class);
         $this->app->singleton(WorkspaceInstaller::class);
         $this->app->singleton(PackageMaker::class);
     }
@@ -188,6 +193,9 @@ class WorkspaceDevelopmentToolkitServiceProvider extends ServiceProvider
                 WorkspaceDefaultCommand::class,
                 WorkspaceListCommand::class,
                 WorkspaceStatusCommand::class,
+                WorkspaceCheckCommand::class,
+                WorkspacePushCommand::class,
+                WorkspacePullCommand::class,
                 WorkspaceSyncCommand::class,
                 WorkspaceHelpCommand::class,
                 WorkspaceInstallCommand::class,

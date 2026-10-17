@@ -55,6 +55,9 @@ class WorkspaceHelpCommand extends BaseWorkspaceCommand
             ['workspace:unflatten <path>', 'Revert a flat workspace back to nested multi-vendor layout.'],
             ['workspace:list', 'Display all registered workspaces, their vendors, structure mode, and packages.'],
             ['workspace:default <path>', 'Set the default workspace for creating new packages.'],
+            ['workspace:check [--json] [--no-host]', 'Verify host app and packages are clean and pushed (non-zero exit on issues).'],
+            ['workspace:push [--dry-run] [--no-host]', 'Push all clean repositories and tags to their remotes.'],
+            ['workspace:pull [--dry-run] [--no-host]', 'Fast-forward host app and packages, then refresh dependencies.'],
             ['workspace:help', 'Display this interactive guide and cheat sheet.'],
             ['package:make <name> [--workspace=] [--install] [--dev]', 'Scaffold a new local Laravel package with ServiceProvider and manifest.'],
             ['package:clone [package] [--self] [--workspace=]', 'Clone a Git/GitHub package into workspace and optionally symlink.'],
@@ -64,6 +67,7 @@ class WorkspaceHelpCommand extends BaseWorkspaceCommand
             ['package:delete <name> [--force]', 'Completely delete a package from disk, manifest, and Composer.'],
             ['php workspace restore', 'Standalone root CLI (runs before composer install on fresh machines).'],
             ['php workspace status', 'Check physical presence of workspace packages on disk.'],
+            ['php workspace check|push|pull', 'Routine git commands (delegate to artisan).'],
         ];
 
         foreach ($commands as [$sig, $desc]) {
@@ -78,6 +82,11 @@ class WorkspaceHelpCommand extends BaseWorkspaceCommand
         $this->line('  <fg=gray># Create a client-specific workspace and flat module:</>');
         $this->line('  <fg=yellow>php artisan workspace:register clients/acme --vendor=acme-corp</>');
         $this->line('  <fg=yellow>php artisan package:make billing --workspace=clients/acme --install</>');
+        $this->line('');
+        $this->line('  <fg=gray># Preflight before shutting down / adopt latest state on another machine:</>');
+        $this->line('  <fg=yellow>composer workspace:check</>   # read-only report, non-zero exit on problems');
+        $this->line('  <fg=yellow>composer workspace:push</>    # push committed work + tags');
+        $this->line('  <fg=yellow>composer workspace:pull</>    # fast-forward everything + refresh deps');
         $this->line('');
         $this->line('  <fg=gray># View detailed help for any specific command:</>');
         $this->line('  <fg=yellow>php artisan help package:make</>');
