@@ -183,6 +183,20 @@ After that, `composer workspace:pull` and the rest are available.
 * Standalone runner: `stubs/workspace.stub` (contains `workspace_check`, `workspace_push`, `workspace_pull`,
   `workspace_missing_packages`, `workspace_restore` and the artisan delegation)
 * Agent skill: `resources/boost/skills/workspace-routines/SKILL.md` (auto-published to `.agents/skills`)
+
+## Updating the published agent skill
+
+Auto-publish installs a bundled skill only when it is **absent** (it compares the `origin` field). If you
+edit `resources/boost/skills/workspace-routines/SKILL.md`, the already-installed host copy will not update
+by itself. To refresh it:
+
+```bash
+rm -rf .agents/skills/workspace-routines
+php artisan list   # any artisan boot triggers auto-publish
+```
+
+Commit the refreshed `.agents/skills/workspace-routines` together with the host lock update. Do not edit
+only the host copy: the toolkit source is canonical.
 * Tests:
   * `tests/Feature/Commands/WorkspaceGitCommandsTest.php` — real git repositories and bare remotes
   * `tests/Feature/WorkspaceRoutineMaterializationTest.php` — composer shortcuts, runner content, missing

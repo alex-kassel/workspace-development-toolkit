@@ -157,6 +157,10 @@ run should be executed after the first boot.
 * `src/Services/ComposerManager.php` (`ensureComposerHooks` installs the shortcuts)
 * `stubs/workspace.stub` (standalone runner: `check`, `push`, `pull`, restore-first logic)
 * [docs/workspace-routines.md](https://github.com/alex-kassel/workspace-development-toolkit/blob/main/docs/workspace-routines.md) (full human guide)
+
+> This skill is auto-published from the toolkit. Auto-publish installs it only when absent; after editing
+> the toolkit source, remove `.agents/skills/workspace-routines` in the host and run any artisan command to
+> reinstall the updated copy.
 * Tests: `tests/Feature/Commands/WorkspaceGitCommandsTest.php`,
   `tests/Feature/WorkspaceRoutineMaterializationTest.php`,
   `tests/Unit/GitInspectorTrackingTest.php`, `tests/Unit/DTOs/GitRepositoryStateTest.php`
