@@ -556,6 +556,21 @@ class WorkspaceManagerTest extends TestCase
         $this->assertSame('vendor/my-package', $res4['suggestion']);
     }
 
+    public function test_ensure_local_package_gitignore_preserves_files_without_trailing_newline(): void
+    {
+        $directory = base_path('packages/acme/pkg');
+
+        File::ensureDirectoryExists($directory);
+        File::put($directory.'/.gitignore', "/vendor/\n/.audits/");
+
+        Workspace::ensureLocalPackageGitignore('packages/acme/pkg');
+
+        $content = File::get($directory.'/.gitignore');
+
+        $this->assertStringContainsString("/.audits/\n/workspace.json\n", $content);
+        $this->assertStringNotContainsString('/.audits//workspace.json', $content);
+    }
+
     public function test_remove_from_gitignore_cleans_workspace_entries(): void
     {
         $gitignorePath = base_path('.gitignore');

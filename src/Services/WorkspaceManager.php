@@ -1133,7 +1133,13 @@ class WorkspaceManager
             }
         }
 
-        File::append($gitignorePath, "{$entry}\n");
+        $append = $entry."\n";
+
+        if ($content !== '' && ! str_ends_with($content, "\n") && ! str_ends_with($content, "\r")) {
+            $append = "\n".$append;
+        }
+
+        File::append($gitignorePath, $append);
     }
 
     /**
