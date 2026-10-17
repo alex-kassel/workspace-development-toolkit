@@ -9,9 +9,8 @@ declare(strict_types=1);
  * Standalone runner for workspace maintenance (e.g. restoring packages on fresh machines)
  * without requiring vendor/autoload.php or a fully-bootstrapped Laravel application.
  */
-
 $rootPath = __DIR__;
-$manifestPath = $rootPath . DIRECTORY_SEPARATOR . '{{ manifestPath }}';
+$manifestPath = $rootPath.DIRECTORY_SEPARATOR.'{{ manifestPath }}';
 
 $command = $argv[1] ?? 'help';
 
@@ -23,9 +22,13 @@ switch ($command) {
         exit(workspace_status($rootPath, $manifestPath));
 
     case 'check':
+        exit(workspace_check($rootPath, $manifestPath, array_slice($argv, 2)));
+
     case 'push':
+        exit(workspace_push($rootPath, $manifestPath, array_slice($argv, 2)));
+
     case 'pull':
-        exit(workspace_run_artisan_command($rootPath, $command, array_slice($argv, 2)));
+        exit(workspace_pull($rootPath, $manifestPath, array_slice($argv, 2)));
 
     case 'help':
     case '--help':
@@ -84,16 +87,16 @@ function workspace_restore(string $rootPath, string $manifestPath, array $args):
             // Determine relative target path
             if ($vendor !== null) {
                 // Fixed-vendor workspace: e.g. labs/{package} or labs/{alias}
-                $targetRelative = $wsName . '/' . $effectiveDir;
+                $targetRelative = $wsName.'/'.$effectiveDir;
                 $canonicalName = str_contains($pkgName, '/') ? $pkgName : "{$vendor}/{$pkgName}";
             } else {
                 // Multi-vendor workspace: e.g. packages/{vendor}/{package}
-                $targetRelative = $wsName . '/' . $effectiveDir;
+                $targetRelative = $wsName.'/'.$effectiveDir;
                 $canonicalName = $pkgName;
             }
 
             $targetRelative = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $targetRelative);
-            $fullTarget = $rootPath . DIRECTORY_SEPARATOR . $targetRelative;
+            $fullTarget = $rootPath.DIRECTORY_SEPARATOR.$targetRelative;
 
             // Resolve Git clone URL with optional env var expansion (e.g. ${GIT_TOKEN})
             $cloneUrl = $customUrl ?? str_replace('{package}', $canonicalName, $template);
@@ -168,20 +171,20 @@ function workspace_status(string $rootPath, string $manifestPath): int
         $vendor = $wsConfig['vendor'] ?? null;
         $packages = $wsConfig['packages'] ?? [];
 
-        echo "  Workspace: \033[33m{$wsName}\033[0m" . ($vendor ? " (vendor: {$vendor})" : "") . "\n";
+        echo "  Workspace: \033[33m{$wsName}\033[0m".($vendor ? " (vendor: {$vendor})" : '')."\n";
 
         foreach ($packages as $pkg) {
             $pkgName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
             $alias = is_array($pkg) ? ($pkg['alias'] ?? null) : null;
             $effectiveDir = $alias ?? $pkgName;
 
-            $targetRelative = $wsName . '/' . $effectiveDir;
+            $targetRelative = $wsName.'/'.$effectiveDir;
             $targetRelative = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $targetRelative);
-            $fullTarget = $rootPath . DIRECTORY_SEPARATOR . $targetRelative;
+            $fullTarget = $rootPath.DIRECTORY_SEPARATOR.$targetRelative;
 
             $exists = file_exists($fullTarget);
             $statusLabel = $exists ? "\033[32m[FOUND]\033[0m" : "\033[31m[MISSING]\033[0m";
-            $aliasSuffix = $alias ? " (alias: \033[35m{$alias}\033[0m)" : "";
+            $aliasSuffix = $alias ? " (alias: \033[35m{$alias}\033[0m)" : '';
 
             echo "    {$statusLabel} {$pkgName}{$aliasSuffix} ({$targetRelative})\n";
         }
@@ -193,24 +196,161 @@ function workspace_status(string $rootPath, string $manifestPath): int
 }
 
 /**
+ * Check that all workspace packages are clean and pushed.
+ *
+ * The Laravel application cannot boot when a required package directory is missing,
+ * so the runner validates physical presence before delegating to artisan.
+ */
+function workspace_check(string $rootPath, string $manifestPath, array $args): int
+{
+    $missing = workspace_missing_packages($rootPath, $manifestPath);
+
+    if ($missing !== []) {
+        workspace_report_missing_packages($missing);
+
+        return 1;
+    }
+
+    if (! workspace_has_autoloader($rootPath)) {
+        workspace_report_missing_dependencies();
+
+        return 1;
+    }
+
+    return workspace_run_artisan_command($rootPath, 'check', $args);
+}
+
+/**
+ * Push all clean repositories to their remotes.
+ */
+function workspace_push(string $rootPath, string $manifestPath, array $args): int
+{
+    $missing = workspace_missing_packages($rootPath, $manifestPath);
+
+    if ($missing !== []) {
+        workspace_report_missing_packages($missing);
+
+        return 1;
+    }
+
+    if (! workspace_has_autoloader($rootPath)) {
+        workspace_report_missing_dependencies();
+
+        return 1;
+    }
+
+    return workspace_run_artisan_command($rootPath, 'push', $args);
+}
+
+/**
+ * Restore missing packages first, then fast-forward everything and refresh the host.
+ *
+ * Restoring before bootstrapping Laravel is essential: a missing package breaks the
+ * host autoloader, so `php artisan` cannot run until the package is cloned back.
+ */
+function workspace_pull(string $rootPath, string $manifestPath, array $args): int
+{
+    if (! file_exists($manifestPath)) {
+        fwrite(STDERR, "\033[31m[ERROR]\033[0m Manifest file was not found at: {$manifestPath}\n");
+
+        return 1;
+    }
+
+    $restoreCode = workspace_restore($rootPath, $manifestPath, $args);
+
+    if ($restoreCode !== 0) {
+        return $restoreCode;
+    }
+
+    if (! workspace_has_autoloader($rootPath)) {
+        workspace_report_missing_dependencies();
+
+        return 1;
+    }
+
+    return workspace_run_artisan_command($rootPath, 'pull', $args);
+}
+
+/**
+ * Get canonical names of workspace packages that are missing on disk.
+ *
+ * @return array<int, string>
+ */
+function workspace_missing_packages(string $rootPath, string $manifestPath): array
+{
+    if (! file_exists($manifestPath)) {
+        return [];
+    }
+
+    $manifest = json_decode((string) file_get_contents($manifestPath), true);
+
+    if (! is_array($manifest) || ! isset($manifest['workspaces']) || ! is_array($manifest['workspaces'])) {
+        return [];
+    }
+
+    $missing = [];
+
+    foreach ($manifest['workspaces'] as $wsName => $wsConfig) {
+        $packages = $wsConfig['packages'] ?? [];
+
+        foreach ($packages as $pkg) {
+            $pkgName = is_array($pkg) ? ($pkg['name'] ?? '') : (string) $pkg;
+
+            if ($pkgName === '') {
+                continue;
+            }
+
+            $alias = is_array($pkg) ? ($pkg['alias'] ?? null) : null;
+            $effectiveDir = $alias ?? $pkgName;
+            $targetRelative = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $wsName.'/'.$effectiveDir);
+
+            if (! file_exists($rootPath.DIRECTORY_SEPARATOR.$targetRelative)) {
+                $missing[] = $pkgName;
+            }
+        }
+    }
+
+    return $missing;
+}
+
+/**
+ * @param  array<int, string>  $missing
+ */
+function workspace_report_missing_packages(array $missing): void
+{
+    fwrite(STDERR, "\033[31m[ERROR]\033[0m Missing workspace packages: ".implode(', ', $missing)."\n");
+    fwrite(STDERR, "  Restore them first: php workspace pull\n");
+}
+
+function workspace_has_autoloader(string $rootPath): bool
+{
+    return file_exists($rootPath.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'autoload.php');
+}
+
+function workspace_report_missing_dependencies(): void
+{
+    fwrite(STDERR, "\033[31m[ERROR]\033[0m Composer dependencies are not installed. Run: composer install\n");
+}
+
+/**
  * Delegate a routine command to the Laravel artisan application.
  */
 function workspace_run_artisan_command(string $rootPath, string $command, array $args): int
 {
-    if (! file_exists($rootPath . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php')) {
+    if (! file_exists($rootPath.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'autoload.php')) {
         fwrite(STDERR, "\033[31m[ERROR]\033[0m Composer dependencies are not installed. Run: composer install\n");
 
         return 1;
     }
 
-    $artisan = $rootPath . DIRECTORY_SEPARATOR . 'artisan';
+    $artisan = $rootPath.DIRECTORY_SEPARATOR.'artisan';
     if (! file_exists($artisan)) {
         fwrite(STDERR, "\033[31m[ERROR]\033[0m Artisan entrypoint was not found at: {$artisan}\n");
 
         return 1;
     }
 
-    $parts = [escapeshellarg(PHP_BINARY), escapeshellarg($artisan), 'workspace:' . $command];
+    $parts = [escapeshellarg(PHP_BINARY), escapeshellarg($artisan), 'workspace:'.$command];
     foreach ($args as $arg) {
         $parts[] = escapeshellarg((string) $arg);
     }
@@ -242,7 +382,7 @@ function workspace_help(): void
   \033[32mstatus\033[0m    Check the physical presence of workspace packages on disk
   \033[32mcheck\033[0m     Verify the host app and packages are clean and pushed
   \033[32mpush\033[0m      Push all clean repositories (requires composer install)
-  \033[32mpull\033[0m      Fast-forward all repositories (requires composer install)
+  \033[32mpull\033[0m      Restore missing packages, then fast-forward everything
   \033[32mhelp\033[0m      Display this help message
 
 HELP;

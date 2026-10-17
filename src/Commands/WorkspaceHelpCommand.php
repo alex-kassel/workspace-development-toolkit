@@ -67,7 +67,7 @@ class WorkspaceHelpCommand extends BaseWorkspaceCommand
             ['package:delete <name> [--force]', 'Completely delete a package from disk, manifest, and Composer.'],
             ['php workspace restore', 'Standalone root CLI (runs before composer install on fresh machines).'],
             ['php workspace status', 'Check physical presence of workspace packages on disk.'],
-            ['php workspace check|push|pull', 'Routine git commands (delegate to artisan).'],
+            ['php workspace check|push|pull', 'Routine git commands (restore-first binary; delegates to artisan).'],
         ];
 
         foreach ($commands as [$sig, $desc]) {

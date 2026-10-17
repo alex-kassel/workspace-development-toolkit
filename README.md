@@ -335,7 +335,7 @@ php artisan workspace:check --fetch --no-host
 
 * **Errors** (non-zero exit code): dirty working tree, detached HEAD, missing package directory, missing `origin`, unpublished branch, ahead of upstream, diverged branch.
 * **Warnings** (exit code stays 0): behind upstream, stashes, tags that are not pushed.
-* Also available as `php workspace check` (the standalone runner delegates to this command).
+* Also available as `php workspace check`: the standalone runner validates that every package exists before booting Laravel (a missing package would break the host autoloader), then delegates to this command.
 
 ---
 
@@ -356,7 +356,7 @@ php artisan workspace:push --no-tags --no-host
 * Dirty, detached, diverged, or missing-remote repositories are reported and skipped; the command exits with a non-zero code.
 * Branches without an upstream are pushed with `--set-upstream`.
 * Tags are pushed with `--follow-tags`, and any remaining local-only tags are pushed explicitly.
-* Also available as `php workspace push`.
+* Also available as `php workspace push`: same preflight, then delegates to this command.
 
 ---
 
@@ -385,7 +385,10 @@ The command performs, in order:
 7. clear application caches.
 
 Everything is fast-forward-only: local uncommitted changes are never overwritten.
-* Also available as `php workspace pull`.
+
+> [!IMPORTANT]
+> Run `composer workspace:pull` (or `php workspace pull`) rather than `php artisan workspace:pull` when a package directory may be missing: the standalone runner can restore packages before Laravel's autoloader is loaded, while `artisan` cannot boot without them.
+* Also available as `php workspace pull`: **this is the recommended entry point on another machine.** The standalone runner first restores missing packages (without booting Laravel), then delegates to this command. Use it when some packages are missing, outdated, or both.
 
 ---
 

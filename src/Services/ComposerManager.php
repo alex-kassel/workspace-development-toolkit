@@ -159,9 +159,9 @@ class ComposerManager
         }
 
         $targetScripts = [
-            'workspace:check' => '@php artisan workspace:check --ansi',
-            'workspace:push' => '@php artisan workspace:push --ansi',
-            'workspace:pull' => '@php artisan workspace:pull --ansi',
+            'workspace:check' => '@php workspace check',
+            'workspace:push' => '@php workspace push',
+            'workspace:pull' => '@php workspace pull',
         ];
 
         foreach ($targetScripts as $scriptName => $targetScript) {

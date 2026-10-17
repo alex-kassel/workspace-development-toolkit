@@ -29,9 +29,15 @@ class WorkspaceRoutineMaterializationTest extends TestCase
 
         $scripts = $this->composerScripts();
 
-        foreach (['workspace:check', 'workspace:push', 'workspace:pull'] as $script) {
+        $expected = [
+            'workspace:check' => '@php workspace check',
+            'workspace:push' => '@php workspace push',
+            'workspace:pull' => '@php workspace pull',
+        ];
+
+        foreach ($expected as $script => $command) {
             $this->assertArrayHasKey($script, $scripts);
-            $this->assertContains('@php artisan '.$script.' --ansi', $scripts[$script]);
+            $this->assertContains($command, $scripts[$script]);
         }
 
         $runner = (string) File::get(base_path('workspace'));
@@ -41,6 +47,8 @@ class WorkspaceRoutineMaterializationTest extends TestCase
         }
 
         $this->assertStringContainsString('workspace_run_artisan_command', $runner);
+        $this->assertStringContainsString('workspace_missing_packages', $runner);
+        $this->assertStringContainsString('workspace_restore($rootPath, $manifestPath, $args)', $runner);
     }
 
     public function test_install_publishes_composer_shortcuts(): void
