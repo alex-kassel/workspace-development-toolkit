@@ -256,10 +256,12 @@ function workspace_pull(string $rootPath, string $manifestPath, array $args): in
         return 1;
     }
 
-    $restoreCode = workspace_restore($rootPath, $manifestPath, $args);
+    if (workspace_missing_packages($rootPath, $manifestPath) !== []) {
+        $restoreCode = workspace_restore($rootPath, $manifestPath, $args);
 
-    if ($restoreCode !== 0) {
-        return $restoreCode;
+        if ($restoreCode !== 0) {
+            return $restoreCode;
+        }
     }
 
     if (! workspace_has_autoloader($rootPath)) {
