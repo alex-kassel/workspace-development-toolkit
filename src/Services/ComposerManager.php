@@ -165,10 +165,14 @@ class ComposerManager
         ];
 
         foreach ($targetScripts as $scriptName => $targetScript) {
-            if (array_key_exists($scriptName, $scripts)) {
+            $current = $scripts[$scriptName] ?? null;
+            $current = is_array($current) ? $current : ($current !== null ? [$current] : []);
+
+            if ($current === [$targetScript]) {
                 continue;
             }
 
+            // These names are owned by the toolkit, so upgrading their implementation is safe.
             $scripts[$scriptName] = [$targetScript];
             $modified = true;
         }
