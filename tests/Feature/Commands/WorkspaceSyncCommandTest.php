@@ -22,10 +22,20 @@ class WorkspaceSyncCommandTest extends TestCase
         // Check standalone workspace CLI exists
         $this->assertFileExists(base_path('workspace'));
 
+        // The published runner must be rendered: raw stub tokens break workspace restore
+        $runner = File::get(base_path('workspace'));
+
+        $this->assertStringNotContainsString('{{ manifestPath }}', $runner);
+        $this->assertStringNotContainsString('{{ runnerName }}', $runner);
+        $this->assertStringContainsString("'workspace.json'", $runner);
+
         // Second run without changes should report already up to date (0 file changes)
         $this->artisan('workspace:sync')
             ->expectsOutputToContain('already up to date')
             ->assertSuccessful();
+
+        // Re-synchronizing must not clobber the rendered runner
+        $this->assertSame($runner, File::get(base_path('workspace')));
     }
 
     public function test_workspace_sync_command_supports_dry_run(): void

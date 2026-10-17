@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace AlexKassel\WorkspaceDevelopmentToolkit\Services;
 
+use AlexKassel\WorkspaceDevelopmentToolkit\Actions\PublishWorkspaceRunnerAction;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\ComposerProcessException;
 use AlexKassel\WorkspaceDevelopmentToolkit\Exceptions\InvalidJsonException;
+use AlexKassel\WorkspaceManifest\WorkspaceManifest;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -164,20 +166,41 @@ class ComposerManager
 
     /**
      * Ensure the standalone `workspace` CLI script exists in the root directory.
+     *
+     * The published runner must be rendered: the raw stub contains
+     * `{{ manifestPath }}` and `{{ runnerName }}` tokens that have to be
+     * interpolated, otherwise the runner cannot resolve workspace.json and
+     * every `php workspace restore` composer hook fails.
      */
     public function ensureWorkspaceScript(): void
     {
-        $targetPath = base_path('workspace');
-        $stubPath = __DIR__.'/../../stubs/workspace.stub';
+        $runnerName = PublishWorkspaceRunnerAction::DEFAULT_RUNNER_NAME;
+        $targetPath = base_path($runnerName);
+        $stubPath = __DIR__.'/../../stubs/'.PublishWorkspaceRunnerAction::DEFAULT_STUB_FILENAME;
 
         if (! File::exists($stubPath)) {
             return;
         }
 
-        $stubContent = File::get($stubPath);
+        $manifestFilename = config('workspace-manifest.path');
+        if (! is_string($manifestFilename) || trim($manifestFilename) === '') {
+            $manifestFilename = WorkspaceManifest::DEFAULT_FILENAME;
+        }
 
-        if (! File::exists($targetPath) || File::get($targetPath) !== $stubContent) {
-            File::put($targetPath, $stubContent);
+        $renderedContent = str_replace(
+            [
+                PublishWorkspaceRunnerAction::TOKEN_MANIFEST_PATH,
+                PublishWorkspaceRunnerAction::TOKEN_RUNNER_NAME,
+            ],
+            [
+                trim($manifestFilename),
+                $runnerName,
+            ],
+            File::get($stubPath)
+        );
+
+        if (! File::exists($targetPath) || File::get($targetPath) !== $renderedContent) {
+            File::put($targetPath, $renderedContent);
             @chmod($targetPath, 0755);
         }
     }
