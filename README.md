@@ -76,6 +76,7 @@ WORKSPACE_TRUSTED_ORGANIZATIONS_COMMASEPARATED=
 6. [Usage](#usage)
    - [The Two Workspace Paradigms](#the-two-workspace-paradigms)
    - [Quick Start Tutorial (60 Seconds)](#quick-start-tutorial-60-seconds)
+   - [Machine-to-Machine Workflow](#machine-to-machine-workflow)
    - [Interactive Help & CLI Guide](#interactive-help--cli-guide)
 7. [Command Reference](#command-reference)
    - [`workspace:help`](#workspacehelp)
@@ -210,6 +211,29 @@ php artisan package:make ai-assistant --install --dev
 ```bash
 php artisan workspace:list
 ```
+
+---
+
+## Machine-to-Machine Workflow
+
+The toolkit ships a complete routine for moving between machines without losing work:
+
+```bash
+# Before shutting down: verify clean trees + everything pushed, then push commits/tags.
+composer workspace:check
+composer workspace:push
+
+# On another machine: adopt the latest state (works even when some packages are missing/outdated).
+composer workspace:pull
+```
+
+Both shortcuts are installed into the host `composer.json` by the toolkit and run through the standalone
+`workspace` runner. The runner restores missing packages **before** Laravel boots, so a missing package
+cannot break the recovery command, and then delegates to the artisan implementation.
+
+* Full human guide: [docs/workspace-routines.md](docs/workspace-routines.md)
+* Agent skill (auto-published to `.agents/skills/workspace-routines`): `resources/boost/skills/workspace-routines/SKILL.md`
+* Commands: [`workspace:check`](#workspacecheck), [`workspace:push`](#workspacepush), [`workspace:pull`](#workspacepull)
 
 ---
 
